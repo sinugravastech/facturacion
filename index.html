@@ -1712,7 +1712,7 @@ const APP = Object.freeze({
   nombre: 'Facturación',
   area: 'Órdenes de compra',
   empresa: 'SINUGRAVAS S.A.S.',
-  version: '2.0.0',
+  version: '2.1.0',
   /* 3: los datos viven en la nube y el número de cada orden sale de las órdenes */
   esquema: 3,
   /* La base del navegador de la versión local (1.x). Ya no se guarda en ella:
@@ -2725,6 +2725,12 @@ class NubeAdapter extends StorageAdapter {
     this.ver = {};      // colección → (id → marca «actualizado» que se vio)
     this.marca = {};    // colección → la última marca de la tabla ya revisada
     COLECCIONES.forEach(c => { this.ver[c] = new Map(); });
+    this.desde = null;        // desde qué hora de la nube se pregunta qué cambió
+    this.sinCambios = false;  // la nube todavía no tiene el SQL 203: se revisa como antes
+    this._probado = 0;        // cuándo se miró por última vez si ya tiene el 203
+    this._ultima = 0;         // cuándo respondió la última pregunta
+    this._escribiendo = 0;    // lotes en camino a la nube
+    this._escritos = 0;       // lotes que la nube ya guardó
   }
   get persistente() { return true; }
   get nube() { return true; }
@@ -2780,10 +2786,16 @@ class NubeAdapter extends StorageAdapter {
   }
   /** Dónde queda el archivo de un adjunto en el depósito */
   static ruta(a) { return a.ruta || 'orden/' + (a.ordenId || 'sin-orden') + '/' + a.id; }
-  /* opts.avance(n, total): va contando los archivos que se suben */
+  /* opts.avance(n, total): va contando los archivos que se suben. Mientras se
+     guarda, la revisión de la nube espera; y si su respuesta salió antes de que
+     esto quedara guardado, se descarta (traería lo de antes). */
   async lote(ops, opts) {
     if (!ops.length) return;
-    opts = opts || {};
+    this._escribiendo++;
+    try { await this._lote(ops, opts || {}); this._escritos++; }
+    finally { this._escribiendo--; }
+  }
+  async _lote(ops, opts) {
     /* De cada adjunto cuenta lo último que se pide (un respaldo lo borra y lo vuelve a poner) */
     const ultimo = new Map();
     ops.filter(o => o.col === 'adjuntos').forEach(o => ultimo.set(o.tipo === 'del' ? o.id : o.doc.id, o));
@@ -2841,11 +2853,98 @@ class NubeAdapter extends StorageAdapter {
     if (/^(23|22)/.test(e.sql)) return new ErrorDominio('La base no aceptó un dato: ' + m, 'DATO');
     return new ErrorDominio('El servidor no guardó: ' + m, 'NUBE');
   }
-  /* ¿Cambió algo? Un pedido pequeño (resumen) dice cuántas filas y la última
-     marca de cada tabla. Sólo si algo no cuadra se trae lo que cambió (con un
-     minuto de margen) y, si se borró algo, la lista de ids.
+  /* ¿Qué cambió en la nube? Una sola pregunta (facturacion.cambios, SQL 203)
+     trae las filas que cambiaron desde la última vez y lo que se borró. «desde» es la hora de la NUBE menos un
+     margen, nunca el reloj del PC: lo que se estaba guardando justo cuando se
+     preguntó queda con una hora un poco anterior, y así también llega; repetir
+     una fila no hace daño. Si esta pestaña guardó algo mientras llegaba la
+     respuesta, se descarta y se pregunta otra vez desde la misma hora. Sin el
+     SQL 203 se revisa como antes (_porResumen).
      Devuelve { colección: { poner: [docs], quitar: [ids] } } */
   async sincronizar() {
+    /* Sin el 203, cada cinco minutos se mira si ya lo corrieron */
+    if (this.sinCambios && Date.now() - this._probado > 300000) {
+      const hora = await this.horaNube();
+      if (hora) { const r = await this._porResumen(); this.desde = hora; this._ultima = Date.now(); return r; }
+    }
+    if (this.sinCambios) return this._porResumen();
+    const escritos = this._escritos;
+    if (this._escribiendo) return {};
+    /* Sin la hora (no se pudo al entrar) o tras una semana sin preguntar (lo
+       borrado se anota sólo 30 días): se compara todo una vez */
+    if (!this.desde || Date.now() - this._ultima > 7 * 864e5) {
+      const hora = await this.horaNube();
+      if (!hora) return this.sinCambios ? this._porResumen() : {};
+      const tablas = await Promise.all(EN_MEMORIA.map(c => this._leer(c)));
+      if (this._escribiendo || escritos !== this._escritos) return {};
+      this.desde = hora;
+      this._ultima = Date.now();
+      return this._todo(tablas);
+    }
+    const r = await Nube.rpc('cambios', { desde: this.desde }, { leer: true });
+    if (!r || !r.ahora || this._escribiendo || escritos !== this._escritos) return {};
+    this.desde = NubeAdapter.conMargen(r.ahora);
+    this._ultima = Date.now();
+    return this._poner(r.filas || {}, r.borrados || []);
+  }
+  /* Lo que llegó, sobre lo que se tenía: primero lo borrado (así una fila
+     borrada y vuelta a crear queda) y después las filas. Lo que ya se tenía
+     igual no cuenta: lo que guardó esta pestaña vuelve tal cual y no se pinta. */
+  _poner(filas, borrados) {
+    const out = {}, de = col => out[col] || (out[col] = { poner: [], quitar: [] });
+    borrados.forEach(b => { if (EN_MEMORIA.includes(b.tabla) && this.ver[b.tabla].delete(b.id)) de(b.tabla).quitar.push(b.id); });
+    EN_MEMORIA.forEach(col => (filas[col] || []).forEach(f => {
+      const ver = this.ver[col];
+      if (ver.get(f.id) === f.actualizado) return;
+      ver.set(f.id, f.actualizado);
+      de(col).poner.push(MAPA.doc(col, f));
+      if (!this.marca[col] || f.actualizado > this.marca[col]) this.marca[col] = f.actualizado;
+    }));
+    return out;
+  }
+  /* Todo lo de la nube, comparado con lo que se tiene */
+  _todo(tablas) {
+    const out = {};
+    EN_MEMORIA.forEach((col, i) => {
+      const ver = this.ver[col], ids = new Set(), poner = [];
+      tablas[i].forEach(f => {
+        ids.add(f.id);
+        if (ver.get(f.id) !== f.actualizado) { ver.set(f.id, f.actualizado); poner.push(MAPA.doc(col, f)); }
+      });
+      const quitar = [...ver.keys()].filter(id => !ids.has(id));
+      quitar.forEach(id => ver.delete(id));
+      this.marca[col] = tablas[i].reduce((m, f) => (!m || f.actualizado > m ? f.actualizado : m), null);
+      if (poner.length || quitar.length) out[col] = { poner, quitar };
+    });
+    return out;
+  }
+  /* La hora de la nube, con el margen; null si todavía no tiene el SQL 203 */
+  async horaNube() {
+    try {
+      const r = await Nube.rpc('cambios', {}, { leer: true });
+      this.sinCambios = false;
+      return r && r.ahora ? NubeAdapter.conMargen(r.ahora) : null;
+    } catch (e) {
+      if (!NubeAdapter.faltaFuncion(e)) throw e;
+      this.sinCambios = true;
+      this._probado = Date.now();
+      return null;
+    }
+  }
+  /** Antes de traer todo: desde qué hora se preguntará lo que cambie después */
+  async marcarHora() {
+    try { this.desde = await this.horaNube(); } catch (e) { this.desde = null; }
+    this._ultima = Date.now();
+  }
+  /* 15 segundos de margen: más de lo que tarda el lote más largo (un respaldo
+     grande se guarda en 1 a 3 s) */
+  static conMargen(t) { return new Date(Date.parse(t) - 15000).toISOString(); }
+  /* La nube no tiene la función: la API lo dice con 404 (PGRST202), la base con 42883 */
+  static faltaFuncion(e) { return !!e && (e.status === 404 || e.sql === 'PGRST202' || e.sql === '42883'); }
+  /* Como antes del 203: un pedido pequeño (resumen) dice cuántas filas y la
+     última marca de cada tabla. Sólo si algo no cuadra se trae lo que cambió
+     (con un minuto de margen) y, si se borró algo, la lista de ids. */
+  async _porResumen() {
     const r = (await Nube.rpc('resumen', {}, { leer: true })) || {};
     const out = {};
     for (const col of EN_MEMORIA) {
@@ -3056,6 +3155,8 @@ const Datos = {
   cfg: null, proveedores: [], equipos: [], ordenes: [], plantillas: [],
   _idx: {},
   async cargar() {
+    /* La hora de la nube antes de traer todo: lo que se guarde mientras tanto llega en la primera revisión */
+    if (db.nube) await db.marcarHora();
     const [cfgs, prov, eq, ord, pl] = await Promise.all(['configuracion', 'proveedores', 'equipos', 'ordenes', 'plantillas'].map(c => db.getAll(c, { marcar: true })));
     this.cfg = Config.completar(cfgs.find(c => c.id === 'general'));
     this.proveedores = prov; this.equipos = eq; this.ordenes = ord; this.plantillas = pl;
@@ -3120,7 +3221,7 @@ const Datos = {
 };
 
 /* Si hay dos pestañas abiertas, la que no guardó se entera enseguida y trae
-   los cambios de la nube, sin esperar la revisión de cada medio minuto. */
+   los cambios de la nube, sin esperar la próxima revisión. */
 const Canal = {
   bc: null, yo: ID(),
   iniciar() {
@@ -4338,7 +4439,8 @@ const Shell = {
     cx.className = 'conx ' + (ok ? 'ok' : 'mal');
     cx.innerHTML = '<span class="conx-p"></span><span class="conx-t">' + (ok ? 'En la nube' : e === 'sinred' ? 'Sin conexión' : 'Error en la nube') + '</span>';
     cx.setAttribute('data-tip', ok
-      ? 'Todo se guarda en la nube al instante y lo ven todos en Facturación. Revisado ' + Fecha.hace(Sincro.ultima) + '. Clic: traer lo último.'
+      ? 'Todo se guarda en la nube al instante, y lo que guardan los demás aparece solo ' +
+        (db && db.sinCambios ? 'en menos de un minuto' : 'en unos segundos') + '. Revisado ' + Fecha.hace(Sincro.ultima) + '. Clic: traer lo último.'
       : e === 'sinred' ? 'No hay conexión con la nube: lo que intente guardar no quedará guardado. Clic: intentar otra vez.'
       : 'La nube respondió con un error' + (Sincro.error ? ': ' + Sincro.error.message : '') + '. Clic: intentar otra vez.');
   },
@@ -7120,6 +7222,23 @@ Pruebas.def('Dos personas a la vez: si otra orden ya tomó el número, esta toma
   Pruebas.igual([b.secuencia, Datos.ordenes.length], [a.secuencia + 1, 2], 'debía traer la de la otra persona y tomar el siguiente');
   return a.numero + ' de otra persona · esta quedó con el ' + b.numero;
 });
+Pruebas.def('Lo que llega de la nube: lo borrado y vuelto a crear queda; lo que ya se tenía no se repinta', async () => {
+  const n = new NubeAdapter(), hora = '2026-10-28T10:00:00+00:00';
+  const fila = (id, t, nombre) => ({ id, nombre: nombre || 'PROVEEDOR ' + id, activo: true, actualizado: t, extra: {} });
+  Datos.proveedores = ['A', 'B', 'C'].map(id => { n.ver.proveedores.set(id, hora); return MAPA.doc('proveedores', fila(id, hora)); });
+  Datos.indexar('proveedores');
+  /* C se borró; B se borró y se volvió a crear; D es nuevo; A volvió igual (el
+     eco de lo que guardó esta pestaña); lo demás no se tenía o no va en memoria */
+  const llega = n._poner({ proveedores: [fila('A', hora), fila('B', '2026-10-28T10:05:00+00:00', 'B DE NUEVO'), fila('D', '2026-10-28T10:06:00+00:00')] },
+    [{ tabla: 'proveedores', id: 'C' }, { tabla: 'proveedores', id: 'B' }, { tabla: 'proveedores', id: 'NUNCA-SE-TUVO' }, { tabla: 'auditoria', id: 'Z' }]);
+  Pruebas.igual([llega.proveedores.quitar, llega.proveedores.poner.map(d => d.id), Object.keys(llega)], [['C', 'B'], ['B', 'D'], ['proveedores']]);
+  db = { nube: true, sincronizar: async () => llega };
+  Pruebas.cierto(await Datos.sincronizar(), 'debía decir que hubo cambios');
+  Pruebas.igual(Datos.proveedores.map(p => p.id + (p.nombre === 'B DE NUEVO' ? ' (de nuevo)' : '')).sort(), ['A', 'B (de nuevo)', 'D']);
+  db = { nube: true, sincronizar: async () => n._poner({ proveedores: [fila('D', '2026-10-28T10:06:00+00:00')] }, []) };
+  Pruebas.cierto(!(await Datos.sincronizar()), 'lo que ya se tenía no debía contar como cambio');
+  return 'C borrado · B borrado y vuelto a crear · D nuevo · A sin repintar';
+});
 Pruebas.def('Lo que la hoja no cambia no se pisa: si contabilidad la pagó mientras tanto, sigue pagada', async ({ p1 }) => {
   let g = await OrdenService.guardar(Pruebas.orden(p1));
   g = await OrdenService.guardarFactura(g, { numero: 'FE-1', fecha: '2026-10-28' });
@@ -7594,22 +7713,45 @@ const Sesion = {
 };
 
 /* La nube cambia aunque esta pestaña no haga nada (otra persona guardó una
-   orden, contabilidad la pagó): cada medio minuto, al volver a la pestaña y
-   al volver el internet, se pregunta si hay algo nuevo. Es un pedido pequeño;
-   sólo si hay cambios se traen. Lo nuevo se pinta enseguida, salvo que
-   alguien esté escribiendo: entonces espera a que termine. */
+   orden, contabilidad la pagó). Mientras alguien la usa, cada 10 segundos
+   se le pregunta a la nube qué cambió; si nadie la toca hace 3 minutos, cada
+   minuto; al volver a la pestaña, o al tocarla después de estar quieta,
+   enseguida; oculta, nada. La pregunta pesa casi nada y sólo trae lo que
+   cambió. Lo nuevo se pinta enseguida, salvo que interrumpa: con alguien
+   escribiendo, una ventana o un menú abiertos, o un clic de hace un instante,
+   espera. */
 const Sincro = {
-  CADA: 30000,
+  RAPIDA: 10000,
+  LENTA: 60000,
+  QUIETA: 180000,
+  /* Sin el SQL 203 la nube no sabe decir qué cambió: cada medio minuto, como antes */
+  SIN_203: 30000,
   estado: 'ok', ultima: 0, error: null, t: null, ocupado: null, pausa: false, pendiente: false, _avisado: false,
+  _actividad: Date.now(), _toque: 0, _tPintar: null,
   iniciar() {
-    document.addEventListener('visibilitychange', () => { if (!document.hidden) this.ya(); });
+    /* Quién la usa: el mouse, el teclado o el dedo. Si estaba quieta y alguien
+       la toca, se pregunta enseguida. */
+    const usar = () => {
+      const quieta = Date.now() - this._actividad > this.QUIETA;
+      this._actividad = Date.now();
+      if (quieta) this.programar(800);
+    };
+    const tocar = () => { this._toque = Date.now(); usar(); };
+    ['pointermove', 'touchmove'].forEach(ev => addEventListener(ev, usar, { capture: true, passive: true }));
+    ['pointerdown', 'keydown', 'wheel', 'scroll', 'touchstart'].forEach(ev => addEventListener(ev, tocar, { capture: true, passive: true }));
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) this.programar(300); });
+    addEventListener('focus', () => this.programar(300));
     addEventListener('online', () => this.ya());
     addEventListener('offline', () => { this.estado = 'sinred'; Shell.pintarConexion(); });
     Bus.on('ruta:cambio', () => { this.pendiente = false; this._avisado = false; });
+    /* Lo que se ve se acaba de traer de la nube */
     this.ultima = Date.now();
+    Shell.pintarConexion();
     this.programar();
   },
-  programar(ms) { clearTimeout(this.t); this.t = setTimeout(() => this.ya(), ms == null ? this.CADA : ms); },
+  /** Cada cuánto se pregunta: seguido si alguien la usa, despacio si está quieta */
+  cada() { return db && db.sinCambios ? this.SIN_203 : Date.now() - this._actividad > this.QUIETA ? this.LENTA : this.RAPIDA; },
+  programar(ms) { clearTimeout(this.t); this.t = setTimeout(() => this.ya(), ms == null ? this.cada() : ms); },
   /** Revisar enseguida (otra persona acaba de cambiar algo que esta quería guardar) */
   pronto() { this.programar(400); },
   /** Revisa ahora. aviso: lo pidió la persona, y se le dice cómo quedó */
@@ -7633,7 +7775,7 @@ const Sincro = {
       } finally {
         this.ocupado = null;
         Shell.pintarConexion();
-        this.programar(this.estado === 'ok' ? this.CADA : 10000);
+        this.programar(this.estado === 'ok' ? this.cada() : 10000);
       }
       return hubo;
     })();
@@ -7646,7 +7788,15 @@ const Sincro = {
     }
     const a = document.activeElement;
     const escribiendo = a && a.closest && a.closest('#content') && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName);
-    if (escribiendo || Modal.abiertos() || !Router.actual()) return;
+    if (escribiendo || Modal.abiertos() || Menu.el || !Router.actual()) return;
+    /* Un clic, una tecla o un scroll de hace un instante: se espera, para que
+       la pantalla no salte bajo el dedo */
+    const falta = 500 - (Date.now() - this._toque);
+    if (falta > 0) {
+      clearTimeout(this._tPintar);
+      this._tPintar = setTimeout(() => { if (this.pendiente) this.repintar(); }, falta + 50);
+      return;
+    }
     this.pendiente = false;
     Shell.refrescar();
     Router.resolver(true);
@@ -7793,6 +7943,11 @@ async function arrancar() {
       Toast.warn(falta && Permiso.puede('configurar')
         ? 'El histórico del Excel todavía no está en la nube: corra <b>202_facturacion_historico.sql</b> en Supabase (SQL Editor).'
         : 'No se pudo traer el histórico del Excel. Las órdenes nuevas funcionan normal.', { ms: 12000 });
+    }
+    /* Sin el SQL 203 la nube no sabe decir qué cambió: se revisa como antes */
+    if (db.sinCambios && Permiso.puede('configurar')) {
+      Toast.warn('Para que lo que guardan los demás llegue en segundos, corra <b>203_facturacion_cambios.sql</b> en Supabase (SQL Editor). ' +
+        'Mientras tanto se revisa cada medio minuto, como antes.', { ms: 12000 });
     }
     /* ¿Quedaron en este computador datos de la versión local? */
     Migracion.revisar().then(l => { const a = Router.actual(); if (l && a && a.patron === '/' && !Router.sucio) Router.resolver(true); });
