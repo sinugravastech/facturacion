@@ -560,8 +560,6 @@ html[data-theme="dark"] mark{background:rgba(224,166,58,.32);color:#f3cb77}
 .link:hover{text-decoration:underline}
 .divider{height:1px;background:var(--border);margin:14px 0}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
-kbd.k{font-family:var(--mono);font-size:10.5px;border:1px solid var(--border-strong);border-bottom-width:2px;
-  border-radius:4px;padding:0 5px;background:var(--surface);color:var(--text-2)}
 
 .tip{position:fixed;z-index:9998;max-width:280px;background:#111a22;color:#eaf1f6;font-size:11.5px;
   line-height:1.45;padding:6px 9px;border-radius:7px;box-shadow:var(--sh-3);pointer-events:none;
@@ -811,7 +809,7 @@ html[data-theme="dark"] .hj-fm img{background:#fff;border-radius:4px}
 .resumen .rs-tot b{font-size:20px;font-weight:750;letter-spacing:-.02em}
 .resumen .rs-ctl{display:flex;align-items:center;gap:6px}
 .resumen .rs-ctl .inp{height:28px;width:74px;font-size:12px;padding:0 7px}
-/* Ruta de la orden: esperando factura → en contabilidad → pagada */
+/* Ruta de la orden: esperando cotización → en contabilidad → pagada */
 .ruta{display:flex;flex-direction:column;gap:0}
 .ruta-p{display:flex;gap:11px;position:relative;padding-bottom:14px}
 .ruta-p:last-child{padding-bottom:0}
@@ -835,14 +833,6 @@ html[data-theme="dark"] .hj-fm img{background:#fff;border-radius:4px}
 .pl-items li{display:flex;gap:8px}
 .pl-items li span:first-child{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pl-items li span:last-child{font-variant-numeric:tabular-nums;color:var(--text-3);white-space:nowrap}
-/* Bienvenida */
-.bienv{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
-@media(max-width:1200px){.bienv{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:700px){.bienv{grid-template-columns:minmax(0,1fr)}}
-.bienv .card-b{display:flex;flex-direction:column;gap:6px;height:100%}
-.bienv .bv-n{width:24px;height:24px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:grid;
-  place-items:center;font-size:11.5px;font-weight:800}
-.bienv p{font-size:12px;color:var(--text-2);flex:1}
 /* Ficha de proveedor: avatar con iniciales */
 .av{width:40px;height:40px;border-radius:10px;display:grid;place-items:center;font-weight:750;font-size:14px;
   background:var(--accent-soft);color:var(--accent);flex:0 0 auto;letter-spacing:-.02em}
@@ -1712,7 +1702,7 @@ const APP = Object.freeze({
   nombre: 'Facturación',
   area: 'Órdenes de compra',
   empresa: 'SINUGRAVAS S.A.S.',
-  version: '2.1.0',
+  version: '2.1.1',
   /* 3: los datos viven en la nube y el número de cada orden sale de las órdenes */
   esquema: 3,
   /* La base del navegador de la versión local (1.x). Ya no se guarda en ella:
@@ -2984,10 +2974,10 @@ const TIPOS = Object.freeze({
 /** Los tipos con los que se hacen órdenes y plantillas nuevas */
 const tiposNuevos = () => Object.keys(TIPOS).filter(k => !TIPOS[k].excel);
 /* Como trabaja la empresa: compras hace la orden y se la manda al proveedor;
-   espera su factura; cuando llega, le pone los valores de lo comprado y la pasa
-   a contabilidad; contabilidad la paga y la marca como pagada. */
+   espera su cotización; con la factura le pone los valores de lo comprado y la
+   pasa a contabilidad; contabilidad la paga y la marca como pagada. */
 const ESTADOS = Object.freeze({
-  ESPERANDO: { t: 'Esperando factura', pill: 'p-blue', ic: 'clock', ayuda: 'Ya se le mandó al proveedor; falta que llegue su factura.' },
+  ESPERANDO: { t: 'Esperando cotización', pill: 'p-blue', ic: 'clock', ayuda: 'Ya se le mandó al proveedor; falta que llegue su cotización.' },
   CONTABILIDAD: { t: 'En contabilidad', pill: 'p-amber', ic: 'receipt', ayuda: 'Llegó la factura y ya está en contabilidad; falta pagarla.' },
   PAGADA: { t: 'Pagada', pill: 'p-green', ic: 'checkCircle', ayuda: 'Contabilidad ya la pagó: la orden está cerrada.' },
   ANULADA: { t: 'Anulada', pill: 'p-red', ic: 'ban', ayuda: 'No cuenta en las estadísticas.' }
@@ -4626,13 +4616,12 @@ const VistaDashboard = {
         '</b> El plan gratuito de la nube no guarda copias por usted: descargue una cada semana. <a href="#/respaldos">Hacer una ahora</a></div>' +
         '<button class="al-x" aria-label="Ocultar">' + Icon('x', '', 14) + '</button></div>';
     }
-    if (!Datos.ordenes.length) h += this.bienvenida();
     h += '<div class="grid g4 mb16">' +
       Comp.kpi({ l: 'Total comprado', icono: 'cash', v: Money.fmt(k.total), k: 'var(--brand-500)', ir: '/estadisticas',
         m: k.n ? Txt.plural(k.conValor, 'orden con valor', 'órdenes con valor') + (k.sinValor ? ' · ' + k.sinValor + ' sin valorizar' : '') : 'Sin órdenes en el periodo' }) +
       Comp.kpi({ l: 'Órdenes', icono: 'doc', v: String(k.n), k: 'var(--info-500)', ir: '/ordenes',
         m: Txt.plural(k.proveedores, 'proveedor', 'proveedores') + (k.anuladas ? ' · ' + k.anuladas + ' anulada' + (k.anuladas > 1 ? 's' : '') : '') }) +
-      Comp.kpi({ l: 'Esperando factura', icono: 'clock', v: String(k.sinFactura), k: 'var(--warn-500)', ir: '/ordenes?estado=ESPERANDO', m: 'Pedidas, sin factura todavía', tip: ESTADOS.ESPERANDO.ayuda }) +
+      Comp.kpi({ l: 'Esperando cotización', icono: 'clock', v: String(k.sinFactura), k: 'var(--warn-500)', ir: '/ordenes?estado=ESPERANDO', m: 'Pedidas, sin cotización todavía', tip: ESTADOS.ESPERANDO.ayuda }) +
       Comp.kpi({ l: 'En contabilidad', icono: 'receipt', v: Money.fmt(k.valorPorPagar), k: 'var(--sun-500)', ir: '/ordenes?estado=CONTABILIDAD', m: Txt.plural(k.porPagar, 'factura', 'facturas') + ' por pagar', tip: ESTADOS.CONTABILIDAD.ayuda }) +
       '</div>';
     const serie = Analitica.porMes(lista, r.desde, r.hasta).map(x => ({ etiqueta: Fecha.mesCorto(x.ym), tip: Fecha.mesLargo(x.ym), valor: x.valor, n: x.n }));
@@ -4664,23 +4653,6 @@ const VistaDashboard = {
     const av = $('#avRespaldo', el);
     if (av) $('.al-x', av).onclick = () => { sessionStorage.setItem(APP.prefs + 'avisoRespaldo', '1'); av.remove(); };
     Migracion.unir(el);
-  },
-  bienvenida() {
-    const nP = Datos.proveedores.length, nE = Datos.equipos.length, pl = Datos.plantillas[0];
-    return '<div class="card mb16"><div class="card-h"><h3>' + Icon('star', '', 15) + 'Bienvenido a Facturación · Órdenes de compra</h3>' +
-      '<span class="ch-sub">Así reemplaza el Excel de una hoja por orden</span></div><div class="card-b"><div class="bienv">' +
-      '<div class="card"><div class="card-b"><div class="bv-n">1</div><b>Revise la configuración</b><p>La empresa, el consecutivo (sigue en <b class="mono">' +
-        esc(Consecutivo.vistaPrevia()) + '</b>, después del último del Excel) y quién firma las órdenes.</p><a class="btn btn-sm" href="#/configuracion">Ir a Configuración</a></div></div>' +
-      '<div class="card"><div class="card-b"><div class="bv-n">2</div><b>Complete sus proveedores</b><p>' + (nP ? 'Hay ' + nP + ' proveedores. ' : 'Todavía no hay proveedores. ') +
-        'Póngales NIT, teléfono y correo: salen solos en cada orden.</p><a class="btn btn-sm" href="#/proveedores">Ver proveedores</a></div></div>' +
-      '<div class="card"><div class="card-b"><div class="bv-n">3</div><b>Haga su primera orden</b><p>Escoja el proveedor y se llenan sus condiciones de pago. ' +
-        (pl ? 'O use la plantilla «' + esc(pl.nombre) + '».' : 'Los ' + nE + ' equipos y destinos ya están listos.') + '</p>' +
-        si('editar', '<div class="flex g6 wrap"><a class="btn btn-sm btn-primary" href="#/orden-nueva">' + Icon('plus', '', 12) + 'Nueva orden</a>' +
-        (pl ? '<a class="btn btn-sm" href="#/orden-nueva?plantilla=' + attr(pl.id) + '">' + Icon('layers', '', 12) + 'Usar plantilla</a>' : '') + '</div>') + '</div></div>' +
-      '<div class="card"><div class="card-b"><div class="bv-n">4</div><b>Guarde respaldos</b><p>Todo se guarda al instante en la nube y lo ve su equipo. Un respaldo por semana es la copia propia ' +
-        'de la empresa, fuera de la nube.</p><a class="btn btn-sm" href="#/respaldos">Copias de seguridad</a></div></div>' +
-      '</div><div class="alert a-info mt12">' + Icon('info') + '<div>Atajos: <kbd class="k">Ctrl</kbd> + <kbd class="k">K</kbd> busca en todo · ' +
-        '<kbd class="k">Ctrl</kbd> + <kbd class="k">G</kbd> abre una orden nueva. Las estadísticas empiezan con la primera orden que haga aquí: el Excel viejo no se usa para calcular nada.</div></div></div></div>';
   }
 };
 
@@ -6915,7 +6887,7 @@ const Exportar = {
     this.descargar('estadisticas-ordenes', 'xlsx', [
       { nombre: 'Resumen', titulo: 'Estadísticas de órdenes de compra', nota: r.etiqueta + ' · ' + this.sello(), columnas: [{ t: 'Indicador', ancho: 34 }, { t: 'Valor', ancho: 18 }],
         filas: [['Total comprado', Money.fmt(k.total)], ['Órdenes (sin anuladas ni cotizaciones)', k.n], ['Valor promedio por orden con valor', Money.fmt(k.ticket)],
-          ['Órdenes sin valorizar', k.sinValor], ['Esperando factura', k.sinFactura], ['En contabilidad (por pagar)', k.porPagar], ['Valor por pagar', Money.fmt(k.valorPorPagar)],
+          ['Órdenes sin valorizar', k.sinValor], ['Esperando cotización', k.sinFactura], ['En contabilidad (por pagar)', k.porPagar], ['Valor por pagar', Money.fmt(k.valorPorPagar)],
           ['Proveedores distintos', k.proveedores], ['Anuladas', k.anuladas], ['Solicitudes de cotización', k.cotizaciones]] },
       { nombre: 'Por mes', titulo: 'Compras por mes', nota: r.etiqueta, columnas: [{ t: 'Mes', ancho: 20 }, { t: 'Órdenes', tipo: 'numero', ancho: 9 }, { t: 'Comprado', tipo: 'pesos', ancho: 16 }],
         filas: Analitica.porMes(lista, r.desde, r.hasta).map(x => [Fecha.mesLargo(x.ym), x.n, x.valor]) },
