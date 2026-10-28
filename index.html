@@ -1702,7 +1702,7 @@ const APP = Object.freeze({
   nombre: 'Facturación',
   area: 'Órdenes de compra',
   empresa: 'SINUGRAVAS S.A.S.',
-  version: '2.1.1',
+  version: '2.2.0',
   /* 3: los datos viven en la nube y el número de cada orden sale de las órdenes */
   esquema: 3,
   /* La base del navegador de la versión local (1.x). Ya no se guarda en ella:
@@ -1849,12 +1849,24 @@ const ID = (() => {
   };
 })();
 
-/* Pesos colombianos: enteros, sin centavos. */
+/* Pesos colombianos, con centavos cuando el precio los trae (las cotizaciones
+   suelen venir con decimales): hasta dos, después de la coma. Lo que no tiene
+   centavos se ve como siempre, sin «,00». */
 const Money = (() => {
   const nf = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 });
-  return {
-    num(n) { return nf.format(Math.round(+n || 0)); },
-    fmt(n) { const v = Math.round(+n || 0); return (v < 0 ? '−$ ' : '$ ') + nf.format(Math.abs(v)); },
+  const nf2 = new Intl.NumberFormat('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const M = {
+    /** A dos decimales, sin los errores de la coma flotante (1,005 → 1,01) */
+    cent(n) {
+      const v = +n || 0;
+      if (!isFinite(v) || Math.abs(v) < 1e-6) return 0;
+      const r = +(Math.round(Math.abs(v) + 'e2') + 'e-2');
+      return Math.sign(v) * (isFinite(r) ? r : Math.round(Math.abs(v) * 100) / 100);
+    },
+    num(n) { const v = M.cent(n); return (Number.isInteger(v) ? nf : nf2).format(v); },
+    fmt(n) { const v = M.cent(n); return (v < 0 ? '−$ ' : '$ ') + M.num(Math.abs(v)); },
+    /** Sumas y promedios de muchas órdenes (tablero, estadísticas): en pesos enteros */
+    redondo(n) { const v = Math.round(+n || 0); return (v < 0 ? '−$ ' : '$ ') + nf.format(Math.abs(v)); },
     /* «$ 1,2 M» para los ejes de las gráficas */
     corto(n) {
       const v = Math.abs(+n || 0), s = n < 0 ? '−' : '';
@@ -1863,18 +1875,24 @@ const Money = (() => {
       if (v >= 1e3) return s + '$ ' + Math.round(v / 1e3) + ' mil';
       return s + '$ ' + Math.round(v);
     },
+    /* Lo escrito o pegado: los puntos son de miles y la coma, de los centavos
+       («12.605,04»). Un punto con uno o dos dígitos al final también se toma
+       como decimal («12605.04», como lo copian algunos sistemas). */
     parse(t) {
-      if (typeof t === 'number') return Math.round(t);
+      if (typeof t === 'number') return M.cent(t);
       const s = String(t == null ? '' : t).trim();
       if (!s) return 0;
       const neg = /^[−-]/.test(s);
-      /* Los separadores de miles son puntos; una coma final marca centavos, que
-         se redondean: en esta empresa no se manejan. */
-      const limpio = s.replace(/[^\d,]/g, '');
-      const v = Math.round(parseFloat(limpio.replace(',', '.')) || 0);
+      const limpio = s.replace(/[^\d.,]/g, '');
+      const coma = limpio.lastIndexOf(','), punto = limpio.lastIndexOf('.');
+      let ent = limpio, dec = '';
+      if (coma > punto && (punto >= 0 || limpio.indexOf(',') === coma)) { ent = limpio.slice(0, coma); dec = limpio.slice(coma + 1); }
+      else if (punto > coma && /^\d{1,2}$/.test(limpio.slice(punto + 1))) { ent = limpio.slice(0, punto); dec = limpio.slice(punto + 1); }
+      const v = M.cent(parseFloat((ent.replace(/\D/g, '') || '0') + '.' + (dec.replace(/\D/g, '') || '0')));
       return neg ? -v : v;
     }
   };
+  return M;
 })();
 
 /* Cantidades: admiten decimales con coma («2,5» galones). */
@@ -3002,14 +3020,15 @@ const PCT_RETENCION = [
 const Modelo = {
   itemVacio() { return { id: ID(), descripcion: '', cantidad: 1, unidad: 'UND', valorUnitario: 0, observacion: '' }; },
   itemValido(it) { return !!(it && String(it.descripcion || '').trim()); },
-  totalItem(it) { return Math.round(Num.parse(it.cantidad) * Money.parse(it.valorUnitario)); },
-  /** Igual que el Excel: TOTAL = SUBTOTAL − RETENCIÓN EN LA FUENTE + IVA */
+  totalItem(it) { return Money.cent(Num.parse(it.cantidad) * Money.parse(it.valorUnitario)); },
+  /** Igual que el Excel: TOTAL = SUBTOTAL − RETENCIÓN EN LA FUENTE + IVA, al
+      centavo, como las cotizaciones */
   totales(o) {
     const items = (o.items || []).filter(Modelo.itemValido);
-    const subtotal = U.sumar(items, Modelo.totalItem);
-    const iva = Math.round(subtotal * (+o.ivaPct || 0) / 100);
-    const retencion = Math.round(subtotal * (+o.retencionPct || 0) / 100);
-    return { subtotal, iva, retencion, total: subtotal - retencion + iva, valorizada: subtotal > 0, nItems: items.length };
+    const subtotal = Money.cent(U.sumar(items, Modelo.totalItem));
+    const iva = Money.cent(subtotal * (+o.ivaPct || 0) / 100);
+    const retencion = Money.cent(subtotal * (+o.retencionPct || 0) / 100);
+    return { subtotal, iva, retencion, total: Money.cent(subtotal - retencion + iva), valorizada: subtotal > 0, nItems: items.length };
   },
   /** «290-26»: consecutivo de tres cifras y los dos últimos dígitos del año */
   numero(secuencia, fecha) {
@@ -4044,7 +4063,8 @@ const Comp = {
       esc(e && e.message ? e.message : String(e)) + '<div class="mt8"><button class="btn btn-sm" onclick="location.reload()">' + Icon('refresh', '', 13) +
       'Recargar</button> <a class="btn btn-sm" href="#/">Ir al inicio</a></div></div></div>';
   },
-  dinero(n) { return +n > 0 ? Money.fmt(n) : '<span class="txt-3" data-tip="Sin valorizar: la orden no tiene precios">—</span>'; },
+  /** redondo: sumas de varias órdenes, en pesos enteros */
+  dinero(n, redondo) { return +n > 0 ? (redondo ? Money.redondo(n) : Money.fmt(n)) : '<span class="txt-3" data-tip="Sin valorizar: la orden no tiene precios">—</span>'; },
   /** El total que traía la hoja del Excel: se ve, pero en gris y sin sumar */
   valorExcel(o) { return '<span class="txt-3"' + (o.total > 0 ? ' data-tip="Valor de la hoja del Excel: no suma en nada">' + Money.fmt(o.total) : '>—') + '</span>'; },
   provCelda(p, sub) {
@@ -4062,7 +4082,7 @@ const Comp = {
       const pct = opts.porConteo ? x.n / maxN : x.valor / max;
       return '<div class="rank' + (opts.ir ? ' click' : '') + '"' + (opts.ir && opts.ir(x) ? ' data-ir="' + attr(opts.ir(x)) + '"' : '') + '>' +
         '<div class="rk-n">' + (i + 1) + '</div><div class="rk-b"><div class="rk-t"><span title="' + attr(x.nombre) + '">' + esc(x.nombre) + '</span>' +
-        '<b>' + (opts.porConteo ? Txt.plural(x.n, 'vez', 'veces') : (x.valor > 0 ? Money.fmt(x.valor) : '<span class="txt-3 fw6">' + Txt.plural(x.n, 'orden', 'órdenes') + '</span>')) +
+        '<b>' + (opts.porConteo ? Txt.plural(x.n, 'vez', 'veces') : (x.valor > 0 ? Money.redondo(x.valor) : '<span class="txt-3 fw6">' + Txt.plural(x.n, 'orden', 'órdenes') + '</span>')) +
         (!opts.porConteo && x.valor > 0 ? '<small>' + x.n + '</small>' : '') + '</b></div>' +
         '<div class="bar"><i style="width:' + Math.max(2, Math.round(pct * 100)) + '%"></i></div></div></div>';
     }).join('');
@@ -4214,20 +4234,47 @@ const Combo = {
   }
 };
 
-/* Pesos con puntos de miles mientras se escribe, sin perder el cursor */
+/* Pesos con puntos de miles mientras se escribe, sin perder el cursor. Los
+   centavos van después de la coma; el punto que se escriba también la pone,
+   porque los puntos de miles salen solos. */
 const MoneyInput = {
+  /** «12605,0» → «12.605,0»: deja la coma y los ceros del final mientras se
+      escriben los centavos, máximo dos */
+  formato(txt) {
+    const s = String(txt || '').replace(/[^\d,]/g, '');
+    const c = s.indexOf(',');
+    const ent = (c < 0 ? s : s.slice(0, c)).slice(0, 15);
+    const miles = ent ? Money.num(+ent) : c < 0 ? '' : '0';
+    return c < 0 ? miles : miles + ',' + s.slice(c + 1).replace(/,/g, '').slice(0, 2);
+  },
   unir(input, alCambiar) {
     input.classList.add('inp-money');
-    input.setAttribute('inputmode', 'numeric');
-    const pintar = () => {
+    input.setAttribute('inputmode', 'decimal');
+    /* Una sola coma: si ya hay centavos, otra coma o punto no hace nada */
+    input.addEventListener('beforeinput', e => {
+      if (e.inputType !== 'insertText' || (e.data !== '.' && e.data !== ',')) return;
+      e.preventDefault();
+      const v = input.value, a = input.selectionStart, b = input.selectionEnd;
+      if ((v.slice(0, a) + v.slice(b)).includes(',')) return;
+      input.setRangeText(',', a, b, 'end');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    const pintar = e => {
+      /* Lo pegado, o lo que llega de una vez (autocompletar, dictado), se lee
+         entero: «12605.04» trae centavos */
+      if (e && (e.inputType === 'insertFromPaste' || e.inputType === 'insertFromDrop' || (e.data && e.data.length > 1))) {
+        const v = Money.parse(input.value);
+        input.value = v ? Money.num(v) : '';
+        alCambiar && alCambiar(v);
+        return;
+      }
       const pos = input.selectionStart || 0;
-      const digAntes = input.value.slice(0, pos).replace(/\D/g, '').length;
-      const v = Money.parse(input.value);
-      input.value = v ? Money.num(v) : '';
+      const antes = input.value.slice(0, pos).replace(/[^\d,]/g, '').length;
+      input.value = this.formato(input.value);
       let n = 0, i = 0;
-      for (; i < input.value.length && n < digAntes; i++) if (/\d/.test(input.value[i])) n++;
-      try { input.setSelectionRange(i, i); } catch (e) { /* tipo sin selección */ }
-      alCambiar && alCambiar(v);
+      for (; i < input.value.length && n < antes; i++) if (/[\d,]/.test(input.value[i])) n++;
+      try { input.setSelectionRange(i, i); } catch (er) { /* tipo sin selección */ }
+      alCambiar && alCambiar(Money.parse(input.value));
     };
     input.addEventListener('input', pintar);
     if (input.value) input.value = Money.parse(input.value) ? Money.num(Money.parse(input.value)) : '';
@@ -4276,7 +4323,7 @@ const Chart = {
       const h = tope ? (x.valor / tope) * ih : 0;
       const cx = pl + bw * i + bw / 2;
       s += '<rect class="bar-r" x="' + (cx - ancho / 2) + '" y="' + (pt + ih - h) + '" width="' + ancho + '" height="' + Math.max(0, h) + '" rx="2" ' +
-        'data-tip="' + attr((x.tip || x.etiqueta) + ': ' + Money.fmt(x.valor) + (x.n != null ? ' · ' + Txt.plural(x.n, 'orden', 'órdenes') : '')) + '"/>';
+        'data-tip="' + attr((x.tip || x.etiqueta) + ': ' + Money.redondo(x.valor) + (x.n != null ? ' · ' + Txt.plural(x.n, 'orden', 'órdenes') : '')) + '"/>';
       if (i % cada === 0) s += '<text x="' + cx + '" y="' + (H - 9) + '" text-anchor="middle">' + esc(x.etiqueta) + '</text>';
     });
     if (opts.conteo) {
@@ -4302,7 +4349,7 @@ const Chart = {
       const largo = c * p.valor / total;
       arcos += '<circle cx="70" cy="70" r="' + r + '" fill="none" stroke="' + (p.color || Chart.COLORES[i % Chart.COLORES.length]) + '" stroke-width="18" ' +
         'stroke-dasharray="' + Math.max(0, largo - (v.length > 1 ? 1.5 : 0)) + ' ' + (c - largo + (v.length > 1 ? 1.5 : 0)) + '" stroke-dashoffset="' + (-acum) + '" transform="rotate(-90 70 70)" ' +
-        'data-tip="' + attr(p.etiqueta + ': ' + (opts.conteo ? p.valor : Money.fmt(p.valor)) + ' (' + Math.round(p.valor / total * 100) + ' %)') + '"/>';
+        'data-tip="' + attr(p.etiqueta + ': ' + (opts.conteo ? p.valor : Money.redondo(p.valor)) + ' (' + Math.round(p.valor / total * 100) + ' %)') + '"/>';
       acum += largo;
     });
     const centro = opts.conteo ? String(total) : Money.corto(total);
@@ -4310,7 +4357,7 @@ const Chart = {
       '<text x="70" y="68" text-anchor="middle" style="font-size:15px;font-weight:700;fill:var(--text)">' + esc(centro) + '</text>' +
       '<text x="70" y="84" text-anchor="middle">' + esc(opts.centro || 'total') + '</text></svg>' +
       '<div class="dona-l">' + v.map((p, i) => '<div><i style="background:' + (p.color || Chart.COLORES[i % Chart.COLORES.length]) + '"></i><span>' + esc(p.etiqueta) + '</span><b>' +
-        (opts.conteo ? p.valor : Money.fmt(p.valor)) + '</b><span class="txt-3 fs11" style="flex:0 0 auto">' + Math.round(p.valor / total * 100) + ' %</span></div>').join('') + '</div></div>';
+        (opts.conteo ? p.valor : Money.redondo(p.valor)) + '</b><span class="txt-3 fs11" style="flex:0 0 auto">' + Math.round(p.valor / total * 100) + ' %</span></div>').join('') + '</div></div>';
   }
 };
 
@@ -4617,12 +4664,12 @@ const VistaDashboard = {
         '<button class="al-x" aria-label="Ocultar">' + Icon('x', '', 14) + '</button></div>';
     }
     h += '<div class="grid g4 mb16">' +
-      Comp.kpi({ l: 'Total comprado', icono: 'cash', v: Money.fmt(k.total), k: 'var(--brand-500)', ir: '/estadisticas',
+      Comp.kpi({ l: 'Total comprado', icono: 'cash', v: Money.redondo(k.total), k: 'var(--brand-500)', ir: '/estadisticas',
         m: k.n ? Txt.plural(k.conValor, 'orden con valor', 'órdenes con valor') + (k.sinValor ? ' · ' + k.sinValor + ' sin valorizar' : '') : 'Sin órdenes en el periodo' }) +
       Comp.kpi({ l: 'Órdenes', icono: 'doc', v: String(k.n), k: 'var(--info-500)', ir: '/ordenes',
         m: Txt.plural(k.proveedores, 'proveedor', 'proveedores') + (k.anuladas ? ' · ' + k.anuladas + ' anulada' + (k.anuladas > 1 ? 's' : '') : '') }) +
       Comp.kpi({ l: 'Esperando cotización', icono: 'clock', v: String(k.sinFactura), k: 'var(--warn-500)', ir: '/ordenes?estado=ESPERANDO', m: 'Pedidas, sin cotización todavía', tip: ESTADOS.ESPERANDO.ayuda }) +
-      Comp.kpi({ l: 'En contabilidad', icono: 'receipt', v: Money.fmt(k.valorPorPagar), k: 'var(--sun-500)', ir: '/ordenes?estado=CONTABILIDAD', m: Txt.plural(k.porPagar, 'factura', 'facturas') + ' por pagar', tip: ESTADOS.CONTABILIDAD.ayuda }) +
+      Comp.kpi({ l: 'En contabilidad', icono: 'receipt', v: Money.redondo(k.valorPorPagar), k: 'var(--sun-500)', ir: '/ordenes?estado=CONTABILIDAD', m: Txt.plural(k.porPagar, 'factura', 'facturas') + ' por pagar', tip: ESTADOS.CONTABILIDAD.ayuda }) +
       '</div>';
     const serie = Analitica.porMes(lista, r.desde, r.hasta).map(x => ({ etiqueta: Fecha.mesCorto(x.ym), tip: Fecha.mesLargo(x.ym), valor: x.valor, n: x.n }));
     const tipos = Analitica.ranking(lista, 'tipo');
@@ -4758,7 +4805,7 @@ const VistaOrdenes = {
     const vis = l.slice((this.pag - 1) * porPag, this.pag * porPag);
     const k = Analitica.kpis(l.filter(o => !o.excel));
     const nEx = l.filter(o => o.excel).length;
-    $('#orSub', el).innerHTML = Txt.plural(l.length, 'orden', 'órdenes') + ' · Total ' + Money.fmt(k.total) +
+    $('#orSub', el).innerHTML = Txt.plural(l.length, 'orden', 'órdenes') + ' · Total ' + Money.redondo(k.total) +
       ' · ' + (k.sinFactura + k.porPagar) + ' abiertas' + (k.sinValor ? ' · ' + k.sinValor + ' sin valorizar' : '') +
       (nEx ? ' · <span data-tip="Copiadas del Excel: se consultan, pero no suman">' + nEx + ' del Excel</span>' : '');
     const th = (key, t, cls) => '<th class="sortable' + (cls ? ' ' + cls : '') + (this.orden.k === key ? ' sorted' : '') + '" data-sort="' + key + '">' + t +
@@ -4789,7 +4836,7 @@ const VistaOrdenes = {
           '<button class="btn btn-ghost btn-icon btn-sm" data-imp="' + attr(o.id) + '" data-tip="Imprimir o PDF" aria-label="Imprimir">' + Icon('print', '', 13) + '</button>' +
           '<button class="btn btn-ghost btn-icon btn-sm" data-mas="' + attr(o.id) + '" data-tip="Más acciones" aria-label="Más acciones">' + Icon('more', '', 14) + '</button></td></tr>';
       }).join('') + '</tbody>' +
-      '<tfoot><tr><td colspan="7">Total de lo filtrado (sin anuladas, cotizaciones ni el Excel)</td><td class="num">' + Money.fmt(k.total) + '</td><td colspan="2"></td></tr></tfoot></table>';
+      '<tfoot><tr><td colspan="7">Total de lo filtrado (sin anuladas, cotizaciones ni el Excel)</td><td class="num">' + Money.redondo(k.total) + '</td><td colspan="2"></td></tr></tfoot></table>';
     $('#orPager', el).innerHTML = Comp.pager(l.length, this.pag, porPag, 'ordenes');
   }
 };
@@ -4946,7 +4993,7 @@ const VistaOrden = {
       '<div class="rs-f"><span>IVA (' + Num.pct(o.ivaPct) + ')</span><b>' + Money.fmt(t.iva) + '</b></div>' +
       '<div class="rs-f rs-tot"><span>Total</span><b>' + Money.fmt(t.total) + '</b></div>';
     if (o.factura && o.factura.valor) {
-      const dif = o.factura.valor - t.total;
+      const dif = Money.cent(o.factura.valor - t.total);
       h += '<div class="rs-f" style="margin-top:4px"><span>Valor facturado</span><b>' + Money.fmt(o.factura.valor) + '</b></div>' +
         (t.valorizada && dif ? '<div class="rs-f"><span>Diferencia con la orden</span><b class="' + (dif > 0 ? 'txt-dang' : 'txt-ok') + '">' + (dif > 0 ? '+' : '') + Money.fmt(dif) + '</b></div>' : '');
     }
@@ -5738,7 +5785,7 @@ const VistaProveedores = {
           '<td class="mono nowrap">' + (p.nit ? esc(p.nit) : '<span class="pill p-amber np" data-tip="Le falta: ' + attr(falt.join(', ')) + '">Por completar</span>') + '</td>' +
           '<td class="nowrap">' + esc(p.telefono || p.celular || '') + '</td>' +
           '<td class="nowrap txt-2">' + (p.formaPago ? esc(FORMAS_PAGO[p.formaPago]) + (p.plazoDias ? ' · ' + p.plazoDias + ' d' : '') : '<span class="txt-3">—</span>') + '</td>' +
-          '<td class="num">' + (s.n || '<span class="txt-3">0</span>') + '</td><td class="num">' + (s.total ? Money.fmt(s.total) : '<span class="txt-3">—</span>') + '</td>' +
+          '<td class="num">' + (s.n || '<span class="txt-3">0</span>') + '</td><td class="num">' + (s.total ? Money.redondo(s.total) : '<span class="txt-3">—</span>') + '</td>' +
           '<td class="nowrap">' + (s.ultima ? Fecha.corta(s.ultima) : '<span class="txt-3">—</span>') + '</td>' +
           '<td class="nowrap">' + (p.historico ? '<span class="pill p-gray np" data-tip="' + attr(p.historico.ordenes + ' órdenes en el Excel, de ' + p.historico.desde + ' a ' + p.historico.hasta) + '">Excel · ' +
             p.historico.ordenes + ' · ' + esc(p.historico.desde.slice(0, 4)) + (p.historico.hasta.slice(0, 4) !== p.historico.desde.slice(0, 4) ? '–' + esc(p.historico.hasta.slice(2, 4)) : '') + '</span>' : '<span class="txt-3 fs11">Nuevo</span>') +
@@ -5781,9 +5828,9 @@ const VistaProveedor = {
         '<button class="btn" id="pvEditar">' + Icon('edit', '', 14) + 'Editar datos</button>') +
         si('editar', '<button class="btn btn-icon" id="pvMas" aria-label="Más acciones" data-tip="Más acciones">' + Icon('more', '', 15) + '</button>') + '</div></div>' +
       '<div class="grid g4 mb16">' +
-        Comp.kpi({ l: 'Comprado aquí', icono: 'cash', v: Money.fmt(k.total), m: k.sinValor ? k.sinValor + ' sin valorizar' : 'Desde que se usa la plataforma' }) +
+        Comp.kpi({ l: 'Comprado aquí', icono: 'cash', v: Money.redondo(k.total), m: k.sinValor ? k.sinValor + ' sin valorizar' : 'Desde que se usa la plataforma' }) +
         Comp.kpi({ l: 'Órdenes', icono: 'doc', v: String(k.n), k: 'var(--info-500)', m: (k.sinFactura + k.porPagar) + ' abiertas' }) +
-        Comp.kpi({ l: 'Valor promedio', icono: 'chart', v: Money.fmt(k.ticket), k: 'var(--violet-500)', m: 'por orden con valor' }) +
+        Comp.kpi({ l: 'Valor promedio', icono: 'chart', v: Money.redondo(k.ticket), k: 'var(--violet-500)', m: 'por orden con valor' }) +
         Comp.kpi({ l: 'Última orden', icono: 'calendar', v: ords[0] ? Fecha.corta(ords[0].fecha) : '—', k: 'var(--sun-500)',
           m: ords[0] ? 'N.º ' + esc(ords[0].numero) : (pv.historico ? 'En el Excel: ' + esc(Fecha.mesLargo(pv.historico.hasta)) : 'Ninguna') }) + '</div>' +
       '<div class="grid g-form"><div class="col">' +
@@ -5956,7 +6003,7 @@ const VistaEquipos = {
           (sub ? '<div class="fs12 txt-2">' + esc(sub) + '</div>' : '') +
           (x.alias && x.alias.length ? '<div class="fs11 txt-3 trunc" style="max-width:340px">También: ' + esc(x.alias.join(' · ')) + '</div>' : '') + '</td>' +
           '<td><span class="pill np ' + (pillTipo[x.tipo] || 'p-gray') + '">' + esc(TIPOS_EQUIPO[x.tipo]) + '</span></td><td class="mono">' + esc(x.placa || '') + '</td>' +
-          '<td class="num">' + (s.n || '<span class="txt-3">0</span>') + '</td><td class="num">' + (s.total ? Money.fmt(s.total) : '<span class="txt-3">—</span>') + '</td>' +
+          '<td class="num">' + (s.n || '<span class="txt-3">0</span>') + '</td><td class="num">' + (s.total ? Money.redondo(s.total) : '<span class="txt-3">—</span>') + '</td>' +
           '<td class="nowrap">' + (s.ultima ? Fecha.corta(s.ultima) : '<span class="txt-3">—</span>') + '</td>' +
           '<td class="tr">' + si('editar', '<button class="btn btn-ghost btn-icon btn-sm" data-eq-ed="' + attr(x.id) + '" data-tip="Editar" aria-label="Editar">' + Icon('edit', '', 13) + '</button>') + '</td></tr>';
       }).join('') + '</tbody></table>';
@@ -6041,9 +6088,9 @@ const VistaEstadisticas = {
       return;
     }
     h += '<div class="grid g4 mb16">' +
-      Comp.kpi({ l: 'Total comprado', icono: 'cash', v: Money.fmt(k.total), m: 'Compras y servicios, sin anuladas' }) +
+      Comp.kpi({ l: 'Total comprado', icono: 'cash', v: Money.redondo(k.total), m: 'Compras y servicios, sin anuladas' }) +
       Comp.kpi({ l: 'Órdenes', icono: 'doc', v: String(k.n), k: 'var(--info-500)', m: Txt.plural(k.proveedores, 'proveedor', 'proveedores') + (k.cotizaciones ? ' · ' + k.cotizaciones + ' cotizaciones aparte' : '') }) +
-      Comp.kpi({ l: 'Valor promedio', icono: 'chart', v: Money.fmt(k.ticket), k: 'var(--violet-500)', m: 'por orden con valor' }) +
+      Comp.kpi({ l: 'Valor promedio', icono: 'chart', v: Money.redondo(k.ticket), k: 'var(--violet-500)', m: 'por orden con valor' }) +
       Comp.kpi({ l: 'Sin valorizar', icono: 'tag', v: String(k.sinValor), k: 'var(--sun-500)', m: k.sinValor ? 'regístreles la factura para que sumen' : 'todas tienen valor',
         ir: k.sinValor ? '/ordenes' : '', tip: 'Órdenes que salieron sin precios y aún no tienen factura registrada' }) + '</div>' +
       '<div class="tabs" id="esTabs">' + this.TABS.map(([id, t]) => '<button class="tab' + (tab === id ? ' active' : '') + '" data-tab="' + id + '">' + t + '</button>').join('') + '</div>' +
@@ -6086,9 +6133,9 @@ const VistaEstadisticas = {
         l.map((x, i) => { const eq = tab === 'equipo' ? Datos.equipo(x.id) : null;
           return '<tr class="row-click" data-ir="' + (tab === 'proveedor' ? '/proveedor/' + attr(x.id) : (x.id === '—' ? '/ordenes' : '/ordenes?equipo=' + attr(x.id))) + '"><td class="num txt-3">' + (i + 1) + '</td>' +
             '<td class="fw6">' + esc(x.nombre) + '</td>' + (tab === 'equipo' ? '<td class="txt-2">' + (eq ? esc(TIPOS_EQUIPO[eq.tipo]) : '—') + '</td>' : '') +
-            '<td class="num">' + x.n + '</td><td class="num fw6">' + Comp.dinero(x.valor) + '</td><td class="num">' + pct(x.valor) + '</td><td>' + barra(x.valor) + '</td>' +
-            '<td class="num">' + (x.valor ? Money.fmt(Math.round(x.valor / x.n)) : '—') + '</td><td class="nowrap">' + Fecha.corta(ult.get(x.id)) + '</td></tr>'; }).join('') +
-        '</tbody><tfoot><tr><td></td><td>Total</td>' + (tab === 'equipo' ? '<td></td>' : '') + '<td class="num">' + k.n + '</td><td class="num">' + Money.fmt(total) + '</td><td class="num">100 %</td><td></td><td></td><td></td></tr></tfoot></table></div></div>';
+            '<td class="num">' + x.n + '</td><td class="num fw6">' + Comp.dinero(x.valor, true) + '</td><td class="num">' + pct(x.valor) + '</td><td>' + barra(x.valor) + '</td>' +
+            '<td class="num">' + (x.valor ? Money.redondo(x.valor / x.n) : '—') + '</td><td class="nowrap">' + Fecha.corta(ult.get(x.id)) + '</td></tr>'; }).join('') +
+        '</tbody><tfoot><tr><td></td><td>Total</td>' + (tab === 'equipo' ? '<td></td>' : '') + '<td class="num">' + k.n + '</td><td class="num">' + Money.redondo(total) + '</td><td class="num">100 %</td><td></td><td></td><td></td></tr></tfoot></table></div></div>';
     }
     if (tab === 'articulo') {
       const l = Analitica.ranking(lista, 'articulo').sort((a, b) => b.valor - a.valor || b.n - a.n);
@@ -6098,7 +6145,7 @@ const VistaEstadisticas = {
         '<th class="num">Comprado</th><th class="num">Último precio</th><th class="num">Proveedores</th></tr></thead><tbody>' +
         l.map((x, i) => { const c = cat.get(x.id);
           return '<tr><td class="num txt-3">' + (i + 1) + '</td><td class="trunc" style="max-width:380px" title="' + attr(x.nombre) + '">' + esc(x.nombre) + '</td><td class="num">' + x.n + '</td>' +
-            '<td class="num">' + esc(Num.fmt(x.cantidad)) + '</td><td>' + esc(x.unidad) + '</td><td class="num fw6">' + Comp.dinero(x.valor) + '</td>' +
+            '<td class="num">' + esc(Num.fmt(x.cantidad)) + '</td><td>' + esc(x.unidad) + '</td><td class="num fw6">' + Comp.dinero(x.valor, true) + '</td>' +
             '<td class="num">' + (c && c.valor ? Money.fmt(c.valor) : '<span class="txt-3">—</span>') + '</td><td class="num">' + x.proveedores.size + '</td></tr>'; }).join('') +
         '</tbody></table></div></div>';
     }
@@ -6106,8 +6153,8 @@ const VistaEstadisticas = {
       const s = Analitica.porMes(lista, r.desde, r.hasta).slice().reverse();
       return '<div class="card"><div class="tbl-wrap"><table class="tbl compacta"><thead><tr><th>Mes</th><th class="num">Órdenes</th><th class="num">Comprado</th><th class="num">Promedio</th><th class="num">Frente al mes anterior</th><th></th></tr></thead><tbody>' +
         s.map((x, i) => { const ant = s[i + 1]; const dif = ant && ant.valor ? Math.round((x.valor - ant.valor) / ant.valor * 100) : null;
-          return '<tr><td class="fw6">' + esc(Fecha.mesLargo(x.ym)) + '</td><td class="num">' + x.n + '</td><td class="num fw6">' + Comp.dinero(x.valor) + '</td>' +
-            '<td class="num">' + (x.n && x.valor ? Money.fmt(Math.round(x.valor / x.n)) : '—') + '</td>' +
+          return '<tr><td class="fw6">' + esc(Fecha.mesLargo(x.ym)) + '</td><td class="num">' + x.n + '</td><td class="num fw6">' + Comp.dinero(x.valor, true) + '</td>' +
+            '<td class="num">' + (x.n && x.valor ? Money.redondo(x.valor / x.n) : '—') + '</td>' +
             '<td class="num ' + (dif > 0 ? 'txt-dang' : dif < 0 ? 'txt-ok' : 'txt-3') + '">' + (dif == null ? '—' : (dif > 0 ? '+' : '') + dif + ' %') + '</td><td>' + barra(x.valor) + '</td></tr>'; }).join('') +
         '</tbody></table></div></div>';
     }
@@ -6117,7 +6164,7 @@ const VistaEstadisticas = {
       return '<div class="grid g2"><div class="card"><div class="card-h"><h3>Órdenes por estado</h3></div><div class="card-b">' +
         Chart.dona(porE.filter(x => x.n).map(x => ({ etiqueta: ESTADOS[x.e].t, valor: x.n })), { conteo: true, centro: 'órdenes' }) + '</div></div>' +
         '<div class="card"><div class="tbl-wrap"><table class="tbl compacta"><thead><tr><th>Estado</th><th class="num">Órdenes</th><th class="num">Valor</th><th>Qué falta</th></tr></thead><tbody>' +
-        porE.map(x => '<tr class="row-click" data-ir="/ordenes?estado=' + x.e + '"><td>' + Comp.pillEstado(x.e) + '</td><td class="num">' + x.n + '</td><td class="num">' + Comp.dinero(x.valor) + '</td><td class="fs12 txt-2">' + esc(ESTADOS[x.e].ayuda) + '</td></tr>').join('') +
+        porE.map(x => '<tr class="row-click" data-ir="/ordenes?estado=' + x.e + '"><td>' + Comp.pillEstado(x.e) + '</td><td class="num">' + x.n + '</td><td class="num">' + Comp.dinero(x.valor, true) + '</td><td class="fs12 txt-2">' + esc(ESTADOS[x.e].ayuda) + '</td></tr>').join('') +
         '</tbody></table></div></div></div>';
     }
     return '';
@@ -6740,17 +6787,18 @@ const Xlsx = (() => {
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const col = n => { let s = ''; n++; while (n) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; };
   const serial = iso => { const p = String(iso).slice(0, 10).split('-').map(Number); return (Date.UTC(p[0], p[1] - 1, p[2]) - Date.UTC(1899, 11, 30)) / 864e5; };
-  /* Estilos: 0 normal · 1 texto · 2 encabezado · 3 pesos · 4 fecha · 5 número · 6 título · 7 nota */
+  /* Estilos: 0 normal · 1 texto · 2 encabezado · 3 pesos · 4 fecha · 5 número · 6 título · 7 nota · 8 pesos con centavos */
   const ESTILOS = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
     '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
-    '<numFmts count="2"><numFmt numFmtId="164" formatCode="&quot;$&quot;\\ #,##0"/><numFmt numFmtId="165" formatCode="dd/mm/yyyy"/></numFmts>' +
+    '<numFmts count="3"><numFmt numFmtId="164" formatCode="&quot;$&quot;\\ #,##0"/><numFmt numFmtId="165" formatCode="dd/mm/yyyy"/>' +
+    '<numFmt numFmtId="166" formatCode="&quot;$&quot;\\ #,##0.00"/></numFmts>' +
     '<fonts count="4"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>' +
     '<font><b/><sz val="14"/><color rgb="FF193680"/><name val="Calibri"/></font><font><i/><sz val="10"/><color rgb="FF6B7C8C"/><name val="Calibri"/></font></fonts>' +
     '<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>' +
     '<fill><patternFill patternType="solid"><fgColor rgb="FF2A52AD"/><bgColor indexed="64"/></patternFill></fill></fills>' +
     '<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style="thin"><color rgb="FFD9D9D9"/></left>' +
     '<right style="thin"><color rgb="FFD9D9D9"/></right><top style="thin"><color rgb="FFD9D9D9"/></top><bottom style="thin"><color rgb="FFD9D9D9"/></bottom><diagonal/></border></borders>' +
-    '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="8">' +
+    '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="9">' +
     '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' +
     '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1"/>' +
     '<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>' +
@@ -6759,6 +6807,7 @@ const Xlsx = (() => {
     '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1"/>' +
     '<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>' +
     '<xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyFont="1"/>' +
+    '<xf numFmtId="166" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1"/>' +
     '</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
   /** hoja: { nombre, titulo, nota, columnas: [{ t, tipo: 'texto'|'pesos'|'fecha'|'numero', ancho }], filas: [[...]] } */
   function hojaXml(h) {
@@ -6766,7 +6815,7 @@ const Xlsx = (() => {
     const celda = (c, v, tipo) => {
       const ref = col(c) + (r + 1);
       if (v == null || v === '') return '<c r="' + ref + '" s="' + (tipo === 'titulo' ? 6 : tipo === 'nota' ? 7 : tipo === 'enc' ? 2 : 1) + '"/>';
-      if (tipo === 'pesos' && isFinite(+v)) return '<c r="' + ref + '" s="3"><v>' + Math.round(+v) + '</v></c>';
+      if (tipo === 'pesos' && isFinite(+v)) { const p = Money.cent(v); return '<c r="' + ref + '" s="' + (Number.isInteger(p) ? 3 : 8) + '"><v>' + p + '</v></c>'; }
       if (tipo === 'numero' && isFinite(+v)) return '<c r="' + ref + '" s="5"><v>' + (+v) + '</v></c>';
       if (tipo === 'fecha' && /^\d{4}-\d{2}-\d{2}/.test(String(v))) return '<c r="' + ref + '" s="4"><v>' + serial(v) + '</v></c>';
       const s = tipo === 'titulo' ? 6 : tipo === 'nota' ? 7 : tipo === 'enc' ? 2 : 1;
@@ -6833,7 +6882,10 @@ const Exportar = {
   descargar(base, formato, hojas) {
     if (formato === 'csv') {
       const h = hojas[0];
-      U.descargar(new Blob([this.csv(h.columnas.map(c => c.t), h.filas.map(f => f.map((v, i) => h.columnas[i].tipo === 'fecha' && v ? Fecha.corta(v) : v)))],
+      /* Excel en español lee la coma como decimal: «12605,04», «2,5» */
+      const celda = (v, tipo) => tipo === 'fecha' && v ? Fecha.corta(v)
+        : typeof v === 'number' && (tipo === 'pesos' || tipo === 'numero') ? String(tipo === 'pesos' ? Money.cent(v) : v).replace('.', ',') : v;
+      U.descargar(new Blob([this.csv(h.columnas.map(c => c.t), h.filas.map(f => f.map((v, i) => celda(v, h.columnas[i].tipo))))],
         { type: 'text/csv;charset=utf-8' }), this.nombre(base, 'csv'));
     } else {
       U.descargar(new Blob([Xlsx.libro(hojas)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), this.nombre(base, 'xlsx'));
@@ -6886,8 +6938,8 @@ const Exportar = {
     const art = Analitica.ranking(lista, 'articulo');
     this.descargar('estadisticas-ordenes', 'xlsx', [
       { nombre: 'Resumen', titulo: 'Estadísticas de órdenes de compra', nota: r.etiqueta + ' · ' + this.sello(), columnas: [{ t: 'Indicador', ancho: 34 }, { t: 'Valor', ancho: 18 }],
-        filas: [['Total comprado', Money.fmt(k.total)], ['Órdenes (sin anuladas ni cotizaciones)', k.n], ['Valor promedio por orden con valor', Money.fmt(k.ticket)],
-          ['Órdenes sin valorizar', k.sinValor], ['Esperando cotización', k.sinFactura], ['En contabilidad (por pagar)', k.porPagar], ['Valor por pagar', Money.fmt(k.valorPorPagar)],
+        filas: [['Total comprado', Money.redondo(k.total)], ['Órdenes (sin anuladas ni cotizaciones)', k.n], ['Valor promedio por orden con valor', Money.redondo(k.ticket)],
+          ['Órdenes sin valorizar', k.sinValor], ['Esperando cotización', k.sinFactura], ['En contabilidad (por pagar)', k.porPagar], ['Valor por pagar', Money.redondo(k.valorPorPagar)],
           ['Proveedores distintos', k.proveedores], ['Anuladas', k.anuladas], ['Solicitudes de cotización', k.cotizaciones]] },
       { nombre: 'Por mes', titulo: 'Compras por mes', nota: r.etiqueta, columnas: [{ t: 'Mes', ancho: 20 }, { t: 'Órdenes', tipo: 'numero', ancho: 9 }, { t: 'Comprado', tipo: 'pesos', ancho: 16 }],
         filas: Analitica.porMes(lista, r.desde, r.hasta).map(x => [Fecha.mesLargo(x.ym), x.n, x.valor]) },
@@ -7122,10 +7174,13 @@ Pruebas.def('Número de orden: tres cifras y el año, como en el Excel', async (
   Pruebas.igual(Modelo.numero(1234, '2026-06-30'), '1234-26');
   return '007-26 · 290-27 · 1234-26';
 });
-Pruebas.def('Totales como el Excel: subtotal − retención + IVA', async () => {
+Pruebas.def('Totales como el Excel: subtotal − retención + IVA, al centavo', async () => {
   const t = Modelo.totales({ ivaPct: 19, retencionPct: 2.5, items: [{ descripcion: 'A', cantidad: 10, valorUnitario: 3500 }, { descripcion: 'B', cantidad: '2,5', valorUnitario: '1.000' }] });
-  Pruebas.igual([t.subtotal, t.iva, t.retencion, t.total], [37500, 7125, 938, 43687]);
-  return 'Subtotal 37.500 · IVA 7.125 · retención 938 · total 43.687';
+  Pruebas.igual([t.subtotal, t.iva, t.retencion, t.total], [37500, 7125, 937.5, 43687.5]);
+  /* Como viene en una cotización: el precio sin IVA, con centavos */
+  const c = Modelo.totales({ ivaPct: 19, retencionPct: 0, items: [{ descripcion: 'Filtro', cantidad: 3, valorUnitario: '12.605,04' }] });
+  Pruebas.igual([c.subtotal, c.iva, c.total], [37815.12, 7184.87, 44999.99]);
+  return 'Subtotal 37.500 · IVA 7.125 · retención 937,50 · total 43.687,50 · 3 × 12.605,04 + IVA = 44.999,99';
 });
 Pruebas.def('Una orden sin precios se puede guardar', async ({ p1 }) => {
   const o = Pruebas.orden(p1);
@@ -7361,6 +7416,11 @@ Pruebas.def('Búsqueda sin tildes ni mayúsculas, también por NIT', async ({ p1
 });
 Pruebas.def('Pesos, cantidades y fechas', async () => {
   Pruebas.igual([Money.parse('1.234.567'), Money.parse('$ 45.000'), Money.fmt(1234567), Num.parse('2,5'), Num.parse('1.500,25')], [1234567, 45000, '$ 1.234.567', 2.5, 1500.25]);
+  /* Centavos: con coma, o con punto si trae uno o dos dígitos al final */
+  Pruebas.igual([Money.parse('12.605,04'), Money.parse('12605.04'), Money.parse('1.500'), Money.parse('0,5'), Money.parse(1.005), Money.parse('1,234,567')],
+    [12605.04, 12605.04, 1500, 0.5, 1.01, 1234567]);
+  Pruebas.igual([Money.fmt(37815.12), Money.fmt(45000), Money.num(12605.5), Money.redondo(1234.5), MoneyInput.formato('12605,0'), MoneyInput.formato('1234567,891'), MoneyInput.formato(',5')],
+    ['$ 37.815,12', '$ 45.000', '12.605,50', '$ 1.235', '12.605,0', '1.234.567,89', '0,5']);
   Pruebas.igual([Fecha.valida('2026-02-30'), Fecha.valida('2026-10-26'), Fecha.larga('2026-10-26'), Fecha.sumarDias('2026-12-15', 30)], [false, true, '26 de octubre de 2026', '2027-01-14']);
 });
 Pruebas.def('El catálogo sugiere lo ya pedido con su último precio', async ({ p1 }) => {
