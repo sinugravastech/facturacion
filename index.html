@@ -1704,7 +1704,7 @@ const APP = Object.freeze({
   nombre: 'Facturación',
   area: 'Órdenes de compra',
   empresa: 'SINUGRAVAS S.A.S.',
-  version: '2.3.0',
+  version: '2.4.0',
   /* 3: los datos viven en la nube y el número de cada orden sale de las órdenes */
   esquema: 3,
   /* La base del navegador de la versión local (1.x). Ya no se guarda en ella:
@@ -1756,13 +1756,18 @@ if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && new URLSearchParams(
 
 /* Qué puede hacer la persona: el ÚNICO punto que lo decide. Lo dice el
    servidor al entrar (panel_mi_acceso, del panel común): su rol en
-   Facturación y sus acciones, las mismas de panel.roles: ver, editar,
-   eliminar, configurar y pagar, que es de contabilidad. El administrador
-   general puede todo. Eliminar órdenes es sólo del administrador; los demás
-   las anulan. Las pantallas esconden lo que no se permite, los servicios lo
-   rechazan y, al final, las reglas de la base tampoco lo dejan pasar. Sin
-   acceso cargado (las pruebas del sistema, que corren en memoria) todo está
-   permitido. */
+   Facturación y sus acciones, las mismas de panel.roles (los roles se manejan
+   en el Panel de control, desde el 29/10/2026):
+   · Administrador: ver, editar, eliminar, configurar y pagar. Es el único que
+     elimina órdenes y el único que entra a Copias de seguridad, Configuración
+     y Pruebas del sistema.
+   · Editor: ver, editar y pagar. Órdenes, plantillas, proveedores y equipos;
+     no elimina órdenes (las anula).
+   · Consulta: ver. Dashboard, Órdenes, Estadísticas, Proveedores y Equipos.
+   El administrador general puede todo. Las pantallas esconden lo que no se
+   permite, los servicios lo rechazan y, al final, las reglas de la base
+   tampoco lo dejan pasar. Sin acceso cargado (las pruebas del sistema, que
+   corren en memoria) todo está permitido. */
 const Permiso = {
   acceso: null,
   puede(accion) {
@@ -1771,7 +1776,7 @@ const Permiso = {
   },
   exigir(accion) {
     if (!this.puede(accion)) throw new ErrorDominio('No tiene permiso para ' + ({ editar: 'crear o cambiar datos', eliminar: 'eliminar',
-      configurar: 'cambiar la configuración', pagar: 'marcar órdenes como pagadas' }[accion] || accion) + '. Pídaselo al administrador.', 'SIN_PERMISO');
+      configurar: 'cambiar la configuración', pagar: 'marcar órdenes como pagadas' }[accion] || accion) + '. Pídaselo al administrador en el Panel de control.', 'SIN_PERMISO');
   },
   /** Quién es: queda en el registro de actividad y en el historial de cada orden */
   quien() { const a = this.acceso; return a ? String(a.nombre || a.correo || '').trim() : ''; },
@@ -1779,7 +1784,7 @@ const Permiso = {
     const a = this.acceso;
     if (!a) return '';
     if (a.es_admin) return 'Administrador general';
-    return { admin: 'Administrador', compras: 'Compras', contabilidad: 'Contabilidad', consulta: 'Consulta' }[a.rol] || 'Usuario';
+    return { admin: 'Administrador', editor: 'Editor', consulta: 'Consulta' }[a.rol] || 'Usuario';
   }
 };
 /** Devuelve el HTML sólo si la persona puede hacer la acción */
@@ -3632,7 +3637,7 @@ const ProveedorService = {
   /** Junta dos fichas del mismo proveedor: las órdenes y plantillas pasan al
       destino, sus nombres quedan como alias y se completan los datos vacíos. */
   async fusionar(origen, destino) {
-    Permiso.exigir('eliminar');
+    Permiso.exigir('editar');
     if (origen.id === destino.id) throw new ErrorDominio('Escoja otro proveedor.');
     if (this.fusionado(origen) || this.fusionado(destino)) throw new ErrorDominio('Esa ficha ya se fusionó con otra. Escoja la que quedó.');
     const d = U.clonar(destino);
@@ -3699,8 +3704,9 @@ const EquipoService = {
     return Datos.equipo(q.id);
   },
   usos(q) { return Datos.ordenes.filter(o => o.equipoId === q.id).length + Datos.plantillas.filter(p => p.equipoId === q.id).length; },
+  /* El Editor también: sólo las órdenes son del administrador */
   async eliminar(q) {
-    Permiso.exigir('eliminar');
+    Permiso.exigir('editar');
     if (this.usos(q)) throw new ErrorDominio('Tiene órdenes o plantillas: mejor desactívelo.');
     await Datos.lote([{ col: 'equipos', tipo: 'del', id: q.id }, Datos.evento('eliminar', 'equipo', q.id, q.nombre)]);
   },
@@ -3738,7 +3744,7 @@ const PlantillaService = {
       items: o.items.map(it => Object.assign(U.clonar(it), { id: ID() })), notas: 'Creada a partir de la orden ' + o.numero + '.'
     });
   },
-  async eliminar(p) { Permiso.exigir('eliminar'); await Datos.lote([{ col: 'plantillas', tipo: 'del', id: p.id }, Datos.evento('eliminar', 'plantilla', p.id, p.nombre)]); }
+  async eliminar(p) { Permiso.exigir('editar'); await Datos.lote([{ col: 'plantillas', tipo: 'del', id: p.id }, Datos.evento('eliminar', 'plantilla', p.id, p.nombre)]); }
 };
 
 /* Lo que ya se ha pedido alguna vez, para escribir más rápido: al teclear la
@@ -3914,11 +3920,14 @@ const Router = (() => {
   const R = {
     /** Hay un formulario con cambios sin guardar: se pregunta antes de salir */
     sucio: false,
-    def(patron, vista) {
+    /** accion: la que pide la sección; sin ella se ve «no es de su rol» */
+    def(patron, vista, accion) {
       const claves = [];
       const re = new RegExp('^' + patron.replace(/:(\w+)/g, (_, k) => { claves.push(k); return '([^/]+)'; }) + '$');
-      rutas.push({ patron, re, claves, vista });
+      rutas.push({ patron, re, claves, vista, accion });
     },
+    /** La acción que pide una dirección («/plantillas» → 'editar'), o null si es de todos */
+    accion(ruta) { const r = rutas.find(x => x.re.test(ruta)); return (r && r.accion) || null; },
     actual() { return actual; },
     /** reemplazar: la pantalla de donde se sale no queda en el historial del
         navegador (después de guardar no se vuelve al formulario con «atrás») */
@@ -3938,7 +3947,8 @@ const Router = (() => {
       const params = {};
       r.claves.forEach((k, i) => { params[k] = decodeURIComponent(m[i + 1]); });
       const mismaVista = actual && actual.patron === r.patron && actual.ruta === ruta;
-      actual = { ruta, params, q, vista: r.vista, patron: r.patron };
+      const vista = r.accion && !Permiso.puede(r.accion) ? VistaSinPermiso : r.vista;
+      actual = { ruta, params, q, vista, patron: r.patron };
       /* Al cambiar de pantalla no queda ninguna ventana encima; al repintar la
          misma (otra pestaña guardó algo) no se le cierra nada a quien escribe. */
       if (!silencio) Modal.cerrarTodos();
@@ -3954,9 +3964,9 @@ const Router = (() => {
       Combo.limpiar();
       const y = silencio ? window.scrollY : 0;
       try {
-        const t = r.vista.titulo ? r.vista.titulo(params, q) : [APP.nombre, ''];
+        const t = vista.titulo ? vista.titulo(params, q) : [APP.nombre, ''];
         Shell.titulo(t[0], t[1]);
-        await r.vista.render(cont, params, q);
+        await vista.render(cont, params, q);
       } catch (e) {
         console.error(e);
         cont.innerHTML = Comp.fallo(e);
@@ -4408,16 +4418,16 @@ const Shell = {
     { id: 'ordenes', ruta: '/ordenes', t: 'Órdenes', ic: 'doc', badge: () => Datos.ordenes.filter(o => ['ESPERANDO', 'CONTABILIDAD'].includes(o.estado)).length || '',
       tipBadge: 'Órdenes abiertas: sin pagar ni anular' },
     { id: 'orden-nueva', ruta: '/orden-nueva', t: 'Nueva orden', ic: 'plus', accion: 'editar' },
-    { id: 'plantillas', ruta: '/plantillas', t: 'Plantillas', ic: 'layers', badge: () => Datos.plantillas.length || '' },
+    { id: 'plantillas', ruta: '/plantillas', t: 'Plantillas', ic: 'layers', accion: 'editar', badge: () => Datos.plantillas.length || '' },
     { sec: 'Análisis' },
     { id: 'estadisticas', ruta: '/estadisticas', t: 'Estadísticas', ic: 'chart' },
     { sec: 'Maestros' },
     { id: 'proveedores', ruta: '/proveedores', t: 'Proveedores', ic: 'building', badge: () => Datos.proveedores.filter(p => p.activo).length || '' },
     { id: 'equipos', ruta: '/equipos', t: 'Equipos y destinos', ic: 'truck' },
     { sec: 'Sistema' },
-    { id: 'respaldos', ruta: '/respaldos', t: 'Copias de seguridad', ic: 'database', badge: () => Respaldo.vencido() ? '!' : '', badgeClase: 'warn',
+    { id: 'respaldos', ruta: '/respaldos', t: 'Copias de seguridad', ic: 'database', accion: 'configurar', badge: () => Respaldo.vencido() ? '!' : '', badgeClase: 'warn',
       tipBadge: 'Hace más de una semana que no se descarga un respaldo' },
-    { id: 'configuracion', ruta: '/configuracion', t: 'Configuración', ic: 'cog' },
+    { id: 'configuracion', ruta: '/configuracion', t: 'Configuración', ic: 'cog', accion: 'configurar' },
     { id: 'pruebas', ruta: '/pruebas', t: 'Pruebas del sistema', ic: 'flask', accion: 'configurar' }
   ],
   render() {
@@ -4480,11 +4490,16 @@ const Shell = {
     if (p.startsWith('/proveedor')) return 'proveedores';
     return p.slice(1).split('/')[0];
   },
+  /** Lo que el rol ve en el menú, sin los títulos que le quedan vacíos (Consulta no ve Sistema) */
+  menu() {
+    const vis = this.NAV.filter(n => !n.accion || Permiso.puede(n.accion));
+    return vis.filter((n, i) => !n.sec || (vis[i + 1] && !vis[i + 1].sec));
+  },
   pintarNav() {
     const nav = $('#sbNav');
     if (!nav) return;
     const act = this.activo();
-    nav.innerHTML = this.NAV.filter(n => !n.accion || Permiso.puede(n.accion)).map(n => {
+    nav.innerHTML = this.menu().map(n => {
       if (n.sec) return '<div class="sb-sec">' + esc(n.sec) + '</div>';
       const b = n.badge ? n.badge() : '';
       return '<a class="sb-item' + (n.id === act ? ' active' : '') + '" href="#' + n.ruta + '" data-tip="' + attr(n.t) + '">' + Icon(n.ic, 'sb-ico', 17) +
@@ -4680,6 +4695,17 @@ const AccionesOrden = {
   }
 };
 
+/* ---------- Una sección que no es del rol (se llegó escribiendo la dirección) ---------- */
+const VistaSinPermiso = {
+  titulo() { return ['Sin acceso', 'Esta sección no es de su rol']; },
+  render(el) {
+    el.innerHTML = '<div class="card"><div class="card-b">' + Comp.vacio('lock', 'Esta sección no es de su rol',
+      'Su rol en Facturación' + (Permiso.rolTexto() ? ' (' + esc(Permiso.rolTexto()) + ')' : '') + ' no la incluye. ' +
+      'Si la necesita, pídasela al administrador en el Panel de control.',
+      '<a class="btn btn-primary" href="#/">' + Icon('grid', '', 14) + 'Ir al Dashboard</a>') + '</div></div>';
+  }
+};
+
 /* ---------- Dashboard ---------- */
 const VistaDashboard = {
   titulo() { return ['Dashboard', Datos.cfg.empresa.nombre + ' · Facturación']; },
@@ -4694,7 +4720,8 @@ const VistaDashboard = {
       '<a class="btn" href="#/proveedores">' + Icon('building', '', 14) + 'Proveedores</a></div></div>';
     if (Migracion.local && Permiso.puede('configurar')) h += Migracion.html(Migracion.local);
     h += Comp.periodo(p, 'dash');
-    if (Respaldo.vencido() && Datos.ordenes.length && sessionStorage.getItem(APP.prefs + 'avisoRespaldo') !== '1') {
+    /* El respaldo lo hace el administrador: sólo a él se le recuerda */
+    if (Permiso.puede('configurar') && Respaldo.vencido() && Datos.ordenes.length && sessionStorage.getItem(APP.prefs + 'avisoRespaldo') !== '1') {
       h += '<div class="alert a-warn mb16" id="avRespaldo">' + Icon('database') + '<div><b>' + (Datos.cfg.ultimoRespaldo ? 'Hace más de una semana que no descarga un respaldo.' : 'Todavía no ha hecho ninguna copia de seguridad.') +
         '</b> El plan gratuito de la nube no guarda copias por usted: descargue una cada semana. <a href="#/respaldos">Hacer una ahora</a></div>' +
         '<button class="al-x" aria-label="Ocultar">' + Icon('x', '', 14) + '</button></div>';
@@ -5902,8 +5929,8 @@ const VistaProveedor = {
     $('#pvVolver', el).onclick = () => Router.ir('/proveedores');
     const bMas = $('#pvMas', el);
     if (bMas) bMas.onclick = e => Menu.abrir(e.currentTarget, [
-      { texto: 'Nueva orden', icono: 'plus', accion: () => Router.ir('/orden-nueva?proveedor=' + pv.id) }].concat(Permiso.puede('eliminar') ? [
-      { texto: 'Fusionar con otro proveedor', icono: 'merge', accion: () => this.fusionar(pv) }] : [], [
+      { texto: 'Nueva orden', icono: 'plus', accion: () => Router.ir('/orden-nueva?proveedor=' + pv.id) }].concat([
+      { texto: 'Fusionar con otro proveedor', icono: 'merge', accion: () => this.fusionar(pv) }], [
       { texto: pv.activo ? 'Desactivar' : 'Activar', icono: pv.activo ? 'ban' : 'checkCircle', accion: async () => {
         const n = U.clonar(pv); n.activo = !pv.activo; await ProveedorService.guardar(n);
         Toast.ok(esc(pv.nombre) + (n.activo ? ' activo de nuevo.' : ' desactivado: ya no sale al escoger proveedor.')); Router.resolver(true);
@@ -7543,6 +7570,37 @@ Pruebas.def('Solo consulta: todas las pantallas abren y no dejan escribir', asyn
   } finally { Permiso.puede = antes; Router.sucio = false; }
   return '11 pantallas';
 });
+Pruebas.def('Los roles del Panel: cada uno ve su menú y hace sólo lo suyo', async ({ p1, p2, e1 }) => {
+  const o = await OrdenService.guardar(Object.assign(Pruebas.orden(p1), { equipoId: e1.id }));
+  const pl = await PlantillaService.guardar(Object.assign(PlantillaService.vacia(), { nombre: 'Kit', proveedorId: p1.id, items: [{ descripcion: 'Filtro', cantidad: 1, unidad: 'UND' }] }));
+  const suelto = await EquipoService.guardar(Object.assign(EquipoService.vacio(), { nombre: 'EQUIPO SIN ÓRDENES' }));
+  const antes = Permiso.acceso;
+  const menu = () => Shell.menu().map(n => n.id || n.sec).join(' ');
+  const ve = r => !Router.accion(r) || Permiso.puede(Router.accion(r));
+  try {
+    Permiso.acceso = { rol: 'admin', acciones: ['ver', 'editar', 'eliminar', 'configurar', 'pagar'], activo: true };
+    Pruebas.igual(Shell.menu().filter(n => n.id).length, 10, 'el administrador ve todo el menú');
+    Permiso.acceso = { rol: 'editor', acciones: ['ver', 'editar', 'pagar'], activo: true };
+    Pruebas.igual(menu(), 'Operación dashboard Órdenes de compra ordenes orden-nueva plantillas Análisis estadisticas Maestros proveedores equipos');
+    Pruebas.igual(['/plantillas', '/orden-nueva', '/respaldos', '/configuracion', '/pruebas'].map(ve), [true, true, false, false, false]);
+    Pruebas.igual(Permiso.rolTexto(), 'Editor');
+    await Pruebas.falla(() => OrdenService.eliminar(o), ErrorDominio, 'el Editor no elimina órdenes');
+    await EquipoService.eliminar(suelto);
+    await PlantillaService.eliminar(pl);
+    await ProveedorService.fusionar(p2, p1);
+    Pruebas.igual([Datos.equipo(suelto.id), Datos.plantilla(pl.id), Datos.prov(p2.id).fusionadoCon], [null, null, p1.id], 'el Editor elimina equipos y plantillas y fusiona proveedores');
+    Permiso.acceso = { rol: 'consulta', acciones: ['ver'], activo: true };
+    Pruebas.igual(menu(), 'Operación dashboard Órdenes de compra ordenes Análisis estadisticas Maestros proveedores equipos');
+    Pruebas.igual(['/', '/ordenes', '/orden/x', '/estadisticas', '/proveedores', '/proveedor/x', '/equipos'].every(ve), true, 'Consulta entra a lo suyo');
+    Pruebas.igual(['/orden-nueva', '/orden-editar/x', '/plantillas', '/respaldos', '/configuracion', '/pruebas'].some(ve), false, 'Consulta no entra a lo demás');
+    const div = document.createElement('div'); VistaSinPermiso.render(div);
+    Pruebas.cierto(div.textContent.includes('no es de su rol') && div.textContent.includes('Consulta'), 'debía decir que la sección no es de su rol');
+    await Pruebas.falla(() => EquipoService.eliminar(e1), ErrorDominio, 'Consulta no elimina equipos');
+    await Pruebas.falla(() => OrdenService.cambiarEstado(Datos.orden(o.id), 'ANULADA', { motivo: 'x' }), ErrorDominio, 'Consulta no anula');
+    Pruebas.igual(Datos.orden(o.id).estado, 'ESPERANDO', 'la orden debía quedar igual');
+  } finally { Permiso.acceso = antes; }
+  return 'Administrador · Editor · Consulta';
+});
 Pruebas.def('Una nube nueva arranca vacía, y el programa no lleva datos de la empresa', async () => {
   db = new MemoryAdapter(); await db.init(); await Datos.cargar();
   Pruebas.igual(await Semillas.aplicar(), true);
@@ -7972,16 +8030,16 @@ function registrarRutas() {
   Router.def('/', VistaDashboard);
   Router.def('/ordenes', VistaOrdenes);
   Router.def('/orden/:id', VistaOrden);
-  Router.def('/orden-nueva', VistaOrdenForm);
-  Router.def('/orden-editar/:id', VistaOrdenForm);
-  Router.def('/plantillas', VistaPlantillas);
+  Router.def('/orden-nueva', VistaOrdenForm, 'editar');
+  Router.def('/orden-editar/:id', VistaOrdenForm, 'editar');
+  Router.def('/plantillas', VistaPlantillas, 'editar');
   Router.def('/proveedores', VistaProveedores);
   Router.def('/proveedor/:id', VistaProveedor);
   Router.def('/equipos', VistaEquipos);
   Router.def('/estadisticas', VistaEstadisticas);
-  Router.def('/respaldos', VistaRespaldos);
-  Router.def('/configuracion', VistaConfiguracion);
-  Router.def('/pruebas', VistaPruebas);
+  Router.def('/respaldos', VistaRespaldos, 'configurar');
+  Router.def('/configuracion', VistaConfiguracion, 'configurar');
+  Router.def('/pruebas', VistaPruebas, 'configurar');
 }
 
 async function arrancar() {
