@@ -222,6 +222,8 @@ html[data-theme="dark"] ::-webkit-scrollbar-thumb{background:#37454f}
 .ses-txt{font-size:13px;color:var(--text-2);margin-bottom:14px;line-height:1.55}
 .ses-botones{display:flex;gap:8px;flex-wrap:wrap}
 .ses-botones .btn{flex:1 1 auto;height:36px;justify-content:center}
+.ses-panel{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:12px;font-size:12.5px;font-weight:600;color:var(--accent);text-decoration:none}
+.ses-panel:hover{text-decoration:underline}
 /* En el celular, letra de 16 px en las casillas para que el teléfono no acerque la pantalla al escribir */
 @media (max-width:560px){ .ses .inp{font-size:16px} }
 /* Datos de la versión anterior en este computador, para subirlos a la nube */
@@ -1702,7 +1704,7 @@ const APP = Object.freeze({
   nombre: 'Facturación',
   area: 'Órdenes de compra',
   empresa: 'SINUGRAVAS S.A.S.',
-  version: '2.2.0',
+  version: '2.3.0',
   /* 3: los datos viven en la nube y el número de cada orden sale de las órdenes */
   esquema: 3,
   /* La base del navegador de la versión local (1.x). Ya no se guarda en ella:
@@ -1713,9 +1715,24 @@ const APP = Object.freeze({
      abren con doble clic comparten el mismo almacén. */
   prefs: 'sinugravas.facturacion.'
 });
-/* «← Panel» aparece en la barra lateral cuando exista la dirección del panel
-   común de SINUGRAVAS. Mientras tanto el módulo trabaja solo. */
-const PANEL_URL = '';
+/* El Panel de control de SINUGRAVAS: ahí se entra una vez y se abren los
+   módulos. «← Panel de control» sale en la barra lateral y en la entrada. */
+const PANEL_URL = 'https://panel.sinugravas.com';
+/* El pase del Panel de control («#pase=…»): un enlace de un solo uso para
+   entrar sin volver a escribir la contraseña. Se lee antes que todo lo que
+   mira la dirección (el enrutador cambia a #/ lo que no conoce) y se quita de
+   la barra y del historial. La pestaña queda marcada como «del panel»: su
+   sesión vive sólo en ella. El pase no se guarda ni se anota en ningún lado. */
+const PASE = (() => {
+  const m = /(?:^#|&)pase=([^&]+)/.exec(location.hash);
+  if (!m) return null;
+  history.replaceState(null, '', location.pathname + location.search);
+  try { sessionStorage.setItem('panel.pestana', Date.now().toString(36) + Math.random().toString(36).slice(2, 10)); } catch (e) { /* sin almacenamiento */ }
+  try { return decodeURIComponent(m[1]); } catch (e) { return m[1]; }
+})();
+/* Con el almacenamiento bloqueado, la pestaña trabaja como siempre */
+const PESTANA = (() => { try { return sessionStorage.getItem('panel.pestana'); } catch (e) { return null; } })();
+const DESDE_PANEL = !!PESTANA;
 
 /* La nube: el Supabase de SINUGRAVAS, el mismo de Flota y RH. Facturación
    tiene su propio esquema y su propio depósito de archivos, y no lee ni toca
@@ -2479,17 +2496,21 @@ const errorNube = (msg, o) => Object.assign(new ErrorDominio(msg, 'NUBE'), o || 
 const esperar = ms => new Promise(ok => setTimeout(ok, ms));
 
 const Nube = {
-  CLAVE: APP.prefs + 'sesion',
+  /* Sin pase, la sesión queda en este navegador (localStorage), como siempre.
+     Si la pestaña vino del Panel de control, sólo en ella (sessionStorage, con
+     el id de la pestaña): recargar sigue adentro y al cerrarla se acaba. */
+  CLAVE: APP.prefs + 'sesion' + (DESDE_PANEL ? '.' + PESTANA : ''),
   _memoria: null,
 
   /* ---------------- La sesión ---------------- */
+  _almacen() { return DESDE_PANEL ? sessionStorage : localStorage; },
   sesion() {
-    try { return JSON.parse(localStorage.getItem(this.CLAVE) || 'null') || this._memoria; } catch (e) { return this._memoria; }
+    try { return JSON.parse(this._almacen().getItem(this.CLAVE) || 'null') || this._memoria; } catch (e) { return this._memoria; }
   },
   guardarSesion(s) {
     try {
-      if (s) localStorage.setItem(this.CLAVE, JSON.stringify(s));
-      else localStorage.removeItem(this.CLAVE);
+      if (s) this._almacen().setItem(this.CLAVE, JSON.stringify(s));
+      else this._almacen().removeItem(this.CLAVE);
     } catch (e) { /* sin almacenamiento: la sesión dura lo que la pestaña */ }
     this._memoria = s || null;
   },
@@ -2512,6 +2533,21 @@ const Nube = {
         : 'El servidor no dejó entrar: ' + (j.error_description || j.msg || j.message || 'error ' + r.status) + '.');
     }
     this.guardarSesion(this._sesionDe(j, correo));
+  },
+  /* Cambia el pase del Panel de control por una sesión de esta pestaña.
+     'ok', 'vencido' (ya se usó, venció o la cuenta está suspendida) o 'red' */
+  async canjearPase(pase) {
+    let r;
+    try {
+      r = await this._fetch(NUBE.url + '/auth/v1/verify', {
+        method: 'POST', headers: { apikey: NUBE.llave, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'email', token_hash: pase })
+      }, 20000);
+    } catch (e) { return 'red'; }
+    const j = r.ok ? await r.json().catch(() => null) : null;
+    if (!j || !j.access_token) return 'vencido';
+    this.guardarSesion(this._sesionDe(j));
+    return 'ok';
   },
   /* Renueva la sesión con su refresh_token. Sin red, sigue la que había; si el
      servidor la rechaza, se cierra (null) */
@@ -4385,7 +4421,7 @@ const Shell = {
     { id: 'pruebas', ruta: '/pruebas', t: 'Pruebas del sistema', ic: 'flask', accion: 'configurar' }
   ],
   render() {
-    const vuelta = PANEL_URL ? '<div class="sb-vuelta"><a class="sb-item sb-portal" href="' + attr(PANEL_URL) + '">' + Icon('back', 'sb-ico', 17) + '<span>Panel</span></a></div>' : '';
+    const vuelta = PANEL_URL ? '<div class="sb-vuelta"><a class="sb-item sb-portal" href="' + attr(PANEL_URL) + '">' + Icon('back', 'sb-ico', 17) + '<span>Panel de control</span></a></div>' : '';
     $('#app').innerHTML =
       '<aside class="sidebar" id="sidebar">' +
         '<div class="sb-brand">' + (MARCA.emblema ? '<div class="sb-logo marca"><img src="' + MARCA.emblema + '" alt="SINUGRAVAS"></div>' : '<div class="sb-logo">SG</div>') +
@@ -7636,6 +7672,7 @@ const Sesion = {
           '<div id="sesError"></div>' +
           '<button class="btn btn-primary ses-entrar" type="button" id="sesEntrar">' + Icon('shield', '', 15) + 'Entrar</button>' +
           '<div class="ses-estado" id="sesEstado"><span class="spin"></span>Comprobando el servidor…</div>' +
+          (PANEL_URL ? '<a class="ses-panel" href="' + attr(PANEL_URL) + '">' + Icon('back', '', 14) + 'Volver al Panel de control</a>' : '') +
         '</div></div>' + this.nota +
       '</div></div>';
       const clave = $('#sesClave'), boton = $('#sesEntrar');
@@ -7678,33 +7715,37 @@ const Sesion = {
       });
     });
   },
-  /* Entró bien, pero la cuenta todavía no tiene acceso a Facturación */
-  sinAcceso(acc) {
+  /* Entró bien, pero la cuenta no tiene acceso a Facturación: su sesión se
+     cierra sólo aquí (scope=local) y el acceso se pide en el Panel de control */
+  async sinAcceso(acc) {
+    const correo = (acc && acc.correo) || Nube.correo();
+    await Nube.salir();
     return new Promise(listo => {
-      const correo = (acc && acc.correo) || Nube.correo();
       $('#sesion').innerHTML = '<div class="ses"><div class="ses-caja ancha">' + this.marca() +
         '<div class="card"><div class="card-b">' +
           '<div class="alert a-warn" style="padding:9px 11px;margin-bottom:12px">' + Icon('shield', '', 14) +
             '<div><b>Su cuenta no tiene acceso a Facturación.</b></div></div>' +
-          '<p class="ses-txt">Entró bien' + (correo ? ' como <b>' + esc(correo) + '</b>' : '') + ', pero esta cuenta todavía no está autorizada en Facturación. ' +
-            'Pídale el acceso al administrador. Cuando se lo dé, pulse «Volver a comprobar» y entrará sin escribir la contraseña otra vez.</p>' +
+          '<p class="ses-txt">Entró bien' + (correo ? ' como <b>' + esc(correo) + '</b>' : '') + ', pero esta cuenta no tiene acceso a Facturación. ' +
+            'Pídaselo al administrador en el Panel de control.</p>' +
           '<div class="ses-botones">' +
-            '<button class="btn btn-primary" type="button" id="sesComprobar">' + Icon('refresh', '', 14) + 'Volver a comprobar</button>' +
+            (PANEL_URL ? '<a class="btn btn-primary" href="' + attr(PANEL_URL) + '">' + Icon('back', '', 14) + 'Volver al Panel de control</a>' : '') +
             '<button class="btn" type="button" id="sesOtra">' + Icon('salir', '', 14) + 'Entrar con otra cuenta</button></div>' +
         '</div></div>' + this.nota +
       '</div></div>';
-      $('#sesComprobar').onclick = e => {
-        e.currentTarget.disabled = true;
-        e.currentTarget.innerHTML = '<span class="spin"></span>Comprobando…';
-        listo('comprobar');
-      };
-      $('#sesOtra').onclick = async () => { await Nube.salir(); listo('otra'); };
+      $('#sesOtra').onclick = () => listo();
     });
   },
   /* Hasta que haya una sesión con acceso a Facturación. Deja puesto lo que la
-     persona puede hacer (Permiso.acceso). */
+     persona puede hacer (Permiso.acceso). Si vino del Panel de control con un
+     pase, primero se cambia por la sesión de esta pestaña: sin pantallas. */
   async iniciar() {
-    if (!(await Nube.token())) await this.pedir();
+    let aviso = '';
+    if (PASE) {
+      const r = await Nube.canjearPase(PASE);
+      if (r === 'vencido') aviso = 'El enlace del Panel de control ya se usó o venció. Vuelva al panel y entre otra vez, o ingrese con su contraseña.';
+      else if (r === 'red') aviso = 'No hubo conexión para usar el enlace del Panel de control. Revise el internet y vuelva a entrar desde el panel, o ingrese con su contraseña.';
+    }
+    if (!(await Nube.token())) await this.pedir(aviso);
     for (;;) {
       let acc;
       try { acc = await Nube.miAcceso(); }
@@ -7715,7 +7756,8 @@ const Sesion = {
         continue;
       }
       if (acc && acc.activo !== false && (acc.es_admin || (acc.acciones || []).includes('ver'))) { Permiso.acceso = acc; break; }
-      if ((await this.sinAcceso(acc)) === 'otra') await this.pedir();
+      await this.sinAcceso(acc);
+      await this.pedir();
     }
     this.cerrar();
   },
