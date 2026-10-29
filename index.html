@@ -729,6 +729,8 @@ table.hj-tbl tr:hover .it-acc .btn,table.hj-tbl .it-acc .btn:focus{opacity:1}
 .hj-tot .ht-l{display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;background:var(--surface-2);border-right:1px solid var(--border);
   font-size:10.5px;font-weight:750;text-transform:uppercase;letter-spacing:.05em;color:var(--text-2)}
 .hj-tot .ht-l label{font:inherit;color:inherit;margin:0}
+.hj-tot .ht-l .ht-chk{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;color:var(--text-2);cursor:pointer;white-space:nowrap}
+.hj-tot .ht-chk input{margin:0;width:13px;height:13px}
 .hj-tot .ht-l .inp{width:auto;min-width:0;max-width:100%;height:26px;padding:0 22px 0 6px;background-position:right 6px center;
   font-size:11.5px;font-weight:500;text-transform:none;letter-spacing:0}
 .hj-tot .ht-v{display:flex;align-items:center;justify-content:flex-end;font-size:12.5px;font-weight:650;font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -1704,7 +1706,7 @@ const APP = Object.freeze({
   nombre: 'Facturación',
   area: 'Órdenes de compra',
   empresa: 'SINUGRAVAS S.A.S.',
-  version: '2.4.0',
+  version: '2.5.0',
   /* 3: los datos viven en la nube y el número de cada orden sale de las órdenes */
   esquema: 3,
   /* La base del navegador de la versión local (1.x). Ya no se guarda en ella:
@@ -1758,12 +1760,13 @@ if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && new URLSearchParams(
    servidor al entrar (panel_mi_acceso, del panel común): su rol en
    Facturación y sus acciones, las mismas de panel.roles (los roles se manejan
    en el Panel de control, desde el 29/10/2026):
-   · Administrador: ver, editar, eliminar, configurar y pagar. Es el único que
-     elimina órdenes y el único que entra a Copias de seguridad, Configuración
-     y Pruebas del sistema.
-   · Editor: ver, editar y pagar. Órdenes, plantillas, proveedores y equipos;
-     no elimina órdenes (las anula).
-   · Consulta: ver. Dashboard, Órdenes, Estadísticas, Proveedores y Equipos.
+   · Administrador: ver, editar, eliminar, configurar y pagar. Cambia y elimina
+     cualquier orden, y es el único que entra a Copias de seguridad,
+     Configuración y Pruebas del sistema.
+   · Editor: ver, editar y pagar. Crea órdenes, y sólo cambia y elimina las que
+     él mismo hizo (Juan, 29/10/2026). Plantillas, proveedores y equipos, todos.
+   · Visualizador (la clave del rol es «consulta»): ver. Dashboard, Órdenes,
+     Estadísticas, Proveedores y Equipos.
    El administrador general puede todo. Las pantallas esconden lo que no se
    permite, los servicios lo rechazan y, al final, las reglas de la base
    tampoco lo dejan pasar. Sin acceso cargado (las pruebas del sistema, que
@@ -1780,11 +1783,31 @@ const Permiso = {
   },
   /** Quién es: queda en el registro de actividad y en el historial de cada orden */
   quien() { const a = this.acceso; return a ? String(a.nombre || a.correo || '').trim() : ''; },
+  /** Su id de la cuenta: lo dice el panel y, si no, la sesión. Sin acceso
+      cargado (las pruebas del sistema), nadie. */
+  yo() {
+    const a = this.acceso;
+    if (!a) return '';
+    if (a.id) return String(a.id);
+    try {
+      const s = Nube.sesion();
+      const p = JSON.parse(atob(s.access_token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+      return String(p.sub || '');
+    } catch (e) { return ''; }
+  },
+  /** ¿Puede cambiar esta orden? El administrador ('eliminar'), todas. El
+      Editor, sólo las que él mismo hizo. Lo mismo exige la base (SQL 205). */
+  puedeOrden(o) { return this.puede('eliminar') || (this.puede('editar') && !!o && !!o.creadoPor && o.creadoPor === this.yo()); },
+  exigirOrden(o, accion) {
+    this.exigir(accion);
+    if (!this.puedeOrden(o)) throw new ErrorDominio('Esta orden la hizo ' + (Modelo.autor(o) || 'otra persona') +
+      ': sólo esa persona o el administrador la pueden cambiar.', 'SIN_PERMISO');
+  },
   rolTexto() {
     const a = this.acceso;
     if (!a) return '';
     if (a.es_admin) return 'Administrador general';
-    return { admin: 'Administrador', editor: 'Editor', consulta: 'Consulta' }[a.rol] || 'Usuario';
+    return { admin: 'Administrador', editor: 'Editor', consulta: 'Visualizador' }[a.rol] || 'Usuario';
   }
 };
 /** Devuelve el HTML sólo si la persona puede hacer la acción */
@@ -2727,15 +2750,18 @@ const MAPA = (() => {
   const aCampo = s => s.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
   const iso = v => { const d = new Date(v); return isNaN(d) ? v : d.toISOString(); };
   return {
-    /** El documento de la plataforma → la fila de su tabla */
-    fila(col, doc) {
+    /** El documento de la plataforma → la fila de su tabla. conAutor: al subir
+        un respaldo, cada fila conserva quién la creó (la base sólo se lo
+        acepta al administrador) */
+    fila(col, doc, conAutor) {
       const m = M[col], f = { id: doc.id }, extra = {};
       Object.keys(doc).forEach(k => {
         const v = doc[k];
         if (k === 'id' || v === undefined) return;
         if (k === 'creadoEn') { if (v) f.creado = v; return; }
+        if (k === 'creadoPor') { if (conAutor && v) f.creado_por = v; return; }
         /* Quién y cuándo cambió la fila lo pone la base; el archivo va al depósito */
-        if (k === 'actualizadoEn' || k === 'creadoPor' || k === 'actualizadoPor' || (col === 'adjuntos' && k === 'datos')) return;
+        if (k === 'actualizadoEn' || k === 'actualizadoPor' || (col === 'adjuntos' && k === 'datos')) return;
         const s = aColumna(k);
         if (m.cols.has(s)) { if (v !== null || m.nulas.has(s)) f[s] = v; }
         else extra[k] = v;
@@ -2865,7 +2891,7 @@ class NubeAdapter extends StorageAdapter {
       const filas = ops.map(o => {
         if (o.tipo === 'del') return { col: o.col, tipo: 'del', id: o.id };
         if (o.col === 'adjuntos') o.doc.ruta = NubeAdapter.ruta(o.doc);
-        const op = { col: o.col, tipo: 'put', doc: MAPA.fila(o.col, o.doc) };
+        const op = { col: o.col, tipo: 'put', doc: MAPA.fila(o.col, o.doc, opts.conAutor) };
         const v = EN_MEMORIA.includes(o.col) && !borrados.has(o.col + ':' + o.doc.id) && this.ver[o.col].get(o.doc.id);
         if (v) op.antes = v;
         return op;
@@ -3063,11 +3089,16 @@ const Modelo = {
   itemValido(it) { return !!(it && String(it.descripcion || '').trim()); },
   totalItem(it) { return Money.cent(Num.parse(it.cantidad) * Money.parse(it.valorUnitario)); },
   /** Igual que el Excel: TOTAL = SUBTOTAL − RETENCIÓN EN LA FUENTE + IVA, al
-      centavo, como las cotizaciones */
+      centavo, como las cotizaciones. Con el IVA ya incluido en los precios
+      (muchas cotizaciones llegan así), no se suma: el subtotal es la base sin
+      IVA, el IVA sale de adentro y el total es lo que suman los artículos,
+      menos la retención (que va sobre la base). */
   totales(o) {
     const items = (o.items || []).filter(Modelo.itemValido);
-    const subtotal = Money.cent(U.sumar(items, Modelo.totalItem));
-    const iva = Money.cent(subtotal * (+o.ivaPct || 0) / 100);
+    const suma = Money.cent(U.sumar(items, Modelo.totalItem));
+    const pct = +o.ivaPct || 0;
+    const subtotal = o.ivaIncluido ? Money.cent(suma / (1 + pct / 100)) : suma;
+    const iva = o.ivaIncluido ? Money.cent(suma - subtotal) : Money.cent(subtotal * pct / 100);
     const retencion = Money.cent(subtotal * (+o.retencionPct || 0) / 100);
     return { subtotal, iva, retencion, total: Money.cent(subtotal - retencion + iva), valorizada: subtotal > 0, nItems: items.length };
   },
@@ -3093,6 +3124,8 @@ const Modelo = {
     return p ? { id: p.id, nombre: p.nombre, nit: p.nit || '', telefono: p.telefono || p.celular || '', direccion: p.direccion || '',
       ciudad: p.ciudad || '', contacto: p.contacto || '', correo: p.correo || '' } : null;
   },
+  /** Quién hizo la orden: el primero de su historial */
+  autor(o) { const h = o && o.historial && o.historial[0]; return (h && h.por) || ''; },
   nombreProveedor(o) { const p = Datos.prov(o.proveedorId); return p ? p.nombre : (o.proveedor && o.proveedor.nombre) || 'Sin proveedor'; },
   nombreEquipo(o) { const e = o.equipoId ? Datos.equipo(o.equipoId) : null; return e ? e.nombre : ''; }
 };
@@ -3394,7 +3427,7 @@ const OrdenService = {
     if (opts.duplicarId) {
       const b = Datos.orden(opts.duplicarId) || HistoricoExcel.paraCopiar(opts.duplicarId);
       if (b) {
-        ['tipo', 'proveedorId', 'equipoId', 'concepto', 'ivaPct', 'retencionPct', 'formaPago', 'plazoDias', 'cuotas', 'medioPago',
+        ['tipo', 'proveedorId', 'equipoId', 'concepto', 'ivaPct', 'ivaIncluido', 'retencionPct', 'formaPago', 'plazoDias', 'cuotas', 'medioPago',
           'entregaLugar', 'entregaRecibe', 'entregaCedula', 'notaProveedor'].forEach(k => { o[k] = U.clonar(b[k]); });
         o.items = b.items.map(it => Object.assign(U.clonar(it), { id: ID() }));
         o.duplicadaDe = b.numero;
@@ -3433,6 +3466,7 @@ const OrdenService = {
       observacion: String(it.observacion || '').trim()
     }));
     o.ivaPct = +o.ivaPct || 0;
+    if (o.ivaIncluido) o.ivaIncluido = true; else delete o.ivaIncluido;
     o.retencionPct = +o.retencionPct || 0;
     o.plazoDias = Math.max(0, Math.round(+o.plazoDias || 0));
     o.cuotas = Math.max(0, Math.round(+o.cuotas || 0));
@@ -3465,6 +3499,8 @@ const OrdenService = {
     const o = U.clonar(entrada);
     const previo = o.id ? Datos.orden(o.id) : null;
     if (previo) {
+      Permiso.exigirOrden(previo, 'editar');
+      if (previo.creadoPor) o.creadoPor = previo.creadoPor;
       o.estado = opts.estado || previo.estado;
       if (!opts.factura) o.factura = U.clonar(previo.factura || null);
       o.pago = U.clonar(previo.pago || null);
@@ -3480,6 +3516,9 @@ const OrdenService = {
     const comunes = [];
     if (!previo) {
       o.id = o.id || ID();
+      /* Es de quien la crea (la base pone lo mismo): sólo esa persona o el administrador la cambian */
+      const yo = Permiso.yo();
+      if (yo) o.creadoPor = yo; else delete o.creadoPor;
       o.historial = [this.paso(o.estado, o.duplicadaDe ? 'Creada a partir de la ' + o.duplicadaDe : 'Creada')];
       delete o.duplicadaDe;
       if (o.plantillaId && Datos.plantilla(o.plantillaId)) {
@@ -3530,8 +3569,8 @@ const OrdenService = {
   },
   /** Contabilidad, cuando la paga */
   async marcarPagada(entrada, pago) {
-    Permiso.exigir('pagar');
     const orden = this.actual(entrada);
+    Permiso.exigirOrden(orden, 'pagar');
     if (!(orden.factura && orden.factura.numero)) throw new ErrorDominio('Para marcarla como pagada, primero registre la factura.');
     if (orden.estado === 'PAGADA') throw new ErrorDominio('La orden ya está pagada.');
     if (!Fecha.valida(pago.fecha)) throw new ErrorValidacion({ fecha: 'Revise la fecha del pago.' });
@@ -3540,9 +3579,9 @@ const OrdenService = {
   },
   async cambiarEstado(orden, estado, extra) {
     extra = extra || {};
-    Permiso.exigir(extra.permiso || 'editar');
-    if (!ESTADOS[estado]) throw new ErrorDominio('Estado no válido.');
     const n = this.actual(orden);
+    Permiso.exigirOrden(n, extra.permiso || 'editar');
+    if (!ESTADOS[estado]) throw new ErrorDominio('Estado no válido.');
     if (n.estado === estado && !extra.factura) return Datos.orden(n.id) || n;
     const anterior = n.estado;
     n.estado = estado;
@@ -3558,25 +3597,26 @@ const OrdenService = {
       Datos.evento('estado', 'orden', n.id, n.numero + ': ' + ESTADOS[anterior].t + ' → ' + ESTADOS[estado].t)]);
     return Datos.orden(n.id);
   },
-  /** Se puede borrar en cualquier estado; quien no tenga el permiso, la anula */
+  /** Se puede borrar en cualquier estado: el administrador, cualquiera, y el
+      Editor, las suyas */
   async eliminar(entrada) {
-    Permiso.exigir('eliminar');
     const o = this.actual(entrada);
+    Permiso.exigirOrden(o, 'editar');
     await Datos.lote([{ col: 'ordenes', tipo: 'del', id: o.id }, ...(o.adjuntos || []).map(a => ({ col: 'adjuntos', tipo: 'del', id: a.id })),
       Datos.evento('eliminar', 'orden', o.id, o.numero + ' · ' + Modelo.nombreProveedor(o))]);
   },
   /** Adjuntar después de guardada: la cotización o la factura suelen llegar luego */
   async adjuntar(orden, a) {
-    Permiso.exigir('editar');
     const n = this.actual(orden);
+    Permiso.exigirOrden(n, 'editar');
     n.adjuntos = (n.adjuntos || []).concat([Adjuntos.meta(a)]);
     await Datos.lote([{ col: 'adjuntos', tipo: 'put', doc: Object.assign({ ordenId: n.id }, a) }, { col: 'ordenes', tipo: 'put', doc: n },
       Datos.evento('adjuntar', 'orden', n.id, n.numero + ' · ' + a.nombre)]);
     return Datos.orden(n.id);
   },
   async quitarAdjunto(orden, id) {
-    Permiso.exigir('editar');
     const n = this.actual(orden);
+    Permiso.exigirOrden(n, 'editar');
     const a = (n.adjuntos || []).find(x => x.id === id);
     n.adjuntos = (n.adjuntos || []).filter(x => x.id !== id);
     await Datos.lote([{ col: 'adjuntos', tipo: 'del', id }, { col: 'ordenes', tipo: 'put', doc: n },
@@ -4089,7 +4129,7 @@ const Comp = {
   pillOrden(o) { return o.excel ? '<span class="pill p-gray np" data-tip="Copiada del Excel: sólo para consultar">Excel</span>' : Comp.pillEstado(o.estado); },
   /** El estado como desplegable: se cambia ahí mismo, también si algo se marcó por error */
   selEstado(o) {
-    if (o.excel || !Permiso.puede('editar')) return Comp.pillOrden(o);
+    if (o.excel || !Permiso.puedeOrden(o)) return Comp.pillOrden(o);
     const x = ESTADOS[o.estado] || ESTADOS.ESPERANDO;
     return '<select class="sel-estado ' + x.pill + '" data-estado="' + attr(o.id) + '" data-tip="Cambiar el estado" aria-label="Estado de la orden ' + attr(o.numero) + '">' +
       Object.keys(ESTADOS).map(k => '<option value="' + k + '"' + (k === o.estado ? ' selected' : '') + '>' + esc(ESTADOS[k].t) + '</option>').join('') + '</select>';
@@ -4677,20 +4717,23 @@ const AccionesOrden = {
       Menu.abrir(boton, ops);
       return;
     }
+    /* Duplicar y hacer plantilla crean algo nuevo: cualquier editor. Lo demás
+       cambia la orden: el administrador, o el Editor que la hizo */
+    const mia = Permiso.puedeOrden(o);
     if (ed) ops.push({ texto: 'Duplicar', icono: 'copy', accion: () => Router.ir('/orden-nueva?duplicar=' + o.id) });
-    if (ed && o.estado !== 'ANULADA') ops.push({ texto: 'Editar', icono: 'edit', accion: () => Router.ir('/orden-editar/' + o.id) });
+    if (mia && o.estado !== 'ANULADA') ops.push({ texto: 'Editar', icono: 'edit', accion: () => Router.ir('/orden-editar/' + o.id) });
     if (ed) ops.push({ texto: 'Guardar como plantilla', icono: 'layers', accion: () => this.comoPlantilla(o) });
-    if (ed && o.estado === 'ESPERANDO') ops.push({ texto: 'Llegó la factura', icono: 'receipt', accion: () => this.registrarFactura(o) });
-    if (Permiso.puede('pagar') && o.estado === 'CONTABILIDAD') ops.push({ texto: 'Marcar como pagada', icono: 'checkCircle', accion: async () => listo(await this.marcarPagada(o)) });
-    /* Contabilidad corrige lo suyo: si la marcó pagada por error, la devuelve */
-    if (Permiso.puede('pagar') && o.estado === 'PAGADA') ops.push({ texto: 'Deshacer el pago', icono: 'rotate', accion: async () => listo(await this.cambiar(o, 'CONTABILIDAD')) });
-    if (ed && ['CONTABILIDAD', 'PAGADA'].includes(o.estado)) ops.push({ texto: 'Corregir la factura', icono: 'receipt', accion: () => this.registrarFactura(o) });
-    if (ed) {
+    if (mia && o.estado === 'ESPERANDO') ops.push({ texto: 'Llegó la factura', icono: 'receipt', accion: () => this.registrarFactura(o) });
+    if (mia && Permiso.puede('pagar') && o.estado === 'CONTABILIDAD') ops.push({ texto: 'Marcar como pagada', icono: 'checkCircle', accion: async () => listo(await this.marcarPagada(o)) });
+    /* Si se marcó pagada por error, se devuelve */
+    if (mia && Permiso.puede('pagar') && o.estado === 'PAGADA') ops.push({ texto: 'Deshacer el pago', icono: 'rotate', accion: async () => listo(await this.cambiar(o, 'CONTABILIDAD')) });
+    if (mia && ['CONTABILIDAD', 'PAGADA'].includes(o.estado)) ops.push({ texto: 'Corregir la factura', icono: 'receipt', accion: () => this.registrarFactura(o) });
+    if (mia) {
       ops.push('-');
       if (o.estado === 'ANULADA') ops.push({ texto: 'Reactivar', icono: 'rotate', accion: async () => listo(await this.reactivar(o)) });
       else ops.push({ texto: 'Anular', icono: 'ban', peligro: true, accion: async () => listo(await this.anular(o)) });
+      ops.push({ texto: 'Eliminar', icono: 'trash', peligro: true, accion: async () => { if (await this.eliminar(o)) alCambiar && alCambiar(null); } });
     }
-    if (Permiso.puede('eliminar')) ops.push({ texto: 'Eliminar', icono: 'trash', peligro: true, accion: async () => { if (await this.eliminar(o)) alCambiar && alCambiar(null); } });
     Menu.abrir(boton, ops);
   }
 };
@@ -4923,9 +4966,14 @@ const VistaOrden = {
       Txt.plural(o.items.length, 'artículo') + '</div></div><div class="ph-actions">' +
       '<button class="btn" id="odCopiar" data-tip="Para pegarla en WhatsApp o en un correo">' + Icon('image', '', 14) + 'Copiar imagen</button>' +
       '<button class="btn btn-primary" id="odImp">' + Icon('print', '', 14) + 'Imprimir o PDF</button>' +
-      si('editar', '<a class="btn" href="#/orden-nueva?duplicar=' + attr(o.id) + '">' + Icon('copy', '', 14) + 'Duplicar</a>' +
-      (o.estado !== 'ANULADA' ? '<a class="btn" href="#/orden-editar/' + attr(o.id) + '">' + Icon('edit', '', 14) + 'Editar</a>' : '')) +
+      si('editar', '<a class="btn" href="#/orden-nueva?duplicar=' + attr(o.id) + '">' + Icon('copy', '', 14) + 'Duplicar</a>') +
+      (Permiso.puedeOrden(o) && o.estado !== 'ANULADA' ? '<a class="btn" href="#/orden-editar/' + attr(o.id) + '">' + Icon('edit', '', 14) + 'Editar</a>' : '') +
       '<button class="btn btn-icon" id="odMas" aria-label="Más acciones" data-tip="Más acciones">' + Icon('more', '', 15) + '</button></div></div>';
+    /* Un Editor mirando la orden de otra persona: sabe por qué no la puede cambiar */
+    if (Permiso.puede('editar') && !Permiso.puedeOrden(o)) {
+      h += '<div class="alert a-info mb16">' + Icon('lock') + '<div>Esta orden la hizo <b>' + esc(Modelo.autor(o) || 'otra persona') +
+        '</b>: sólo esa persona o el administrador la pueden cambiar. Puede duplicarla para hacer una suya.</div></div>';
+    }
     if (o.estado === 'ANULADA') {
       h += '<div class="alert a-err mb16">' + Icon('ban') + '<div><b>Orden anulada</b>' + (o.anulacion && o.anulacion.en ? ' el ' + esc(Fecha.stamp(o.anulacion.en)) : '') +
         (o.anulacion && o.anulacion.motivo ? '. Motivo: ' + esc(o.anulacion.motivo) : '') + '. No cuenta en las estadísticas.</div></div>';
@@ -4972,13 +5020,13 @@ const VistaOrden = {
       }
     });
     const cAdj = $('#odAdj', el);
-    if (cAdj && Permiso.puede('editar')) Adjuntos.unir(cAdj, async a => { await OrdenService.adjuntar(Datos.orden(o.id), a); Toast.ok('<b>' + esc(a.nombre) + '</b> adjuntado.'); recargar(); });
+    if (cAdj && Permiso.puedeOrden(o)) Adjuntos.unir(cAdj, async a => { await OrdenService.adjuntar(Datos.orden(o.id), a); Toast.ok('<b>' + esc(a.nombre) + '</b> adjuntado.'); recargar(); });
   },
   adjuntos(o) {
     const l = o.adjuntos || [];
     return '<div class="card" id="odAdj"><div class="card-h"><h3>' + Icon('clip', '', 15) + 'Cotización y soportes</h3><span class="ch-sub">' + (l.length ? Txt.plural(l.length, 'archivo') : 'PDF o fotos') + '</span>' +
-      si('editar', '<div class="ch-act"><button type="button" class="btn btn-sm" data-adj-subir>' + Icon('upload', '', 12) + 'Adjuntar</button></div>') + '</div>' +
-      '<div class="card-b">' + Adjuntos.html(l, Permiso.puede('editar')) + '</div></div>';
+      (Permiso.puedeOrden(o) ? '<div class="ch-act"><button type="button" class="btn btn-sm" data-adj-subir>' + Icon('upload', '', 12) + 'Adjuntar</button></div>' : '') + '</div>' +
+      '<div class="card-b">' + Adjuntos.html(l, Permiso.puedeOrden(o)) + '</div></div>';
   },
   /** Una orden del Excel: la hoja con el formato de hoy y sus datos, sin seguimiento */
   renderExcel(el, o) {
@@ -5038,22 +5086,22 @@ const VistaOrden = {
       h += '<div class="ruta-p ' + cls + '"><div class="ruta-ic">' + Icon(i < actual || cerrada || (o.estado === 'ANULADA' && u) ? 'check' : ESTADOS[e].ic, '', 12) + '</div><div class="ruta-tx"><b>' + esc(ESTADOS[e].t) + '</b>' +
         '<small>' + (u ? esc(Fecha.stamp(u.en)) + (u.nota && u.nota !== 'Creada' ? ' · ' + esc(u.nota) : '') : (i > actual ? 'Pendiente' : '')) + '</small>' +
         (e === 'CONTABILIDAD' && o.factura ? '<small>Factura ' + esc(o.factura.numero || 's/n') + ' · ' + Money.fmt(Modelo.valor(o)) + '</small>' : '') +
-        (i === actual && siguiente ? si(siguiente[3], '<button class="btn btn-sm btn-primary" data-paso="' + siguiente[0] + '">' + Icon(siguiente[2], '', 12) + esc(siguiente[1]) + '</button>') +
+        (i === actual && siguiente ? (Permiso.puedeOrden(o) ? si(siguiente[3], '<button class="btn btn-sm btn-primary" data-paso="' + siguiente[0] + '">' + Icon(siguiente[2], '', 12) + esc(siguiente[1]) + '</button>') : '') +
           (siguiente[3] === 'pagar' ? '<small>Lo hace contabilidad cuando paga</small>' : '<small>Con ella se ponen los valores de lo comprado</small>') : '') +
         '</div></div>';
     });
     if (o.estado === 'ANULADA') {
       h += '<div class="ruta-p anulada"><div class="ruta-ic">' + Icon('ban', '', 12) + '</div><div class="ruta-tx"><b>Anulada</b><small>' +
-        esc(o.anulacion ? Fecha.stamp(o.anulacion.en) : '') + '</small>' + si('editar', '<button class="btn btn-sm" data-paso="REACTIVAR">' + Icon('rotate', '', 12) + 'Reactivar</button>') + '</div></div>';
+        esc(o.anulacion ? Fecha.stamp(o.anulacion.en) : '') + '</small>' + (Permiso.puedeOrden(o) ? '<button class="btn btn-sm" data-paso="REACTIVAR">' + Icon('rotate', '', 12) + 'Reactivar</button>' : '') + '</div></div>';
     }
     return h + '</div></div></div>';
   },
   resumen(o) {
     const t = Modelo.totales(o);
     let h = '<div class="card"><div class="card-h"><h3>' + Icon('cash', '', 15) + 'Resumen</h3>' + (t.valorizada ? '' : '<span class="pill p-gray np">Sin valorizar</span>') + '</div><div class="card-b"><div class="resumen">' +
-      '<div class="rs-f"><span>Subtotal</span><b>' + Money.fmt(t.subtotal) + '</b></div>' +
+      '<div class="rs-f"><span>' + (o.ivaIncluido ? 'Subtotal sin IVA' : 'Subtotal') + '</span><b>' + Money.fmt(t.subtotal) + '</b></div>' +
       '<div class="rs-f"><span>Retención en la fuente' + (o.retencionPct ? ' (' + Num.pct(o.retencionPct) + ')' : '') + '</span><b>' + (t.retencion ? '− ' + Money.fmt(t.retencion) : Money.fmt(0)) + '</b></div>' +
-      '<div class="rs-f"><span>IVA (' + Num.pct(o.ivaPct) + ')</span><b>' + Money.fmt(t.iva) + '</b></div>' +
+      '<div class="rs-f"><span>IVA (' + Num.pct(o.ivaPct) + ')' + (o.ivaIncluido ? ', incluido en los precios' : '') + '</span><b>' + Money.fmt(t.iva) + '</b></div>' +
       '<div class="rs-f rs-tot"><span>Total</span><b>' + Money.fmt(t.total) + '</b></div>';
     if (o.factura && o.factura.valor) {
       const dif = Money.cent(o.factura.valor - t.total);
@@ -5090,7 +5138,7 @@ const VistaOrden = {
       (o.entregaRecibe ? '<dt>Recibe</dt><dd>' + esc(o.entregaRecibe) + (o.entregaCedula ? ' · C.C. ' + esc(o.entregaCedula) : '') + '</dd>' : '') +
       (o.referencia ? '<dt>Cotización</dt><dd>' + esc(o.referencia) + '</dd>' : '') +
       '<dt>Solicitante</dt><dd>' + (o.solicitante ? esc(o.solicitante.nombre) + ' <span class="txt-3">· ' + esc(o.solicitante.cargo) + '</span>' : '<span class="falta">—</span>') + '</dd>' +
-      (o.factura ? '<dt>Factura</dt><dd>' + esc(o.factura.numero || 's/n') + ' · ' + esc(Fecha.corta(o.factura.fecha)) + '' + si('editar', ' <button class="link fs12" data-fact>Corregir</button>') + '</dd>' : '') +
+      (o.factura ? '<dt>Factura</dt><dd>' + esc(o.factura.numero || 's/n') + ' · ' + esc(Fecha.corta(o.factura.fecha)) + '' + (Permiso.puedeOrden(o) ? ' <button class="link fs12" data-fact>Corregir</button>' : '') + '</dd>' : '') +
       (o.pago ? '<dt>Pagada</dt><dd>' + esc(Fecha.larga(o.pago.fecha)) + (o.pago.nota ? ' · ' + esc(o.pago.nota) : '') + '</dd>' : '') +
       (o.plantillaId && Datos.plantilla(o.plantillaId) ? '<dt>Plantilla</dt><dd>' + esc(Datos.plantilla(o.plantillaId).nombre) + '</dd>' : '') +
       '</dl></div></div>';
@@ -5123,6 +5171,11 @@ const VistaOrdenForm = {
     if (p.id) {
       const b = Datos.orden(p.id);
       if (!b) { el.innerHTML = Comp.vacio('doc', 'Esa orden no existe', 'Puede que se haya eliminado.', '<a class="btn" href="#/ordenes">Ver las órdenes</a>'); return; }
+      if (!Permiso.puedeOrden(b)) {
+        el.innerHTML = Comp.vacio('lock', 'Esta orden no la puede cambiar', 'La orden ' + esc(b.numero) + ' la hizo ' + esc(Modelo.autor(b) || 'otra persona') +
+          ': sólo esa persona o el administrador la pueden cambiar.', '<a class="btn" href="#/orden/' + attr(b.id) + '">Ver la orden</a>');
+        return;
+      }
       if (b.estado === 'ANULADA') { el.innerHTML = Comp.vacio('ban', 'La orden ' + b.numero + ' está anulada', 'Reactívela para poder editarla.', '<a class="btn" href="#/orden/' + attr(b.id) + '">Ver la orden</a>'); return; }
       o = U.clonar(b);
     } else {
@@ -5487,18 +5540,24 @@ const VistaOrdenForm = {
     const o = this.o;
     const t = Modelo.totales(o);
     const cont = $('#ofResumen', this.el);
-    cont.innerHTML = '<div class="ht"><div class="ht-l">Subtotal</div><div class="ht-v">' + Money.fmt(t.subtotal) + '</div>' +
+    cont.innerHTML = '<div class="ht"><div class="ht-l">' + (o.ivaIncluido ? 'Subtotal sin IVA' : 'Subtotal') + '</div><div class="ht-v">' + Money.fmt(t.subtotal) + '</div>' +
       '<div class="ht-l"><label for="ofRet">Retención</label><select class="inp" id="ofRet">' +
         PCT_RETENCION.map(r => '<option value="' + r.v + '"' + (+o.retencionPct === r.v ? ' selected' : '') + '>' + esc(r.t) + '</option>').join('') +
         (PCT_RETENCION.some(r => r.v === +o.retencionPct) ? '' : '<option value="' + o.retencionPct + '" selected>' + Num.pct(o.retencionPct) + '</option>') + '</select></div>' +
         '<div class="ht-v">' + (t.retencion ? '− ' + Money.fmt(t.retencion) : Money.fmt(0)) + '</div>' +
       '<div class="ht-l"><label for="ofIva">IVA</label><select class="inp" id="ofIva">' +
         PCT_IVA.map(v => '<option value="' + v + '"' + (+o.ivaPct === v ? ' selected' : '') + '>' + v + ' %</option>').join('') +
-        (PCT_IVA.includes(+o.ivaPct) ? '' : '<option value="' + o.ivaPct + '" selected>' + Num.pct(o.ivaPct) + '</option>') + '</select></div><div class="ht-v">' + Money.fmt(t.iva) + '</div>' +
+        (PCT_IVA.includes(+o.ivaPct) ? '' : '<option value="' + o.ivaPct + '" selected>' + Num.pct(o.ivaPct) + '</option>') + '</select>' +
+        '<label class="ht-chk" data-tip="Márquela si la cotización trae los precios con el IVA: así no se suma otra vez">' +
+          '<input type="checkbox" id="ofIvaInc"' + (o.ivaIncluido ? ' checked' : '') + '>ya incluido en los precios</label></div>' +
+        '<div class="ht-v">' + Money.fmt(t.iva) + '</div>' +
       '<div class="ht-l ht-g">Total</div><div class="ht-v ht-g">' + Money.fmt(t.total) + '</div></div>' +
-      '<div class="hj-nota">' + (t.valorizada ? 'Total = subtotal − retención + IVA, como en el Excel.' : 'Sin precios: puede enviarla así y registrar la factura después.') + '</div>';
+      '<div class="hj-nota">' + (!t.valorizada ? 'Sin precios: puede enviarla así y registrar la factura después.'
+        : o.ivaIncluido ? 'Los precios ya traen el IVA: no se suma. Total = lo que suman los artículos − retención.'
+        : 'Total = subtotal − retención + IVA, como en el Excel.') + '</div>';
     $('#ofRet', cont).addEventListener('change', e => { o.retencionPct = +e.target.value; this.marcar(); this.pintarResumen(); });
     $('#ofIva', cont).addEventListener('change', e => { o.ivaPct = +e.target.value; this.marcar(); this.pintarResumen(); });
+    $('#ofIvaInc', cont).addEventListener('change', e => { o.ivaIncluido = e.target.checked; this.marcar(); this.pintarResumen(); });
     this.pintarSubItems();
   },
   /** Al lado del proveedor: lo que suministra, sus condiciones y su última orden (también la del Excel) */
@@ -6299,7 +6358,8 @@ const Respaldo = {
     }
     ops.push(Datos.evento('restaurar', 'sistema', '', 'Respaldo del ' + Fecha.stamp(obj.creado)));
     Cargando.on();
-    try { await db.lote(ops, { avance }); } finally { Cargando.off(); }
+    /* Cada orden sigue siendo de quien la hizo */
+    try { await db.lote(ops, { avance, conAutor: true }); } finally { Cargando.off(); }
     await Datos.cargar();
     /* Un respaldo de una versión anterior se pone al día al restaurarlo */
     if ((Datos.cfg.semillas || 0) >= 1) await Semillas.aplicar();
@@ -6691,9 +6751,9 @@ const Documento = {
         (o.entregaCedula ? ', C.C. ' + esc(o.entregaCedula) : '') : '') + '</span></div>' +
       '<div class="dc-f"><label>Equipo / destino</label><span>' + esc(eq ? eq.nombre + (eq.tipo !== 'sede' && eq.clase && !Txt.norm(eq.nombre).includes(Txt.norm(eq.clase)) ? ' · ' + eq.clase : '') +
         (eq.placa && !EquipoService.placaNorm(eq.nombre).includes(EquipoService.placaNorm(eq.placa)) ? ' (' + eq.placa + ')' : '') : '') + '</span></div>' +
-      '</div><div class="dp-tot"><table><tr><td>Subtotal</td><td>' + m(t.subtotal) + '</td></tr>' +
+      '</div><div class="dp-tot"><table><tr><td>' + (o.ivaIncluido ? 'Subtotal sin IVA' : 'Subtotal') + '</td><td>' + m(t.subtotal) + '</td></tr>' +
       '<tr><td>Retención en la fuente' + (o.retencionPct ? ' (' + esc(Num.pct(o.retencionPct)) + ')' : '') + '</td><td>' + (val ? (t.retencion ? '− ' + Money.fmt(t.retencion) : Money.fmt(0)) : '') + '</td></tr>' +
-      '<tr><td>IVA (' + esc(Num.pct(o.ivaPct)) + ')</td><td>' + m(t.iva) + '</td></tr>' +
+      '<tr><td>IVA (' + esc(Num.pct(o.ivaPct)) + ')' + (o.ivaIncluido ? ' incluido' : '') + '</td><td>' + m(t.iva) + '</td></tr>' +
       '<tr class="grand"><td>Total</td><td>' + m(t.total) + '</td></tr></table></div></div>';
     h += '<div class="dp-obs"><b>Observaciones</b>' + (o.notaProveedor ? esc(o.notaProveedor).replace(/\n/g, '<br>') + '<br>' : '') + esc(d.citar || '') + '</div>';
     h += '<div class="dp-cierre">' + esc(d.cierre || '') + '</div>';
@@ -7584,7 +7644,7 @@ Pruebas.def('Los roles del Panel: cada uno ve su menú y hace sólo lo suyo', as
     Pruebas.igual(menu(), 'Operación dashboard Órdenes de compra ordenes orden-nueva plantillas Análisis estadisticas Maestros proveedores equipos');
     Pruebas.igual(['/plantillas', '/orden-nueva', '/respaldos', '/configuracion', '/pruebas'].map(ve), [true, true, false, false, false]);
     Pruebas.igual(Permiso.rolTexto(), 'Editor');
-    await Pruebas.falla(() => OrdenService.eliminar(o), ErrorDominio, 'el Editor no elimina órdenes');
+    await Pruebas.falla(() => OrdenService.eliminar(o), ErrorDominio, 'el Editor no elimina órdenes de otros');
     await EquipoService.eliminar(suelto);
     await PlantillaService.eliminar(pl);
     await ProveedorService.fusionar(p2, p1);
@@ -7594,12 +7654,54 @@ Pruebas.def('Los roles del Panel: cada uno ve su menú y hace sólo lo suyo', as
     Pruebas.igual(['/', '/ordenes', '/orden/x', '/estadisticas', '/proveedores', '/proveedor/x', '/equipos'].every(ve), true, 'Consulta entra a lo suyo');
     Pruebas.igual(['/orden-nueva', '/orden-editar/x', '/plantillas', '/respaldos', '/configuracion', '/pruebas'].some(ve), false, 'Consulta no entra a lo demás');
     const div = document.createElement('div'); VistaSinPermiso.render(div);
-    Pruebas.cierto(div.textContent.includes('no es de su rol') && div.textContent.includes('Consulta'), 'debía decir que la sección no es de su rol');
-    await Pruebas.falla(() => EquipoService.eliminar(e1), ErrorDominio, 'Consulta no elimina equipos');
-    await Pruebas.falla(() => OrdenService.cambiarEstado(Datos.orden(o.id), 'ANULADA', { motivo: 'x' }), ErrorDominio, 'Consulta no anula');
+    Pruebas.cierto(div.textContent.includes('no es de su rol') && div.textContent.includes('Visualizador'), 'debía decir que la sección no es de su rol');
+    await Pruebas.falla(() => EquipoService.eliminar(e1), ErrorDominio, 'el Visualizador no elimina equipos');
+    await Pruebas.falla(() => OrdenService.cambiarEstado(Datos.orden(o.id), 'ANULADA', { motivo: 'x' }), ErrorDominio, 'el Visualizador no anula');
     Pruebas.igual(Datos.orden(o.id).estado, 'ESPERANDO', 'la orden debía quedar igual');
   } finally { Permiso.acceso = antes; }
-  return 'Administrador · Editor · Consulta';
+  return 'Administrador · Editor · Visualizador';
+});
+Pruebas.def('Cada Editor cambia y elimina sólo sus órdenes; el administrador, todas', async ({ p1 }) => {
+  const antes = Permiso.acceso;
+  const editor = id => ({ id, rol: 'editor', acciones: ['ver', 'editar', 'pagar'], activo: true });
+  const admin = { id: 'U-ADMIN', rol: 'admin', acciones: ['ver', 'editar', 'eliminar', 'configurar', 'pagar'], activo: true };
+  try {
+    Permiso.acceso = admin;
+    const delAdmin = await OrdenService.guardar(Pruebas.orden(p1));
+    Permiso.acceso = editor('U-ANA');
+    const deAna = await OrdenService.guardar(Pruebas.orden(p1));
+    Pruebas.igual([deAna.creadoPor, Permiso.puedeOrden(deAna), Permiso.puedeOrden(delAdmin)], ['U-ANA', true, false]);
+    await Pruebas.falla(() => OrdenService.guardar(Object.assign(U.clonar(delAdmin), { concepto: 'La cambió Ana' })), ErrorDominio, 'Ana no cambia la del administrador');
+    await Pruebas.falla(() => OrdenService.cambiarEstado(delAdmin, 'ANULADA', { motivo: 'x' }), ErrorDominio, 'Ana no anula la del administrador');
+    await Pruebas.falla(() => OrdenService.eliminar(delAdmin), ErrorDominio, 'Ana no elimina la del administrador');
+    const e = await Pruebas.falla(() => OrdenService.adjuntar(delAdmin, { id: 'X', nombre: 'x.pdf', tipo: 'application/pdf', tamano: 1, datos: '' }), ErrorDominio);
+    Pruebas.cierto(/sólo esa persona o el administrador/.test(e.message), 'debía decir quién la puede cambiar: ' + e.message);
+    const cambiada = await OrdenService.guardar(Object.assign(U.clonar(deAna), { concepto: 'Corregida por Ana' }));
+    Pruebas.igual([cambiada.concepto, cambiada.creadoPor], ['Corregida por Ana', 'U-ANA'], 'Ana cambia la suya y sigue siendo de ella');
+    Permiso.acceso = editor('U-LUIS');
+    await Pruebas.falla(() => OrdenService.guardar(Object.assign(U.clonar(cambiada), { concepto: 'La cambió Luis' })), ErrorDominio, 'Luis no cambia la de Ana');
+    Permiso.acceso = editor('U-ANA');
+    await OrdenService.eliminar(Datos.orden(deAna.id));
+    Pruebas.igual(Datos.orden(deAna.id), null, 'Ana elimina la suya');
+    Permiso.acceso = editor('U-LUIS');
+    const deLuis = await OrdenService.guardar(Pruebas.orden(p1));
+    Permiso.acceso = admin;
+    Pruebas.igual((await OrdenService.cambiarEstado(deLuis, 'ANULADA', { motivo: 'Revisión' })).estado, 'ANULADA', 'el administrador anula la de Luis');
+    await OrdenService.eliminar(Datos.orden(deLuis.id));
+    Pruebas.igual(Datos.orden(deLuis.id), null, 'el administrador elimina la de Luis');
+  } finally { Permiso.acceso = antes; }
+  return 'Ana · Luis · administrador';
+});
+Pruebas.def('IVA ya incluido en los precios: no se suma otra vez', async () => {
+  const sin = Modelo.totales({ ivaPct: 19, retencionPct: 0, items: [{ descripcion: 'A', cantidad: 3, valorUnitario: 10000 }] });
+  Pruebas.igual([sin.subtotal, sin.iva, sin.total], [30000, 5700, 35700], 'sin marcar, el IVA se suma');
+  const con = Modelo.totales({ ivaPct: 19, retencionPct: 0, ivaIncluido: true, items: [{ descripcion: 'A', cantidad: 3, valorUnitario: 11900 }] });
+  Pruebas.igual([con.subtotal, con.iva, con.total], [30000, 5700, 35700], 'con el IVA incluido, el total es lo que suman los artículos');
+  const ret = Modelo.totales({ ivaPct: 19, retencionPct: 2.5, ivaIncluido: true, items: [{ descripcion: 'A', cantidad: 3, valorUnitario: 11900 }] });
+  Pruebas.igual([ret.subtotal, ret.retencion, ret.total], [30000, 750, 34950], 'la retención va sobre la base sin IVA');
+  const raro = Modelo.totales({ ivaPct: 19, ivaIncluido: true, items: [{ descripcion: 'A', cantidad: 1, valorUnitario: 10000 }] });
+  Pruebas.igual([raro.subtotal, raro.iva, raro.total], [8403.36, 1596.64, 10000], 'al centavo, y el total no cambia');
+  return '3 × 11.900 con IVA = 35.700 · base 30.000';
 });
 Pruebas.def('Una nube nueva arranca vacía, y el programa no lleva datos de la empresa', async () => {
   db = new MemoryAdapter(); await db.init(); await Datos.cargar();
