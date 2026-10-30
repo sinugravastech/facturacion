@@ -857,6 +857,21 @@ html[data-theme="dark"] .hj-fm img{background:#fff;border-radius:4px}
 /* Quién hizo la orden, en pequeño debajo de la fecha */
 .or-autor{max-width:130px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10.5px;font-weight:500;color:var(--text-3)}
 .or-autor svg{vertical-align:-1px;margin-right:3px}
+/* Para qué es: en la lista, al lado del número; en la orden, debajo del título;
+   en la hoja, la primera fila */
+.or-eq{font-weight:650;color:var(--text)}
+.or-eq svg{vertical-align:-2px;margin-right:5px;color:var(--accent)}
+.or-para{display:inline-flex;align-items:center;flex-wrap:wrap;gap:4px 8px;margin:6px 0 2px;padding:5px 12px;border:1px solid var(--accent);
+  border-radius:var(--radius);background:var(--accent-soft);font-size:13px}
+.or-para svg{color:var(--accent)}
+.or-para span{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--accent)}
+.or-para b{font-size:15px;font-weight:750}
+.or-para small{font-size:12px;color:var(--text-2)}
+.hj-fila.hj-eq .hj-lbl{background:var(--accent-soft);color:var(--accent);font-size:11px}
+.hj-fila.hj-eq .hj-val{background:var(--accent-soft)}
+.hj-eq .hj-campo .inp{height:38px;font-size:15px}
+.hj-eq .hj-info{font-size:13px;color:var(--text)}
+.hj-eq .hj-info svg{vertical-align:-2px;color:var(--accent)}
 /* Contado o crédito, debajo del tipo */
 .or-pago{display:flex;align-items:center;gap:3px;margin-top:3px;font-size:10.5px;font-weight:650;white-space:nowrap}
 .or-pago.contado{color:var(--ok-700)}
@@ -975,6 +990,14 @@ html[data-theme="dark"] .pr-ok{color:var(--ok-500)}
 .dp-num div{font-size:7pt;text-transform:uppercase;letter-spacing:.3px;color:#333}
 .dp-num b{display:block;font-size:12pt;font-family:"Consolas",monospace;letter-spacing:.5px;color:#000}
 .dp-num b.dp-fecha{font-size:9pt;font-family:inherit;letter-spacing:0}
+/* Para qué es la orden: la franja más visible después del encabezado */
+.dp-para{display:flex;align-items:center;gap:3mm;border:1.8px solid #000;border-top:none;background:#eef0f3;padding:1.5mm 3.5mm}
+.dp-para svg{flex:0 0 auto;width:6mm;height:6mm}
+.dp-para-t{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.2}
+.dp-para-t small{font-size:7pt;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:#333}
+.dp-para-t b{font-size:12.5pt;font-weight:800;text-transform:uppercase}
+.dp-placa{flex:0 0 auto;border:1.5px solid #000;border-radius:1.5mm;padding:.6mm 2.6mm;background:#fff;
+  font-family:Consolas,"Courier New",monospace;font-size:12.5pt;font-weight:800;letter-spacing:.5px}
 .dp-sec{border:1.2px solid #000;border-top:none}
 .dp-sec-t{background:#e6e6e6;padding:1.2mm 3mm;font-size:8pt;font-weight:800;text-transform:uppercase;
   letter-spacing:.4px;border-bottom:1px solid #000}
@@ -999,8 +1022,10 @@ html[data-theme="dark"] .pr-ok{color:var(--ok-500)}
 .dp-tbl td.obs{font-size:7.5pt}
 .dp-tbl tr.vacia td{height:4.9mm}
 .dp-bajo{display:flex;align-items:stretch;margin-top:-1.2px;break-inside:avoid}
-.dp-cond{flex:1;border:1.2px solid #000;border-right:none;font-size:8pt}
-.dp-cond .dc-f{display:flex;border-bottom:.6px solid #999;min-height:6mm}
+/* Los renglones crecen parejo hasta el fondo: así no queda un hueco en blanco
+   debajo de «Entregar en» cuando los totales del lado son más altos */
+.dp-cond{flex:1;display:flex;flex-direction:column;border:1.2px solid #000;border-right:none;font-size:8pt}
+.dp-cond .dc-f{display:flex;flex:1 1 auto;border-bottom:.6px solid #999;min-height:6mm}
 .dp-cond .dc-f:last-child{border-bottom:none}
 .dp-cond .dc-f label{width:27mm;flex:0 0 27mm;background:#f7f7f7;padding:1mm 2mm;font-size:7pt;font-weight:700;
   text-transform:uppercase;border-right:.6px solid #999;display:flex;align-items:center}
@@ -1790,7 +1815,7 @@ const APP = Object.freeze({
   nombre: 'Facturación',
   area: 'Órdenes de compra',
   empresa: 'SINUGRAVAS S.A.S.',
-  version: '2.11.0',
+  version: '2.12.1',
   /* 3: los datos viven en la nube y el número de cada orden sale de las órdenes */
   esquema: 3,
   /* La base del navegador de la versión local (1.x). Ya no se guarda en ella:
@@ -2221,6 +2246,7 @@ const Icon = (() => {
     pin: 'M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z M12 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
     calendar: 'M19 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z M16 2v4 M8 2v4 M3 10h18',
     cash: 'M12 1v22 M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6',
+    canoa: 'M3 15h18l-2.5 4.5h-13z M12 3v12 M12 4.5l5.5 8H12',
     tag: 'M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z M7 7h.01',
     filter: 'M22 3H2l8 9.46V19l4 2v-8.54L22 3z',
     refresh: 'M23 4v6h-6 M1 20v-6h6 M3.51 9a9 9 0 0 1 14.85-3.36L23 10 M1 14l4.64 4.36A9 9 0 0 0 20.49 15',
@@ -3399,8 +3425,12 @@ const Modelo = {
 
 const Validar = {
   nit(n) { return String(n || '').replace(/[^\dkK]/g, ''); },
-  orden(o) {
+  /** opts.nueva: de aquí en adelante cada orden dice para qué es (Juan,
+      30/10/2026), y va de primero porque es lo primero de la hoja. Las que ya
+      existen sin equipo se pueden seguir corrigiendo */
+  orden(o, opts) {
     const e = {};
+    if (opts && opts.nueva && !o.equipoId) e.equipo = 'Escoja para qué es la orden: el vehículo, la máquina o el destino (oficina, bodega, finca…).';
     if (!Fecha.valida(o.fecha)) e.fecha = 'Escriba una fecha válida.';
     if (!o.proveedorId || !Datos.prov(o.proveedorId)) e.proveedor = 'Escoja el proveedor.';
     if (!Empresa.tipos(Empresa.de(o)).includes(o.tipo)) e.tipo = 'Escoja el tipo de orden.';
@@ -4027,7 +4057,8 @@ const OrdenService = {
        proveedor: si después se corrige la configuración, la orden vieja se
        reimprime como salió (lo aconsejó Caja Menor) */
     if (!previo) { o.empresa = o.empresa || Empresa.activa; o.membrete = U.clonar(Empresa.cfg(o.empresa).empresa); }
-    Validar.orden(o);
+    /* Una nueva tiene que decir para qué es: Flota toma las de sus vehículos */
+    Validar.orden(o, { nueva: !previo });
     /* Lo que usa tiene que ser de su misma empresa (Caja Menor lo aprendió tarde) */
     const eqo = o.equipoId && Datos.equipo(o.equipoId);
     if (eqo && Empresa.de(eqo) !== o.empresa) throw new ErrorValidacion({ equipo: 'Ese equipo o destino es de ' + Empresa.nombre(Empresa.de(eqo)) + ': escoja uno de ' + Empresa.nombre(o.empresa) + '.' });
@@ -4272,6 +4303,8 @@ const EquipoService = {
   placaNorm(s) { return Txt.mayus(String(s || '')).replace(/[^A-Z0-9Ñ]/g, ''); },
   /** Lo que se ve debajo del nombre: «Tractocamión · Marca y modelo · 2015» */
   sub(q) { return [q.clase || TIPOS_EQUIPO[q.tipo], q.detalle, q.placa && !this.placaNorm(q.nombre).includes(this.placaNorm(q.placa)) ? q.placa : ''].filter(Boolean).join(' · '); },
+  /** El ícono de cada tipo, para reconocerlo de un vistazo */
+  icono(q) { return { carga: 'truck', liviano: 'truck', remolque: 'truck', maquinaria: 'cog', motor: 'cog', canoa: 'canoa', sede: 'building' }[q && q.tipo] || 'box'; },
   async guardar(entrada) {
     Permiso.exigir('editar');
     const q = U.clonar(entrada);
@@ -4673,7 +4706,8 @@ const Comp = {
   pillTipo(t) { const x = TIPOS[t] || TIPOS.COMPRA; return '<span class="pill np ' + x.pill + '">' + esc(x.c) + '</span>'; },
   /** De contado o a crédito, a simple vista: las de crédito son las que esperan factura y pago */
   pago(o) {
-    if (o.formaPago === 'CREDITO') return '<div class="or-pago credito">' + Icon('calendar', '', 10) + 'Crédito' + (o.plazoDias ? ' · ' + o.plazoDias + ' d' : '') + '</div>';
+    /* Sin los días del plazo: Juan sólo quiere ver si es a crédito (30/10/2026) */
+    if (o.formaPago === 'CREDITO') return '<div class="or-pago credito">' + Icon('calendar', '', 10) + 'Crédito</div>';
     if (o.formaPago === 'CONTADO') return '<div class="or-pago contado">' + Icon('cash', '', 10) + 'Contado' + (o.pago && o.pago.contado ? ' · pagada' : '') + '</div>';
     return '';
   },
@@ -5557,19 +5591,19 @@ const VistaOrdenes = {
       $('#orPager', el).innerHTML = '';
       return;
     }
-    $('#orTabla', el).innerHTML = '<table class="tbl compacta"><thead><tr>' + th('secuencia', 'N.º') + th('fecha', 'Fecha') + '<th>Tipo</th>' +
-      th('proveedor', 'Proveedor') + '<th>Concepto</th><th>Equipo o destino</th><th class="num">Ítems</th>' + th('total', 'Total', 'num') + th('estado', 'Estado') +
+    $('#orTabla', el).innerHTML = '<table class="tbl compacta"><thead><tr>' + th('secuencia', 'N.º') + '<th>Equipo o destino</th>' + th('fecha', 'Fecha') + '<th>Tipo</th>' +
+      th('proveedor', 'Proveedor') + '<th>Concepto</th><th class="num">Ítems</th>' + th('total', 'Total', 'num') + th('estado', 'Estado') +
       '<th></th></tr></thead><tbody>' +
       vis.map(o => {
-        const eq = Modelo.nombreEquipo(o);
+        const eq = Modelo.nombreEquipo(o), q = eq && Datos.equipo(o.equipoId);
         return '<tr class="row-click est-' + o.estado + '" data-ir="/orden/' + o.id + '"><td class="mono fw7 t-num nowrap">' + esc(Modelo.codigo(o)) +
           (o.adjuntos && o.adjuntos.length ? ' <span class="adj-ic" data-tip="' + attr(Txt.plural(o.adjuntos.length, 'archivo adjunto', 'archivos adjuntos')) + '">' + Icon('clip', '', 12) + '</span>' : '') + '</td>' +
+          '<td class="trunc or-eq" style="max-width:170px" title="' + attr(eq) + '">' + (eq ? Icon(EquipoService.icono(q), '', 13) + esc(eq) : '<span class="txt-3">—</span>') + '</td>' +
           '<td class="nowrap">' + (o.excel && o.excel.sinDia ? o.fecha.slice(5, 7) + '/' + o.fecha.slice(0, 4) : Fecha.corta(o.fecha)) +
           (o.excel || !Modelo.autor(o) ? '' : '<div class="or-autor" title="Hecha por ' + attr(Modelo.autor(o)) + '">' + Icon('user', '', 10) + esc(Modelo.autorCorto(o)) + '</div>') +
           '</td><td>' + Comp.pillTipo(o.tipo) + Comp.pago(o) + '</td>' +
           '<td class="trunc" style="max-width:200px" title="' + attr(Modelo.nombreProveedor(o)) + '">' + esc(Modelo.nombreProveedor(o)) + '</td>' +
           '<td class="trunc" style="max-width:240px" title="' + attr(Modelo.concepto(o)) + '">' + esc(Modelo.concepto(o)) + '</td>' +
-          '<td class="trunc txt-2" style="max-width:150px" title="' + attr(eq) + '">' + (eq ? esc(eq) : '<span class="txt-3">—</span>') + '</td>' +
           '<td class="num">' + o.items.length + '</td><td class="num fw6">' + (o.excel ? Comp.valorExcel(o) : Comp.dinero(Modelo.valor(o))) +
           (o.factura && o.factura.valor ? '<div class="fs11 txt-3" data-tip="Valor de la factura del proveedor">fact. ' + esc(o.factura.numero || '') + '</div>' : '') + '</td>' +
           '<td class="td-estado">' + Comp.selEstado(o) + '</td>' +
@@ -5598,7 +5632,9 @@ const VistaOrden = {
     const recargar = () => Router.resolver(true);
     let h = '<div class="page-head"><div><h1><button class="ph-back" id="odVolver" aria-label="Volver" data-tip="Volver">' + Icon('back', '', 16) + '</button>' +
       esc(TIPOS[o.tipo].t) + ' <span class="mono">N.º ' + esc(Modelo.codigo(o)) + '</span> ' + Comp.selEstado(o) + '</h1>' +
-      '<div class="ph-sub">' + esc(Fecha.larga(o.fecha)) + ' · ' + esc(Modelo.nombreProveedor(o)) + (eq ? ' · ' + esc(eq.nombre) : '') + ' · ' +
+      (eq ? '<div class="or-para">' + Icon(EquipoService.icono(eq), '', 16) + '<span>Para</span><b>' + esc(eq.nombre) + '</b>' +
+        (EquipoService.sub(eq) ? '<small>' + esc(EquipoService.sub(eq)) + '</small>' : '') + '</div>' : '') +
+      '<div class="ph-sub">' + esc(Fecha.larga(o.fecha)) + ' · ' + esc(Modelo.nombreProveedor(o)) + ' · ' +
       Txt.plural(o.items.length, 'artículo') + (Modelo.autor(o) ? ' · hecha por <b>' + esc(Modelo.autor(o)) + '</b>' : '') + '</div></div><div class="ph-actions">' +
       '<button class="btn" id="odCopiar" data-tip="Para pegarla en WhatsApp o en un correo">' + Icon('image', '', 14) + 'Copiar imagen</button>' +
       '<button class="btn btn-primary" id="odImp">' + Icon('print', '', 14) + 'Imprimir o PDF</button>' +
@@ -5843,7 +5879,7 @@ const VistaOrdenForm = {
     const etiqueta = !this.modoFactura ? 'Guardar orden' : o.estado === 'ESPERANDO' ? 'Pasar a contabilidad' : 'Guardar la factura';
     const acciones = '<button class="btn" data-acc="cancelar">Cancelar</button>' +
       '<button class="btn btn-primary" data-acc="guardar">' + Icon(this.modoFactura ? 'receipt' : 'save', '', 14) + etiqueta + '</button>';
-    const fila = (id, etiqueta, req, cuerpo) => '<div class="hj-fila"><div class="hj-lbl"><label for="' + id + '">' + etiqueta + (req ? '<span class="req">*</span>' : '') +
+    const fila = (id, etiqueta, req, cuerpo, cls) => '<div class="hj-fila' + (cls ? ' ' + cls : '') + '"><div class="hj-lbl"><label for="' + id + '">' + etiqueta + (req ? '<span class="req">*</span>' : '') +
       '</label></div><div class="hj-val">' + cuerpo + '</div></div>';
     el.innerHTML =
       '<div class="page-head"><div><h1><button class="ph-back" id="ofVolver" aria-label="Volver" data-tip="Volver">' + Icon('back', '', 16) + '</button>' +
@@ -5876,11 +5912,12 @@ const VistaOrdenForm = {
           '<div class="hj-num"><small>N.º</small><b id="ofNumPrev">' + esc(Modelo.codigo(o, this.editando ? o.numero : Consecutivo.vistaPrevia(o.fecha))) + '</b>' +
             (this.editando ? '' : '<span class="hj-prov">se confirma al guardar</span>') +
             '<small><label for="ofFecha">Fecha</label></small><input class="inp" type="date" id="ofFecha" value="' + attr(o.fecha) + '"></div></div>' +
+        /* Lo primero: para qué es (Juan, 30/10/2026). Flota toma las de sus vehículos */
+        fila('ofEq', 'Equipo o destino', true, '<div class="hj-campo"><input class="inp" id="ofEq" autocomplete="off" placeholder="¿Para qué es? Placa, máquina, canoa o destino" value="' +
+          attr(o.equipoId ? Modelo.nombreEquipo(o) : '') + '"><button type="button" class="btn btn-ghost btn-icon btn-sm" id="ofEqX" data-tip="Quitar el equipo" aria-label="Quitar el equipo">' +
+          Icon('x', '', 13) + '</button></div><div class="hj-info" id="ofEqInfo"></div>', 'hj-eq') +
         fila('ofProv', 'Señor(es)', true, '<div class="hj-campo"><input class="inp" id="ofProv" autocomplete="off" placeholder="Escriba para buscar el proveedor…" value="' +
           attr(o.proveedorId ? Modelo.nombreProveedor(o) : '') + '"></div><div class="hj-info" id="ofProvInfo"></div><div class="err hidden" id="ofProvErr"></div>') +
-        fila('ofEq', 'Equipo o destino', false, '<div class="hj-campo"><input class="inp" id="ofEq" autocomplete="off" placeholder="Opcional: cargador, placa, canoa, bodega…" value="' +
-          attr(o.equipoId ? Modelo.nombreEquipo(o) : '') + '"><button type="button" class="btn btn-ghost btn-icon btn-sm" id="ofEqX" data-tip="Quitar el equipo" aria-label="Quitar el equipo">' +
-          Icon('x', '', 13) + '</button></div><div class="hj-info" id="ofEqInfo"></div>') +
         '<div class="hj-items"><table class="items-ed hj-tbl"><thead><tr><th class="it-n">Ítem</th><th>Descripción</th><th class="num" style="width:84px">Cantidad</th>' +
           '<th style="width:92px">Unidad</th><th class="num" style="width:126px">Valor unitario</th><th class="num" style="width:64px">% Desc.</th><th class="num" style="width:116px">Valor total</th><th style="width:156px">Observación</th>' +
           '<th class="it-acc"><span class="sr">Quitar</span></th></tr></thead><tbody id="ofItems"></tbody></table></div>' +
@@ -6313,7 +6350,8 @@ const VistaOrdenForm = {
   },
   pintarEquipo() {
     const q = Datos.equipo(this.o.equipoId);
-    $('#ofEqInfo', this.el).textContent = q ? EquipoService.sub(q) : '';
+    $('#ofEqInfo', this.el).innerHTML = q ? Icon(EquipoService.icono(q), '', 14) + ' ' + esc(EquipoService.sub(q))
+      : '<span class="txt-3">El vehículo, la máquina o el destino (oficina, bodega, finca…) para el que se compra.</span>';
   },
   /** Las firmas como salen impresas: el solicitante se escoge sobre su línea */
   pintarSolicitante() {
@@ -6406,6 +6444,7 @@ const VistaOrdenForm = {
         if (er.factura) $('#ofFacNum', el).classList.add('is-err');
         if (er.facturaFecha) $('#ofFacFecha', el).classList.add('is-err');
         if (er.pagoFecha && $('#ofPgFecha', el)) $('#ofPgFecha', el).classList.add('is-err');
+        if (er.equipo) $('#ofEq', el).classList.add('is-err');
         if (er.valores) $$('#ofItems input[data-k="valorUnitario"]', el).forEach((x, i) => { if (Modelo.itemValido(this.o.items[i])) x.classList.add('is-err'); });
         Object.keys(er).forEach(k => {
           const m = /^(cant|val|desc)-(.+)$/.exec(k);
@@ -7482,6 +7521,28 @@ const VistaPruebas = {
    §12  DOCUMENTO IMPRIMIBLE
    ========================================================================== */
 const Documento = {
+  /** Cuántos renglones vacíos hay que quitar para que la orden quepa en una hoja
+      carta (Juan, 30/10/2026: con la franja del equipo se pasaba un poco a la
+      segunda). Se dibuja aparte, con las márgenes de la impresa, y se mide. Si
+      lo que no cabe son artículos de verdad, sigue en otra hoja */
+  vaciasQueSobran(o, opts) {
+    if (!document.body) return 0;
+    const caja = document.createElement('div');
+    caja.style.cssText = 'position:absolute;left:-30000px;top:0;width:215.9mm;visibility:hidden';
+    caja.innerHTML = this.html(o, Object.assign({}, opts, { sinAjuste: true }));
+    document.body.appendChild(caja);
+    try {
+      const pag = $('.doc-page', caja), vacias = $$('.dp-tbl tr.vacia', caja);
+      if (!pag || !vacias.length) return 0;
+      pag.style.minHeight = '0'; pag.style.padding = '10mm 12mm 14mm';
+      /* Un logo que el navegador todavía no ha cargado se mide con su alto máximo */
+      $$('img', caja).forEach(i => { if (!(i.complete && i.naturalWidth) && i.style.maxHeight) i.style.height = i.style.maxHeight; });
+      const mm = 3.7795, sobra = pag.getBoundingClientRect().height / mm - this.ALTO_UTIL;
+      return sobra > 0 ? Math.min(vacias.length, Math.ceil(sobra / (vacias[0].getBoundingClientRect().height / mm))) : 0;
+    } finally { caja.remove(); }
+  },
+  /* La carta mide 279,4 mm: se dejan unos 7 mm de aire para lo que el navegador redondea al imprimir */
+  ALTO_UTIL: 272,
   html(o, opts) {
     opts = opts || {};
     /* El membrete, el logo, los textos y la firma son de la empresa de la orden; los solicitantes, comunes */
@@ -7489,7 +7550,7 @@ const Documento = {
     const f = o.proveedor || Modelo.fotoProveedor(Datos.prov(o.proveedorId)) || { nombre: '' };
     const t = Modelo.totales(o);
     const items = (o.items || []).filter(Modelo.itemValido);
-    const filas = Math.max(+d.filasMinimas || 0, items.length);
+    const filas = Math.max(items.length, (+d.filasMinimas || 0) - (opts.sinAjuste ? 0 : this.vaciasQueSobran(o, opts)));
     const eq = Datos.equipo(o.equipoId);
     const num = Modelo.codigo(o, o.numero || Consecutivo.vistaPrevia(o.fecha));
     const saludo = { COMPRA: d.saludoCompra, PEDIDO: d.saludoCompra, SERVICIO: d.saludoServicio, COTIZACION: d.saludoCotizacion }[o.tipo] || '';
@@ -7505,6 +7566,13 @@ const Documento = {
       '<div class="dp-hc"><h1>' + esc(TIPOS[o.tipo].asunto) + '</h1><div class="dp-co">' + esc(emp.nombre) + '</div><div class="dp-meta">' +
       esc([emp.nit ? (emp.tipoDoc || 'NIT') + ' ' + emp.nit : '', emp.direccion, emp.ciudad, emp.telefono ? 'Tel. ' + emp.telefono : '', emp.correo].filter(Boolean).join(' · ')) + '</div></div>' +
       '<div class="dp-num"><div>N.º</div><b>' + esc(num) + '</b><div>Fecha</div><b class="dp-fecha">' + esc(o.excel && o.excel.sinDia ? Fecha.mesLargo(o.fecha.slice(0, 7)) : Fecha.larga(o.fecha)) + '</b></div></div>';
+    /* Para qué es, en grande debajo del encabezado (Juan, 30/10/2026): el camión,
+       la máquina, la canoa o el destino, con su placa aparte */
+    if (eq) {
+      const detalle = [eq.clase || TIPOS_EQUIPO[eq.tipo], eq.detalle].filter(Boolean).join(' · ');
+      h += '<div class="dp-para">' + Icon(EquipoService.icono(eq), '', 24) + '<div class="dp-para-t"><small>Equipo o destino' + (detalle ? ' · ' + esc(detalle) : '') + '</small>' +
+        '<b>' + esc(eq.nombre) + '</b></div>' + (eq.placa ? '<div class="dp-placa">' + esc(eq.placa) + '</div>' : '') + '</div>';
+    }
     h += '<div class="dp-sec"><div class="dp-sec-t">Señor(es)</div><div class="dp-fields">' +
       '<div class="dp-f full"><label>Proveedor</label><span class="fuerte">' + esc(f.nombre || '') + '</span></div>' +
       '<div class="dp-f"><label>NIT</label><span>' + esc(f.nit || '') + '</span></div><div class="dp-f"><label>Teléfono</label><span>' + esc(f.telefono || '') + '</span></div>' +
@@ -7532,8 +7600,6 @@ const Documento = {
       '<div class="dc-f"><label>Medio de pago</label><span>' + Object.keys(MEDIOS_PAGO).map(k => x(MEDIOS_PAGO[k], o.medioPago === k)).join('') + '</span></div>' +
       '<div class="dc-f"><label>Entregar en</label><span>' + esc(o.entregaLugar || '') + (o.entregaRecibe ? (o.entregaLugar ? ' · ' : '') + 'Recibe: ' + esc(o.entregaRecibe) +
         (o.entregaCedula ? ', C.C. ' + esc(o.entregaCedula) : '') : '') + '</span></div>' +
-      '<div class="dc-f"><label>Equipo / destino</label><span>' + esc(eq ? eq.nombre + (eq.tipo !== 'sede' && eq.clase && !Txt.norm(eq.nombre).includes(Txt.norm(eq.clase)) ? ' · ' + eq.clase : '') +
-        (eq.placa && !EquipoService.placaNorm(eq.nombre).includes(EquipoService.placaNorm(eq.placa)) ? ' (' + eq.placa + ')' : '') : '') + '</span></div>' +
       '</div><div class="dp-tot"><table><tr><td>' + (o.ivaIncluido ? 'Subtotal sin IVA' : 'Subtotal') + '</td><td>' + m(t.subtotal) + '</td></tr>' +
       '<tr><td>Retención en la fuente' + (o.retencionPct ? ' (' + esc(Num.pct(o.retencionPct)) + ')' : '') + '</td><td>' + (val ? (t.retencion ? '− ' + Money.fmt(t.retencion) : Money.fmt(0)) : '') + '</td></tr>' +
       (t.reteIca ? '<tr><td>ReteICA (' + esc(Num.fmt(o.reteIcaPorMil)) + ' × 1.000)</td><td>' + (val ? '− ' + Money.fmt(t.reteIca) : '') + '</td></tr>' : '') +
@@ -8064,6 +8130,8 @@ const Pruebas = {
   orden(p, extra) {
     const o = OrdenService.nueva({ proveedorId: p.id });
     o.items = [Object.assign(Modelo.itemVacio(), { descripcion: 'Filtro de aceite', cantidad: 2, unidad: 'UND', valorUnitario: 45000 })];
+    /* Toda orden nueva dice para qué es: la de prueba, para el primer equipo */
+    if (!o.equipoId && Datos.equipos[0]) o.equipoId = Datos.equipos[0].id;
     return Object.assign(o, extra || {});
   },
   async correr() {
@@ -8304,7 +8372,8 @@ Pruebas.def('La orden sale como imagen, con su contenido, para pegarla en WhatsA
   const d = ctx.getImageData(0, 0, 200, 260).data;
   let oscuros = 0;
   for (let i = 0; i < d.length; i += 4) if (d[i] + d[i + 1] + d[i + 2] < 300) oscuros++;
-  Pruebas.cierto(oscuros > 400, 'la imagen salió en blanco');
+  /* Una en blanco da 0; la franja del equipo baja un poco la cuenta al achicarla */
+  Pruebas.cierto(oscuros > 200, 'la imagen salió en blanco');
   return Math.round(b.size / 1024) + ' KB · ' + bmp.width + ' × ' + bmp.height;
 });
 Pruebas.def('Una orden se puede eliminar en cualquier estado, si se tiene el permiso', async ({ p1 }) => {
@@ -8781,7 +8850,7 @@ Pruebas.def('Una compra de contado se registra ya pagada, con su recibo', async 
     Prefs.set('filOrd', { pago: 'CREDITO' });
     Pruebas.igual(VistaOrdenes.lista().map(o => o.id), [credito.id], 'el filtro «Pago» deja ver sólo las de crédito');
   } finally { Prefs.set('filOrd', filtro); }
-  Pruebas.cierto(Comp.pago(g).includes('Contado · pagada') && Comp.pago(credito).includes('Crédito · 30 d'), 'y en la lista se distinguen a simple vista');
+  Pruebas.cierto(Comp.pago(g).includes('Contado · pagada') && Comp.pago(credito).includes('Crédito</div>'), 'y en la lista se distinguen a simple vista, sin los días del crédito');
   return Modelo.codigo(g) + ' · $ 300.000';
 });
 Pruebas.def('En la hoja: «Ya se pagó» en las de contado, y la factura se adjunta junto a su número', async ({ p1 }) => {
@@ -8806,7 +8875,44 @@ Pruebas.def('En la hoja: «Ya se pagó» en las de contado, y la factura se adju
     Pruebas.cierto($('#ofFacAdjLista', div).textContent.includes('factura FE-77.pdf'), 'y ahí mismo se ve el archivo');
   } finally { Router.sucio = false; Combo.limpiar(); }
 });
-Pruebas.def('La hoja de nueva orden crece al escribir y guarda sólo las filas llenas', async ({ p1 }) => {
+Pruebas.def('Cada orden nueva dice para qué es, y la impresa lo pone en grande', async ({ p1, e1 }) => {
+  await Pruebas.falla(() => OrdenService.guardar(Pruebas.orden(p1, { equipoId: null })), ErrorValidacion, 'una orden nueva sin equipo o destino no se guarda');
+  const camion = await EquipoService.guardar(Object.assign(EquipoService.vacio(), { nombre: 'CAMIÓN THX 523', tipo: 'carga', placa: 'THX523', clase: 'Tractocamión' }));
+  const g = await OrdenService.guardar(Pruebas.orden(p1, { equipoId: camion.id }));
+  const doc = Documento.html(g);
+  Pruebas.cierto(doc.includes('class="dp-para"') && doc.includes('CAMIÓN THX 523') && doc.includes('<div class="dp-placa">THX523</div>') && !doc.includes('Equipo / destino'),
+    'la impresa lo pone en grande debajo del encabezado, con la placa aparte, y ya no abajo');
+  /* Una que ya existía sin equipo se puede seguir corrigiendo */
+  await Datos.lote([{ col: 'ordenes', tipo: 'put', doc: Object.assign(U.clonar(g), { equipoId: null }) }]);
+  const f = await OrdenService.guardarFactura(Datos.orden(g.id), { numero: 'FE-9', fecha: Fecha.hoy() });
+  Pruebas.igual([f.estado, f.equipoId || null], ['CONTABILIDAD', null], 'una vieja sin equipo igual registra su factura');
+  Pruebas.igual([EquipoService.icono(camion), EquipoService.icono(e1), EquipoService.icono({ tipo: 'canoa' }), EquipoService.icono({ tipo: 'sede' })], ['truck', 'cog', 'canoa', 'building']);
+  return 'THX523 en la impresa';
+});
+Pruebas.def('La orden impresa cabe en una hoja carta, sin hueco debajo de «Entregar en»', async ({ p1 }) => {
+  const camion = await EquipoService.guardar(Object.assign(EquipoService.vacio(), { nombre: 'CAMIÓN THX 523', tipo: 'carga', placa: 'THX523', clase: 'Tractocamión' }));
+  const g = await OrdenService.guardar(Pruebas.orden(p1, { equipoId: camion.id, retencionPct: 2.5, reteIcaPorMil: 6, flete: 35000,
+    notaProveedor: 'Entregar en la bodega 69A, preguntar por el almacenista.' }));
+  const caja = document.createElement('div');
+  caja.style.cssText = 'position:absolute;left:-30000px;top:0;width:215.9mm';
+  caja.innerHTML = Documento.html(g);
+  document.body.appendChild(caja);
+  const mm = 3.7795;
+  try {
+    /* Con las márgenes de la impresa */
+    const pag = $('.doc-page', caja);
+    pag.style.minHeight = '0'; pag.style.padding = '10mm 12mm 14mm';
+    const alto = pag.getBoundingClientRect().height / mm;
+    Pruebas.cierto(alto <= 279.4, 'debía caber en una carta y midió ' + alto.toFixed(1) + ' mm');
+    const cond = $('.dp-cond', caja);
+    const hueco = (cond.getBoundingClientRect().height - $$('.dc-f', cond).reduce((s, x) => s + x.getBoundingClientRect().height, 0)) / mm;
+    Pruebas.cierto(hueco < 1, 'debajo de «Entregar en» quedaba un hueco de ' + hueco.toFixed(1) + ' mm');
+    const vacias = $$('.dp-tbl tr.vacia', caja).length;
+    Pruebas.cierto(vacias < Empresa.cfg().documento.filasMinimas - 1, 'para caber se quitan renglones vacíos');
+    return alto.toFixed(1) + ' mm · ' + vacias + ' renglones vacíos';
+  } finally { caja.remove(); }
+});
+Pruebas.def('La hoja de nueva orden crece al escribir y guarda sólo las filas llenas', async ({ p1, e1 }) => {
   const div = document.createElement('div');
   try {
     VistaOrdenForm.render(div, {}, { proveedor: p1.id });
@@ -8820,6 +8926,7 @@ Pruebas.def('La hoja de nueva orden crece al escribir y guarda sólo las filas l
     Pruebas.igual(filas(), VistaOrdenForm.FILAS + 1, 'al llenar la última debía aparecer otra fila');
     escribir(1, 'cantidad', '3'); escribir(1, 'valorUnitario', '1000');
     Pruebas.cierto(/\$\s?3\.570/.test($('#ofResumen', div).textContent), 'el total con IVA debía verse en la hoja');
+    VistaOrdenForm.o.equipoId = e1.id;
     const g = await OrdenService.guardar(VistaOrdenForm.o);
     Pruebas.igual([g.items.length, g.items[1].cantidad, g.total, g.formaPago], [VistaOrdenForm.FILAS, 3, 3570, 'CREDITO']);
   } finally { Router.sucio = false; Combo.limpiar(); }
@@ -8873,14 +8980,15 @@ Pruebas.def('El histórico encuentra al proveedor aunque se renombre o se fusion
   Pruebas.cierto(de('PROVEEDOR UNO').every(o => o.proveedorId === nav.id), 'después de fusionar debía apuntar a la ficha que quedó');
   Pruebas.igual(HistoricoExcel.lista().find(o => o.numero === '289-26').equipoId, q.id, 'la 289-26 iba para el cargador');
 });
-Pruebas.def('Duplicar una orden del Excel no copia los precios de entonces', async () => {
+Pruebas.def('Duplicar una orden del Excel no copia los precios de entonces', async ({ e1 }) => {
   const lub = await ProveedorService.guardar(Object.assign(ProveedorService.vacio(), { nombre: 'PROVEEDOR UNO', claveExcel: 'PROVEEDOR UNO' }));
   Pruebas.historico();
   const vieja = HistoricoExcel.lista().find(o => o.tipo === 'PEDIDO' && o.items.some(i => i.valorUnitario > 0));
   const n = OrdenService.nueva({ duplicarId: vieja.id });
   Pruebas.igual([n.tipo, n.proveedorId, n.items.length, n.items.every(i => i.valorUnitario === 0 && +i.cantidad > 0), n.items[0].unidad],
     ['COMPRA', lub.id, vieja.items.length, true, 'GLN']);
-  const g = await OrdenService.guardar(n);
+  /* La hoja del Excel no tenía equipo: al copiarla se escoge, como en toda orden nueva */
+  const g = await OrdenService.guardar(Object.assign(n, { equipoId: n.equipoId || e1.id }));
   Pruebas.igual([g.secuencia, /del Excel/.test(g.historial[0].nota)], [Consecutivo.siguiente() - 1, true]);
 });
 
