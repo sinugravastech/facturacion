@@ -802,6 +802,12 @@ html[data-theme="dark"] .hj-fm img{background:#fff;border-radius:4px}
 .adj-fac{display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:6px 6px 6px 10px;border-radius:var(--radius-sm);background:var(--accent-soft);font-size:12.5px}
 .adj-fac>svg{color:var(--accent);flex:0 0 auto}
 .adj-fac>span{flex:1;min-width:0}
+.cf-valor{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin:0 0 14px;padding:8px 10px;border-radius:var(--radius-sm);background:var(--surface-2);font-size:12.5px}
+.cf-adj-h{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
+.cf-adj-h label{margin:0}
+/* Quién hizo la orden, en pequeño debajo de la fecha */
+.or-autor{max-width:130px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10.5px;font-weight:500;color:var(--text-3)}
+.or-autor svg{vertical-align:-1px;margin-right:3px}
 .adj-ic{color:var(--text-3);vertical-align:-1px}
 .adj-pdf{display:block;width:100%;height:72vh;border:0;border-radius:var(--radius-sm);background:#fff}
 .adj-img{display:grid;place-items:center;background:var(--ink-300);border-radius:var(--radius-sm);padding:10px}
@@ -1709,7 +1715,7 @@ const APP = Object.freeze({
   nombre: 'Facturación',
   area: 'Órdenes de compra',
   empresa: 'SINUGRAVAS S.A.S.',
-  version: '2.6.0',
+  version: '2.7.0',
   /* 3: los datos viven en la nube y el número de cada orden sale de las órdenes */
   esquema: 3,
   /* La base del navegador de la versión local (1.x). Ya no se guarda en ella:
@@ -3087,6 +3093,39 @@ const PCT_RETENCION = [
   { v: 4, t: '4 % · servicios' }, { v: 6, t: '6 %' }, { v: 10, t: '10 % · honorarios' }, { v: 11, t: '11 %' }
 ];
 
+/* Quién hizo cada orden, con el nombre de hoy de su cuenta en el Panel de
+   control (SQL 206): la base sabe con qué cuenta se creó cada una. Se trae al
+   entrar y cuando llega una orden de alguien que no estaba. Sin el 206, o sin
+   conexión, queda el nombre que la página anotó al crearla */
+const Autores = {
+  mapa: new Map(),
+  _cuando: 0,
+  _pidiendo: null,
+  de(id) { return (id && this.mapa.get(id)) || ''; },
+  traer(forzar) {
+    if (!db || !db.nube) return Promise.resolve(false);
+    if (this._pidiendo) return this._pidiendo;
+    if (!forzar && Date.now() - this._cuando < 60000) return Promise.resolve(false);
+    return (this._pidiendo = (async () => {
+      try {
+        const filas = (await Nube.rpc('autores', {}, { leer: true })) || [];
+        const nuevo = new Map(filas.filter(f => f && f.id && f.nombre).map(f => [f.id, f.nombre]));
+        const cambio = nuevo.size !== this.mapa.size || [...nuevo].some(([k, v]) => this.mapa.get(k) !== v);
+        this.mapa = nuevo;
+        return cambio;
+      } catch (e) {
+        if (!NubeAdapter.faltaFuncion(e)) console.warn('No se trajeron los nombres de quién hizo cada orden:', e);
+        return false;
+      } finally { this._cuando = Date.now(); this._pidiendo = null; }
+    })());
+  },
+  /** Llegaron órdenes: si alguna es de una cuenta que no está, se vuelve a pedir */
+  async revisar() {
+    if (!Datos.ordenes.some(o => o.creadoPor && !this.mapa.has(o.creadoPor))) return;
+    if (await this.traer()) Bus.emit('datos:cambio');
+  }
+};
+
 const Modelo = {
   itemVacio() { return { id: ID(), descripcion: '', cantidad: 1, unidad: 'UND', valorUnitario: 0, observacion: '' }; },
   itemValido(it) { return !!(it && String(it.descripcion || '').trim()); },
@@ -3127,8 +3166,26 @@ const Modelo = {
     return p ? { id: p.id, nombre: p.nombre, nit: p.nit || '', telefono: p.telefono || p.celular || '', direccion: p.direccion || '',
       ciudad: p.ciudad || '', contacto: p.contacto || '', correo: p.correo || '' } : null;
   },
-  /** Quién hizo la orden: el primero de su historial */
-  autor(o) { const h = o && o.historial && o.historial[0]; return (h && h.por) || ''; },
+  /** Quién hizo la orden: la cuenta con que se creó, con su nombre de hoy en el
+      panel (ver Autores). No es la firma (el solicitante), que se escoge y se
+      cambia en la hoja (Juan, 30/10/2026). Si la base no lo da, el nombre que
+      la página anotó al crearla, y si tampoco, sólo se sabe si quien mira es
+      quien la hizo */
+  autor(o) {
+    if (!o) return '';
+    const deLaBase = Autores.de(o.creadoPor);
+    if (deLaBase) return deLaBase;
+    const h = o.historial && o.historial[0];
+    if (h && h.por) return h.por;
+    return o.creadoPor && o.creadoPor === Permiso.yo() ? Permiso.quien() : '';
+  },
+  /** El mismo, corto para las listas: «Delsy Rojas», «Juan Posada» */
+  autorCorto(o) {
+    const n = String(this.autor(o)).trim();
+    if (n.includes('@')) return n.split('@')[0];
+    const w = n.split(/\s+/).filter(Boolean).map(x => x.charAt(0).toUpperCase() + x.slice(1).toLowerCase());
+    return (w.length >= 4 ? [w[0], w[2]] : w.slice(0, 2)).join(' ');
+  },
   nombreProveedor(o) { const p = Datos.prov(o.proveedorId); return p ? p.nombre : (o.proveedor && o.proveedor.nombre) || 'Sin proveedor'; },
   nombreEquipo(o) { const e = o.equipoId ? Datos.equipo(o.equipoId) : null; return e ? e.nombre : ''; }
 };
@@ -3290,6 +3347,7 @@ const Datos = {
       Bus.emit(c + ':cambio');
     });
     if (cols.length) Bus.emit('datos:cambio');
+    if (cols.includes('ordenes')) Autores.revisar();
     return cols.length > 0;
   },
   guardar(col, doc) { return this.lote([{ col, tipo: 'put', doc }]); },
@@ -4775,6 +4833,63 @@ document.addEventListener('click', e => {
 const AccionesOrden = {
   /** La factura se pone en la misma hoja de la orden: su número, su fecha y los valores de cada artículo */
   registrarFactura(o) { Router.ir('/orden-editar/' + o.id + '?factura=1'); return null; },
+  /** Corregir la factura en una ventana pequeña, sin abrir la hoja (Juan,
+      30/10/2026): su número, su fecha y sus archivos. Lo que se quita o se
+      adjunta queda pendiente hasta «Guardar cambios». Los valores son los de
+      los artículos: para cambiarlos se abre la hoja */
+  corregirFactura(o) {
+    return new Promise(res => {
+      let hecho = null, nuevos = [];
+      const quitados = new Set();
+      const fac = o.factura || {};
+      const m = Modal.abrir({
+        titulo: 'Corregir la factura', subtitulo: 'Orden ' + esc(o.numero) + ' · ' + esc(Modelo.nombreProveedor(o)),
+        cuerpo: '<div class="row"><div class="field"><label for="cfNum">N.º de la factura</label><input class="inp" id="cfNum" autocomplete="off" value="' + attr(fac.numero || '') + '"></div>' +
+          '<div class="field" style="flex:0 1 180px"><label for="cfFecha">Fecha de la factura</label><input class="inp" type="date" id="cfFecha" value="' + attr(fac.fecha || '') + '"></div></div>' +
+          '<div class="cf-valor"><span>Valor <b>' + esc(Money.fmt(Modelo.valor(o))) + '</b>, lo que suman los artículos.</span><button type="button" class="link fs12" id="cfValores">Cambiar los valores</button></div>' +
+          '<div class="field" id="cfAdj"><div class="cf-adj-h"><label>Archivos de la orden</label><button type="button" class="btn btn-sm" data-adj-subir>' + Icon('upload', '', 12) + 'Adjuntar</button></div>' +
+          '<div id="cfAdjLista"></div></div><div class="fs12 txt-dang" id="cfErr"></div>',
+        pie: '<button class="btn" data-cerrar>Cancelar</button><button class="btn btn-primary" id="cfOk">' + Icon('check', '', 14) + 'Guardar cambios</button>',
+        alCerrar: () => res(hecho)
+      });
+      const lista = () => (o.adjuntos || []).filter(a => !quitados.has(a.id)).concat(nuevos.map(Adjuntos.meta));
+      const pintar = () => { $('#cfAdjLista', m).innerHTML = Adjuntos.html(lista(), true); };
+      pintar();
+      const cont = $('#cfAdj', m);
+      const adjuntando = Adjuntos.unir(cont, (a, ahorro) => {
+        nuevos.push(a); pintar();
+        if (ahorro) Toast.info('<b>' + esc(a.nombre) + '</b>: ' + esc(ahorro) + '.');
+      });
+      cont.addEventListener('click', e => {
+        const v = e.target.closest('[data-adj-ver]');
+        if (v) { const x = lista().find(y => y.id === v.dataset.adjVer); if (x) Adjuntos.ver(x, nuevos); return; }
+        const q = e.target.closest('[data-adj-quitar]');
+        if (q) { const id = q.dataset.adjQuitar; if (nuevos.some(y => y.id === id)) nuevos = nuevos.filter(y => y.id !== id); else quitados.add(id); pintar(); }
+      });
+      $('#cfValores', m).onclick = () => { Modal.cerrar(m); this.registrarFactura(o); };
+      const boton = $('#cfOk', m), texto = boton.innerHTML;
+      boton.onclick = async () => {
+        boton.disabled = true;
+        $('#cfErr', m).textContent = '';
+        try {
+          /* Un PDF que todavía se está comprimiendo se espera */
+          if (adjuntando.ocupado()) { boton.innerHTML = '<span class="spin"></span>Comprimiendo el adjunto…'; await adjuntando.listo(); }
+          const numero = $('#cfNum', m).value.trim(), fecha = $('#cfFecha', m).value;
+          if (numero === (fac.numero || '') && fecha === (fac.fecha || '') && !quitados.size && !nuevos.length) { Modal.cerrar(m); return; }
+          /* Sobre la orden como está ahora: si otra persona adjuntó algo mientras tanto, se queda */
+          const actual = U.clonar(Datos.orden(o.id) || o);
+          actual.adjuntos = (actual.adjuntos || []).filter(a => !quitados.has(a.id)).concat(nuevos.map(Adjuntos.meta));
+          hecho = await OrdenService.guardarFactura(actual, { numero, fecha }, nuevos);
+          Modal.cerrar(m, hecho);
+          Toast.ok('Factura <b>' + esc(hecho.factura.numero) + '</b> corregida.');
+        } catch (e) {
+          $('#cfErr', m).textContent = e instanceof ErrorValidacion ? Object.values(e.errores).join(' ') : e.message;
+          boton.disabled = false;
+          boton.innerHTML = texto;
+        }
+      };
+    });
+  },
   /** Lo hace contabilidad cuando paga la factura */
   marcarPagada(o) {
     return new Promise(res => {
@@ -5088,7 +5203,9 @@ const VistaOrdenes = {
         const eq = Modelo.nombreEquipo(o);
         return '<tr class="row-click est-' + o.estado + '" data-ir="/orden/' + o.id + '"><td class="mono fw7 t-num nowrap">' + esc(o.numero) +
           (o.adjuntos && o.adjuntos.length ? ' <span class="adj-ic" data-tip="' + attr(Txt.plural(o.adjuntos.length, 'archivo adjunto', 'archivos adjuntos')) + '">' + Icon('clip', '', 12) + '</span>' : '') + '</td>' +
-          '<td class="nowrap">' + (o.excel && o.excel.sinDia ? o.fecha.slice(5, 7) + '/' + o.fecha.slice(0, 4) : Fecha.corta(o.fecha)) + '</td><td>' + Comp.pillTipo(o.tipo) + '</td>' +
+          '<td class="nowrap">' + (o.excel && o.excel.sinDia ? o.fecha.slice(5, 7) + '/' + o.fecha.slice(0, 4) : Fecha.corta(o.fecha)) +
+          (o.excel || !Modelo.autor(o) ? '' : '<div class="or-autor" title="Hecha por ' + attr(Modelo.autor(o)) + '">' + Icon('user', '', 10) + esc(Modelo.autorCorto(o)) + '</div>') +
+          '</td><td>' + Comp.pillTipo(o.tipo) + '</td>' +
           '<td class="trunc" style="max-width:200px" title="' + attr(Modelo.nombreProveedor(o)) + '">' + esc(Modelo.nombreProveedor(o)) + '</td>' +
           '<td class="trunc" style="max-width:240px" title="' + attr(Modelo.concepto(o)) + '">' + esc(Modelo.concepto(o)) + '</td>' +
           '<td class="trunc txt-2" style="max-width:150px" title="' + attr(eq) + '">' + (eq ? esc(eq) : '<span class="txt-3">—</span>') + '</td>' +
@@ -5121,7 +5238,7 @@ const VistaOrden = {
     let h = '<div class="page-head"><div><h1><button class="ph-back" id="odVolver" aria-label="Volver" data-tip="Volver">' + Icon('back', '', 16) + '</button>' +
       esc(TIPOS[o.tipo].t) + ' <span class="mono">N.º ' + esc(o.numero) + '</span> ' + Comp.selEstado(o) + '</h1>' +
       '<div class="ph-sub">' + esc(Fecha.larga(o.fecha)) + ' · ' + esc(Modelo.nombreProveedor(o)) + (eq ? ' · ' + esc(eq.nombre) : '') + ' · ' +
-      Txt.plural(o.items.length, 'artículo') + '</div></div><div class="ph-actions">' +
+      Txt.plural(o.items.length, 'artículo') + (Modelo.autor(o) ? ' · hecha por <b>' + esc(Modelo.autor(o)) + '</b>' : '') + '</div></div><div class="ph-actions">' +
       '<button class="btn" id="odCopiar" data-tip="Para pegarla en WhatsApp o en un correo">' + Icon('image', '', 14) + 'Copiar imagen</button>' +
       '<button class="btn btn-primary" id="odImp">' + Icon('print', '', 14) + 'Imprimir o PDF</button>' +
       si('editar', '<a class="btn" href="#/orden-nueva?duplicar=' + attr(o.id) + '">' + Icon('copy', '', 14) + 'Duplicar</a>') +
@@ -5137,9 +5254,7 @@ const VistaOrden = {
         (o.anulacion && o.anulacion.motivo ? '. Motivo: ' + esc(o.anulacion.motivo) : '') + '. No cuenta en las estadísticas.</div></div>';
     }
     h += '<div class="grid g-form"><div class="col">' +
-      '<div class="card"><div class="card-h"><h3>' + Icon('doc', '', 15) + 'Documento</h3><span class="ch-sub">así sale impreso o en PDF</span>' +
-      '<div class="ch-act"><button class="btn btn-sm" id="odCopiar2" data-tip="Copiar como imagen">' + Icon('image', '', 12) + 'Copiar</button>' +
-      '<button class="btn btn-sm" id="odImp2">' + Icon('print', '', 12) + 'Imprimir</button></div></div>' +
+      '<div class="card"><div class="card-h"><h3>' + Icon('doc', '', 15) + 'Documento</h3><span class="ch-sub">así sale impreso o en PDF</span></div>' +
       '<div class="card-b" style="padding:12px"><div class="preview-shell doc-marco" id="odDoc"><div class="doc-escala">' + Documento.html(o) + '</div></div></div></div>';
     if (o.notasInternas) h += '<div class="card"><div class="card-h"><h3>' + Icon('lock', '', 15) + 'Notas internas</h3><span class="ch-sub">no salen en el documento</span></div>' +
       '<div class="card-b fs13" style="white-space:pre-wrap">' + esc(o.notasInternas) + '</div></div>';
@@ -5148,8 +5263,7 @@ const VistaOrden = {
     Documento.escalar($('#odDoc', el));
     $('#odVolver', el).onclick = () => Router.ir('/ordenes');
     $('#odImp', el).onclick = () => AccionesOrden.imprimir(o);
-    $('#odImp2', el).onclick = () => AccionesOrden.imprimir(o);
-    $$('#odCopiar,#odCopiar2', el).forEach(b => { b.onclick = () => Documento.copiarImagen(o); });
+    $('#odCopiar', el).onclick = () => Documento.copiarImagen(o);
     el.addEventListener('change', async e => {
       const s = e.target.closest('select[data-estado]');
       if (!s) return;
@@ -5167,7 +5281,7 @@ const VistaOrden = {
         if (r) recargar();
         return;
       }
-      if (e.target.closest('[data-fact]')) { AccionesOrden.registrarFactura(Datos.orden(o.id)); return; }
+      if (e.target.closest('[data-fact]')) { if (await AccionesOrden.corregirFactura(Datos.orden(o.id))) recargar(); return; }
       const v = e.target.closest('[data-adj-ver]');
       if (v) { const m = (o.adjuntos || []).find(x => x.id === v.dataset.adjVer); if (m) Adjuntos.ver(m); return; }
       const q = e.target.closest('[data-adj-quitar]');
@@ -5294,6 +5408,7 @@ const VistaOrden = {
     const fp = o.formaPago === 'CREDITO' ? 'Crédito' + (o.plazoDias ? ' a ' + o.plazoDias + ' días' : '') + (o.cuotas ? ' · ' + o.cuotas + ' cuotas' : '') : 'Contado';
     const vence = o.formaPago === 'CREDITO' && o.plazoDias && o.factura && o.factura.fecha ? Fecha.sumarDias(o.factura.fecha, o.plazoDias) : '';
     return '<div class="card"><div class="card-h"><h3>' + Icon('list', '', 15) + 'Detalles</h3></div><div class="card-b"><dl class="dl">' +
+      '<dt>Hecha por</dt><dd>' + (Modelo.autor(o) ? esc(Modelo.autor(o)) + ' <span class="txt-3">· su cuenta en la plataforma</span>' : '<span class="falta">Sin registro (es de antes de las cuentas)</span>') + '</dd>' +
       '<dt>Tipo</dt><dd>' + esc(TIPOS[o.tipo].t) + '</dd>' +
       '<dt>Equipo o destino</dt><dd>' + (eq ? '<a href="#/ordenes?equipo=' + attr(eq.id) + '">' + esc(eq.nombre) + '</a>' : '<span class="falta">—</span>') + '</dd>' +
       '<dt>Forma de pago</dt><dd>' + esc(fp) + '</dd>' +
@@ -7434,7 +7549,9 @@ const Pruebas = {
   },
   async correr() {
     const real = { db, cfg: Datos.cfg, proveedores: Datos.proveedores, equipos: Datos.equipos, ordenes: Datos.ordenes, plantillas: Datos.plantillas, acceso: Permiso.acceso,
-      historico: HistoricoExcel.crudo() };
+      historico: HistoricoExcel.crudo(), autores: Autores.mapa };
+    /* Las pruebas no ven los nombres de la nube */
+    Autores.mapa = new Map();
     const avisar = Canal.avisar;
     Canal.avisar = () => {};
     /* Mientras corren, nada llega de la nube y se prueba con todos los permisos */
@@ -7458,6 +7575,7 @@ const Pruebas = {
       Permiso.acceso = real.acceso;
       Datos.indexar();
       HistoricoExcel.poner(real.historico);
+      Autores.mapa = real.autores;
       Canal.avisar = avisar;
       Sincro.seguir();
       Shell.refrescar();
@@ -7936,6 +8054,50 @@ Pruebas.def('Un PDF que no se puede comprimir se adjunta igual, tal cual', async
     'uno que ni comprimido cabría no se intenta');
   return 'sin internet, tal cual';
 });
+Pruebas.def('La factura se corrige en una ventana pequeña: número, fecha y archivos', async ({ p1 }) => {
+  const pdf = n => new File(['%PDF-1.4 ' + n], n, { type: 'application/pdf' });
+  const malo = await Adjuntos.preparar(pdf('factura-mala.pdf'));
+  let o = Object.assign(Pruebas.orden(p1), { adjuntos: [Adjuntos.meta(malo)] });
+  o = await OrdenService.guardar(o, [malo]);
+  o = await OrdenService.guardarFactura(o, { numero: 'F-1', fecha: '2026-10-29' }, []);
+  const espera = AccionesOrden.corregirFactura(o);
+  const m = $$('#modals .modal-bd').pop();
+  try {
+    Pruebas.igual([$('#cfNum', m).value, $('#cfFecha', m).value, $$('[data-adj-quitar]', m).length], ['F-1', '2026-10-29', 1], 'debía traer la factura y su archivo');
+    $('#cfNum', m).value = 'F-100';
+    $('[data-adj-quitar="' + malo.id + '"]', m).click();
+    const dt = new DataTransfer();
+    dt.items.add(pdf('factura-buena.pdf'));
+    $('#cfAdj', m).dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
+    for (let i = 0; i < 40 && !$('#cfAdjLista', m).textContent.includes('factura-buena'); i++) await new Promise(r => setTimeout(r, 25));
+    Pruebas.cierto(!$('#cfAdjLista', m).textContent.includes('factura-mala'), 'el archivo quitado ya no se debía ver');
+    $('#cfOk', m).click();
+  } catch (e) { Modal.cerrarTodos(); throw e; }
+  const n = await espera;
+  Pruebas.igual([n.factura.numero, n.factura.fecha, n.estado, n.adjuntos.map(a => a.nombre), n.historial[n.historial.length - 1].nota],
+    ['F-100', '2026-10-29', 'CONTABILIDAD', ['factura-buena.pdf'], 'Factura corregida: F-100']);
+  Pruebas.igual(await db.get('adjuntos', malo.id), null, 'el archivo quitado se debía borrar de la nube');
+  return 'F-1 → F-100, archivo cambiado';
+});
+Pruebas.def('Quién hizo la orden es la cuenta que la creó, no la firma', async ({ p1 }) => {
+  const antes = Permiso.acceso;
+  try {
+    Permiso.acceso = { id: 'u7', nombre: 'DELSY ROJAS DÍAZ', rol: 'editor', acciones: ['ver', 'editar', 'pagar'], activo: true };
+    let o = await OrdenService.guardar(Object.assign(Pruebas.orden(p1), { solicitante: { nombre: 'DELSY ROJAS DÍAZ', cargo: 'Jefe de compras' } }));
+    o = await OrdenService.guardar(Object.assign(U.clonar(o), { solicitante: { nombre: 'JUAN DAVID POSADA RESTREPO', cargo: 'Gerente' } }));
+    Pruebas.igual([Modelo.autor(o), Modelo.autorCorto(o)], ['DELSY ROJAS DÍAZ', 'Delsy Rojas'], 'cambiar la firma no cambia quién la hizo');
+    Pruebas.cierto(VistaOrden.detalles(o, null).includes('Hecha por') && VistaOrden.detalles(o, null).includes('DELSY ROJAS DÍAZ'), 'debía decirlo en los detalles');
+    Pruebas.igual(Modelo.autorCorto({ historial: [{ por: 'JUAN DAVID POSADA RESTREPO' }] }), 'Juan Posada');
+    Pruebas.igual(Modelo.autorCorto({ historial: [{ por: 'compras@sinugravas.com' }] }), 'compras');
+    Pruebas.igual(Modelo.autor({ historial: [{ estado: 'ESPERANDO' }], creadoPor: 'otra' }), '', 'sin registro no se adivina');
+    /* Con el 206, el nombre de hoy de la cuenta en el panel gana a lo anotado */
+    const vieja = { historial: [{ por: 'cuentadetrabajo@sinugravas.com' }], creadoPor: 'u9' };
+    Pruebas.igual(Modelo.autorCorto(vieja), 'cuentadetrabajo', 'sin el 206 queda el correo anotado');
+    Autores.mapa = new Map([['u9', 'JUAN MARTÍNEZ']]);
+    Pruebas.igual([Modelo.autor(vieja), Modelo.autorCorto(vieja)], ['JUAN MARTÍNEZ', 'Juan Martínez'], 'con el 206 sale el nombre de hoy');
+  } finally { Permiso.acceso = antes; Autores.mapa = new Map(); }
+  return 'Delsy Rojas';
+});
 Pruebas.def('El menú «⋯» trae sólo lo que no tiene otro lugar, y la factura se corrige con el lápiz', async ({ p1 }) => {
   const antes = Permiso.acceso;
   const textos = (o, enLaOrden) => AccionesOrden.opciones(o, null, enLaOrden).map(x => x === '-' ? '-' : x.texto).join(' · ');
@@ -8376,7 +8538,7 @@ async function arrancar() {
     msg('Revisando la sesión…');
     await Sesion.iniciar();
     msg('Trayendo los datos de la nube…');
-    await Promise.all([Datos.cargar(), HistoricoExcel.cargar()]);
+    await Promise.all([Datos.cargar(), HistoricoExcel.cargar(), Autores.traer(true)]);
     /* Quien administra pone al día lo que llegue de una versión anterior */
     if (Permiso.puede('configurar') && await Semillas.aplicar()) msg('Poniendo al día los datos…');
     Shell.render();
