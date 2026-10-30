@@ -141,7 +141,24 @@ html[data-theme="dark"] ::-webkit-scrollbar-thumb{background:#37454f}
   border:0;border-radius:6px;background:transparent;color:#7b8b97;cursor:pointer}
 .sb-toggle:hover{background:rgba(255,255,255,.08);color:#dfe8ee}
 .sb-cons-mini{display:none}
+/* La empresa con la que se trabaja: su color en la barra lateral y arriba de la página */
+:root{--empresa:#1f5fbf}
+.sb-emp{padding:9px 12px 10px;border-bottom:1px solid rgba(255,255,255,.07)}
+.sb-emp label{display:block;font-size:9.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#5c6d79;margin-bottom:4px}
+.sb-emp-sel{position:relative;display:flex;align-items:center;gap:8px;height:30px;padding:0 9px;border-radius:6px;
+  background:color-mix(in srgb,var(--empresa) 26%,transparent);border:1px solid color-mix(in srgb,var(--empresa) 70%,transparent)}
+.sb-emp-sel i{width:9px;height:9px;border-radius:50%;background:var(--empresa);box-shadow:0 0 0 2px rgba(255,255,255,.25);flex:0 0 auto}
+.sb-emp-sel select{flex:1;min-width:0;height:100%;background:transparent;border:0;color:#e6edf3;font-size:12px;font-weight:700;cursor:pointer;outline:none}
+.sb-emp-sel select option{color:#14212b}
+.sb-emp-mini{display:none}
+.topbar{box-shadow:inset 0 3px 0 var(--empresa)}
+html[data-empresa="SINUGRAVAS"] .topbar{box-shadow:none}
 @media (min-width:861px){
+  html.sb-mini .sb-emp{padding:6px 8px;border-bottom:1px solid rgba(255,255,255,.07)}
+  html.sb-mini .sb-emp label,
+  html.sb-mini .sb-emp-sel{display:none}
+  html.sb-mini .sb-emp-mini{display:grid;place-items:center;height:26px;border-radius:6px;background:var(--empresa);color:#fff;
+    font-size:10.5px;font-weight:800;letter-spacing:.04em}
   html.sb-mini{--sidebar-w:64px}
   html.sb-mini .sb-brand{padding:0 5px 0 8px;justify-content:space-between;gap:3px}
   html.sb-mini .sb-logo{width:28px;height:28px;flex:0 0 28px}
@@ -1715,7 +1732,7 @@ const APP = Object.freeze({
   nombre: 'Facturación',
   area: 'Órdenes de compra',
   empresa: 'SINUGRAVAS S.A.S.',
-  version: '2.7.0',
+  version: '2.8.0',
   /* 3: los datos viven en la nube y el número de cada orden sale de las órdenes */
   esquema: 3,
   /* La base del navegador de la versión local (1.x). Ya no se guarda en ella:
@@ -2515,8 +2532,9 @@ class MemoryAdapter extends StorageAdapter {
   async remove(c, id) { this.m[c].delete(id); }
   async clear(c) { this.m[c].clear(); }
   async lote(ops) {
-    const quedan = new Map([...this.m.ordenes.values()].map(o => [o.id, o.secuencia]));
-    ops.forEach(o => { if (o.col === 'ordenes') { if (o.tipo === 'del') quedan.delete(o.id); else quedan.set(o.doc.id, o.doc.secuencia); } });
+    const clave = o => o.secuencia == null ? null : Empresa.de(o) + ':' + o.secuencia;
+    const quedan = new Map([...this.m.ordenes.values()].map(o => [o.id, clave(o)]));
+    ops.forEach(o => { if (o.col === 'ordenes') { if (o.tipo === 'del') quedan.delete(o.id); else quedan.set(o.doc.id, clave(o.doc)); } });
     const secs = [...quedan.values()].filter(s => s != null);
     if (new Set(secs).size !== secs.length) throw new ErrorDominio('Ese número de orden ya lo tomó otra orden.', 'NUMERO_TOMADO');
     ops.forEach(o => { if (o.tipo === 'del') this.m[o.col].delete(o.id); else this.m[o.col].set(o.doc.id, U.clonar(o.doc)); });
@@ -2744,11 +2762,11 @@ const MAPA = (() => {
     configuracion: ['empresa logo consecutivo iva_pct documento solicitantes autoriza ultimo_respaldo semillas', 'ultimo_respaldo', 'ultimo_respaldo'],
     proveedores: ['nombre nombre_norm nit tipo_persona categoria contacto cargo_contacto telefono celular correo direccion ciudad forma_pago plazo_dias ' +
       'medio_pago notas alias activo origen historico clave_excel fusionado_con fusionado_en', 'historico clave_excel fusionado_con fusionado_en', 'fusionado_en'],
-    equipos: ['nombre tipo placa clase detalle alias notas activo origen', '', ''],
-    plantillas: ['nombre tipo proveedor_id equipo_id concepto items notas usos ultimo_uso', 'proveedor_id equipo_id ultimo_uso', 'ultimo_uso'],
+    equipos: ['nombre tipo placa clase detalle alias notas activo origen empresa', '', ''],
+    plantillas: ['nombre tipo proveedor_id equipo_id concepto items notas usos ultimo_uso empresa', 'proveedor_id equipo_id ultimo_uso', 'ultimo_uso'],
     ordenes: ['numero secuencia tipo fecha proveedor_id proveedor equipo_id concepto referencia items iva_pct retencion_pct subtotal iva retencion total ' +
       'forma_pago plazo_dias cuotas medio_pago entrega_lugar entrega_recibe entrega_cedula nota_proveedor notas_internas solicitante estado historial ' +
-      'factura pago anulacion plantilla_id adjuntos', 'proveedor equipo_id solicitante factura pago anulacion plantilla_id', ''],
+      'factura pago anulacion plantilla_id adjuntos empresa', 'proveedor equipo_id solicitante factura pago anulacion plantilla_id', ''],
     adjuntos: ['orden_id nombre tipo tamano ruta en', '', 'en'],
     auditoria: ['en accion entidad entidad_id detalle', '', 'en']
   };
@@ -3062,11 +3080,69 @@ const TIPOS = Object.freeze({
   COMPRA: { t: 'Orden de compra', c: 'Compra', asunto: 'ORDEN DE COMPRA', pill: 'p-brand' },
   SERVICIO: { t: 'Orden de servicio', c: 'Servicio', asunto: 'ORDEN DE SERVICIO', pill: 'p-sun' },
   COTIZACION: { t: 'Solicitud de cotización', c: 'Cotización', asunto: 'SOLICITUD DE COTIZACIÓN', pill: 'p-gray' },
-  /* Sólo en el histórico: así se llamaron las órdenes de 2014 a 2021 */
-  PEDIDO: { t: 'Orden de pedido', c: 'Pedido', asunto: 'ORDEN DE PEDIDO', pill: 'p-violet', excel: true }
+  /* Así se llamaron las de SINUGRAVAS de 2014 a 2021, y así las hace JDPR */
+  PEDIDO: { t: 'Orden de pedido', c: 'Pedido', asunto: 'ORDEN DE PEDIDO', pill: 'p-violet' }
 });
-/** Los tipos con los que se hacen órdenes y plantillas nuevas */
-const tiposNuevos = () => Object.keys(TIPOS).filter(k => !TIPOS[k].excel);
+
+/* Las dos empresas (Juan, 30/10/2026): aquí se manejan siempre SINUGRAVAS y
+   Juan David Posada Restrepo (JDPR). Cada una tiene sus órdenes, su
+   consecutivo, su membrete, sus plantillas y sus equipos y destinos. Los
+   proveedores, las personas y la actividad son comunes. Se cambia de una a
+   otra en la barra lateral, como el contrato en Caja Menor, y cada pestaña
+   recuerda la suya: nunca se guarda para todos. */
+const EMPRESAS = Object.freeze({
+  SINUGRAVAS: { id: 'SINUGRAVAS', corto: 'SINUGRAVAS', siglas: 'SG', tipo: 'COMPRA', tipos: ['COMPRA', 'SERVICIO', 'COTIZACION'], color: '#1f5fbf' },
+  JDPR: { id: 'JDPR', corto: 'JDPR', siglas: 'JD', tipo: 'PEDIDO', tipos: ['PEDIDO', 'SERVICIO', 'COTIZACION'], color: '#2e7d4f' }
+});
+const Empresa = {
+  activa: 'SINUGRAVAS',
+  /* La base ya distingue las empresas (SQL 207). Mientras no, sólo SINUGRAVAS */
+  disponible: false,
+  CLAVE: 'sinugravas.facturacion.empresa',
+  de(x) { return (x && x.empresa) || 'SINUGRAVAS'; },
+  lista() { return this.disponible ? Object.keys(EMPRESAS) : ['SINUGRAVAS']; },
+  info(id) { return EMPRESAS[id || this.activa] || EMPRESAS.SINUGRAVAS; },
+  /** El membrete, la firma, los textos y el consecutivo de una empresa */
+  cfg(id) { id = id || this.activa; return id === 'SINUGRAVAS' ? Datos.cfg : Config.completarEmpresa(id, Datos.cfgs[id]); },
+  nombre(id) { return (this.cfg(id).empresa.nombre || this.info(id).corto); },
+  tipos(id) { return this.info(id).tipos; },
+  tipoNuevo(id) { return this.info(id).tipo; },
+  /** ¿Ya tiene la base la columna «empresa»? */
+  async revisar() {
+    if (!db || !db.nube) { this.disponible = true; return; }
+    try { await Nube.pedir('ordenes?select=empresa&limit=1', { leer: true }); this.disponible = true; } catch (e) { this.disponible = false; }
+  },
+  /** La de esta pestaña; si no, la última que se usó en este computador */
+  iniciar() {
+    let e = null;
+    try { e = sessionStorage.getItem(this.CLAVE) || localStorage.getItem(this.CLAVE); } catch (x) { e = null; }
+    this.poner(this.disponible && EMPRESAS[e] ? e : 'SINUGRAVAS');
+  },
+  poner(id) {
+    this.activa = id;
+    Datos.refiltrar();
+    HistoricoExcel.invalidar();
+    document.documentElement.style.setProperty('--empresa', this.info(id).color);
+    document.documentElement.dataset.empresa = id;
+  },
+  /** Desde la barra lateral: si hay una hoja sin guardar, primero se pregunta */
+  async cambiar(id) {
+    if (!EMPRESAS[id] || id === this.activa || !this.disponible) return false;
+    if (Router.sucio && !(await Modal.confirmar({ titulo: 'Cambiar de empresa', ok: 'Cambiar sin guardar', peligro: true,
+      mensaje: 'Hay cambios sin guardar en esta hoja. Si cambia a <b>' + esc(this.nombre(id)) + '</b>, se pierden.' }))) return false;
+    Router.sucio = false;
+    this.poner(id);
+    try { sessionStorage.setItem(this.CLAVE, id); localStorage.setItem(this.CLAVE, id); } catch (x) { /* sin almacenamiento: queda para esta vez */ }
+    Bus.emit('empresa:cambio', id);
+    Shell.pintarEmpresa();
+    Shell.refrescar();
+    const r = Router.actual();
+    /* Una orden, o su hoja, es de la otra empresa: se vuelve a la lista */
+    if (r && /^\/orden(-nueva|-editar)?(\/|$)/.test(r.ruta)) Router.ir('/ordenes'); else Router.resolver(true);
+    Toast.info('Ahora trabaja en <b>' + esc(this.nombre(id)) + '</b>.');
+    return true;
+  }
+};
 /* Como trabaja la empresa: compras hace la orden y se la manda al proveedor;
    espera su cotización; con la factura le pone los valores de lo comprado y la
    pasa a contabilidad; contabilidad la paga y la marca como pagada. */
@@ -3196,7 +3272,7 @@ const Validar = {
     const e = {};
     if (!Fecha.valida(o.fecha)) e.fecha = 'Escriba una fecha válida.';
     if (!o.proveedorId || !Datos.prov(o.proveedorId)) e.proveedor = 'Escoja el proveedor.';
-    if (!TIPOS[o.tipo] || TIPOS[o.tipo].excel) e.tipo = 'Escoja el tipo de orden.';
+    if (!Empresa.tipos(Empresa.de(o)).includes(o.tipo)) e.tipo = 'Escoja el tipo de orden.';
     if (!ESTADOS[o.estado || 'ESPERANDO']) e.estado = 'Estado no válido.';
     const its = (o.items || []).filter(Modelo.itemValido);
     if (!its.length) e.items = 'Agregue al menos un artículo con su descripción.';
@@ -3289,24 +3365,75 @@ const Config = {
     if (!Array.isArray(out.solicitantes)) out.solicitantes = d.solicitantes;
     return out;
   },
+  /* Lo de cada empresa que no es SINUGRAVAS, en su propia fila (id = la empresa):
+     su membrete, su logo, su firma, sus textos y desde dónde numera. Nada de
+     SINUGRAVAS sirve de valor por defecto: ni su NIT, ni su bodega, ni su firma */
+  defectoEmpresa(id) {
+    const d = this.defecto();
+    return {
+      id, empresa: { nombre: id === 'JDPR' ? 'JUAN DAVID POSADA RESTREPO' : id, tipoDoc: 'C.C.', nit: '', direccion: '', ciudad: '', telefono: '', correo: '' },
+      logo: '', consecutivo: { siguiente: id === 'JDPR' ? 472 : 1 },
+      documento: Object.assign({}, d.documento, { lugarEntrega: '' }),
+      autoriza: { nombre: '', cargo: '', firma: '' }
+    };
+  },
+  completarEmpresa(id, c) {
+    const d = this.defectoEmpresa(id);
+    if (!c) return d;
+    const out = Object.assign({}, d, c, { id });
+    ['empresa', 'consecutivo', 'documento', 'autoriza'].forEach(k => { out[k] = Object.assign({}, d[k], c[k] || {}); });
+    return out;
+  },
   solicitantes() { return (Datos.cfg.solicitantes || []).filter(s => s.activo); },
   solicitantePred() { const s = this.solicitantes(); return s.find(x => x.predeterminado) || s[0] || null; },
-  logo() { return Datos.cfg.logo || MARCA.logo; }
+  /** El logo de la empresa; el de SINUGRAVAS, si no se ha puesto otro, es el de la marca */
+  logo(emp) { return (emp || Empresa.activa) === 'SINUGRAVAS' ? (Datos.cfg.logo || MARCA.logo) : (Empresa.cfg(emp).logo || ''); }
 };
 
 const Datos = {
-  cfg: null, proveedores: [], equipos: [], ordenes: [], plantillas: [],
+  /* cfg: la configuración común y la de SINUGRAVAS; cfgs: la de cada otra empresa (ver Empresa.cfg) */
+  cfg: null, cfgs: {}, proveedores: [],
+  /* Órdenes, equipos y plantillas son de una empresa. Aquí están las de todas,
+     y Datos.ordenes (y equipos y plantillas) da sólo las de la empresa activa */
+  _todo: { ordenes: [], equipos: [], plantillas: [] },
+  _vista: {},
+  get ordenes() { return this._de('ordenes'); },
+  set ordenes(v) { this._poner('ordenes', v); },
+  get equipos() { return this._de('equipos'); },
+  set equipos(v) { this._poner('equipos', v); },
+  get plantillas() { return this._de('plantillas'); },
+  set plantillas(v) { this._poner('plantillas', v); },
+  _de(c) {
+    const emp = Empresa.activa;
+    if (this._vista.emp !== emp) this._vista = { emp };
+    return this._vista[c] || (this._vista[c] = this._todo[c].filter(x => Empresa.de(x) === emp));
+  },
+  _poner(c, v) { this._todo[c] = v || []; this._vista = {}; },
+  /** Las de todas las empresas: para guardar, para buscar por id y para el respaldo */
+  crudo(c) { return this._todo[c] || this[c]; },
+  refiltrar() { this._vista = {}; },
+  _quitar(c, ids) {
+    const q = ids instanceof Set ? ids : new Set(ids);
+    if (this._todo[c]) this._poner(c, this._todo[c].filter(d => !q.has(d.id))); else this[c] = this[c].filter(d => !q.has(d.id));
+  },
+  _poner1(c, d) {
+    const l = this.crudo(c), i = l.findIndex(x => x.id === d.id);
+    if (i >= 0) l[i] = d; else l.push(d);
+  },
   _idx: {},
   async cargar() {
     /* La hora de la nube antes de traer todo: lo que se guarde mientras tanto llega en la primera revisión */
     if (db.nube) await db.marcarHora();
     const [cfgs, prov, eq, ord, pl] = await Promise.all(['configuracion', 'proveedores', 'equipos', 'ordenes', 'plantillas'].map(c => db.getAll(c, { marcar: true })));
     this.cfg = Config.completar(cfgs.find(c => c.id === 'general'));
+    this.cfgs = {};
+    cfgs.filter(c => c.id !== 'general').forEach(c => { this.cfgs[c.id] = c; });
     this.proveedores = prov; this.equipos = eq; this.ordenes = ord; this.plantillas = pl;
     this.indexar();
   },
   indexar(col) {
-    (col ? [col] : ['proveedores', 'equipos', 'ordenes', 'plantillas']).forEach(c => { this._idx[c] = new Map(this[c].map(d => [d.id, d])); });
+    (col ? [col] : ['proveedores', 'equipos', 'ordenes', 'plantillas']).forEach(c => { this._idx[c] = new Map(this.crudo(c).map(d => [d.id, d])); });
+    this._vista = {};
     if (!col || col === 'proveedores' || col === 'equipos') HistoricoExcel.invalidar();
   },
   prov(id) { return (id && this._idx.proveedores.get(id)) || null; },
@@ -3324,10 +3451,13 @@ const Datos = {
     ops.forEach(o => {
       if (o.col === 'auditoria' || o.col === 'adjuntos') return;
       cols.add(o.col);
-      if (o.col === 'configuracion') { if (o.tipo !== 'del') this.cfg = Config.completar(o.doc); return; }
-      if (o.tipo === 'del') { this[o.col] = this[o.col].filter(d => d.id !== o.id); return; }
-      const i = this[o.col].findIndex(d => d.id === o.doc.id);
-      if (i >= 0) this[o.col][i] = o.doc; else this[o.col].push(o.doc);
+      if (o.col === 'configuracion') {
+        if (o.tipo === 'del') delete this.cfgs[o.id];
+        else if (o.doc.id === 'general') this.cfg = Config.completar(o.doc); else this.cfgs[o.doc.id] = o.doc;
+        return;
+      }
+      if (o.tipo === 'del') { this._quitar(o.col, [o.id]); return; }
+      this._poner1(o.col, o.doc);
     });
     cols.forEach(c => { if (c !== 'configuracion') this.indexar(c); Bus.emit(c + ':cambio'); });
     if (cols.size) { Bus.emit('datos:cambio'); Canal.avisar(); }
@@ -3340,9 +3470,14 @@ const Datos = {
     const cols = Object.keys(cambios);
     cols.forEach(c => {
       const { poner, quitar } = cambios[c];
-      if (c === 'configuracion') { const g = poner.find(d => d.id === 'general'); if (g) this.cfg = Config.completar(g); Bus.emit(c + ':cambio'); return; }
-      if (quitar.length) { const q = new Set(quitar); this[c] = this[c].filter(d => !q.has(d.id)); }
-      poner.forEach(d => { const i = this[c].findIndex(x => x.id === d.id); if (i >= 0) this[c][i] = d; else this[c].push(d); });
+      if (c === 'configuracion') {
+        poner.forEach(d => { if (d.id === 'general') this.cfg = Config.completar(d); else this.cfgs[d.id] = d; });
+        quitar.forEach(id => { delete this.cfgs[id]; });
+        Bus.emit(c + ':cambio');
+        return;
+      }
+      if (quitar.length) this._quitar(c, quitar);
+      poner.forEach(d => this._poner1(c, d));
       this.indexar(c);
       Bus.emit(c + ':cambio');
     });
@@ -3354,6 +3489,12 @@ const Datos = {
   quitar(col, id) { return this.lote([{ col, tipo: 'del', id }]); },
   guardarCfg(cambios) {
     const nuevo = Object.assign(U.clonar(this.cfg), cambios, { id: 'general' });
+    return this.lote([{ col: 'configuracion', tipo: 'put', doc: nuevo }]);
+  },
+  /** Lo de una empresa: el de SINUGRAVAS va en la fila común; el de otra, en la suya */
+  guardarCfgEmpresa(emp, cambios) {
+    if (emp === 'SINUGRAVAS') return this.guardarCfg(cambios);
+    const nuevo = Object.assign(U.clonar(Empresa.cfg(emp)), cambios, { id: emp });
     return this.lote([{ col: 'configuracion', tipo: 'put', doc: nuevo }]);
   },
   evento(accion, entidad, entidadId, detalle) {
@@ -3389,7 +3530,7 @@ const Canal = {
    siguiente (OrdenService.guardar). */
 const Consecutivo = {
   /** Desde dónde numera la plataforma: lo que se fijó en Configuración */
-  base() { return Math.max(1, Math.floor(+Datos.cfg.consecutivo.siguiente || 1)); },
+  base() { return Math.max(1, Math.floor(+Empresa.cfg().consecutivo.siguiente || 1)); },
   usado(sec, exceptoId) { return Datos.ordenes.some(o => o.secuencia === sec && o.id !== exceptoId); },
   maximo() { return Datos.ordenes.reduce((m, o) => Math.max(m, o.secuencia || 0), 0); },
   siguiente() { return Math.max(this.base(), this.maximo() + 1); },
@@ -3628,16 +3769,16 @@ const OrdenService = {
   /** Una orden nueva, sin guardar, con lo que ya se sabe */
   nueva(opts) {
     opts = opts || {};
-    const cfg = Datos.cfg;
+    const cfg = Datos.cfg, emp = Empresa.activa;
     const sol = Config.solicitantePred();
     const o = {
-      id: null, numero: '', secuencia: null, tipo: 'COMPRA', fecha: Fecha.hoy(),
+      id: null, empresa: emp, numero: '', secuencia: null, tipo: Empresa.tipoNuevo(emp), fecha: Fecha.hoy(),
       proveedorId: null, proveedor: null, equipoId: null, concepto: '', referencia: '',
       items: [Modelo.itemVacio()],
       ivaPct: cfg.ivaPct, retencionPct: 0,
       subtotal: 0, iva: 0, retencion: 0, total: 0,
       formaPago: 'CONTADO', plazoDias: 0, cuotas: 0, medioPago: '',
-      entregaLugar: cfg.documento.lugarEntrega || '', entregaRecibe: '', entregaCedula: '',
+      entregaLugar: Empresa.cfg(emp).documento.lugarEntrega || '', entregaRecibe: '', entregaCedula: '',
       notaProveedor: '', notasInternas: '',
       solicitante: sol ? { id: sol.id, nombre: sol.nombre, cargo: sol.cargo, telefono: sol.telefono || '' } : null,
       estado: 'ESPERANDO', historial: [], factura: null, anulacion: null, pago: null, plantillaId: null, adjuntos: []
@@ -3651,6 +3792,9 @@ const OrdenService = {
           'entregaLugar', 'entregaRecibe', 'entregaCedula', 'notaProveedor'].forEach(k => { o[k] = U.clonar(b[k]); });
         o.items = b.items.map(it => Object.assign(U.clonar(it), { id: ID() }));
         o.duplicadaDe = b.numero;
+        /* Duplicar una de la otra empresa: el tipo y el equipo tienen que ser de ésta */
+        if (!Empresa.tipos(emp).includes(o.tipo)) o.tipo = Empresa.tipoNuevo(emp);
+        if (o.equipoId && Empresa.de(Datos.equipo(o.equipoId)) !== emp) o.equipoId = null;
       }
     }
     if (opts.equipoId) o.equipoId = opts.equipoId;
@@ -3721,13 +3865,25 @@ const OrdenService = {
     if (previo) {
       Permiso.exigirOrden(previo, 'editar');
       if (previo.creadoPor) o.creadoPor = previo.creadoPor;
+      /* Una orden nunca cambia de empresa, ni el membrete con que salió */
+      o.empresa = Empresa.de(previo);
+      if (previo.membrete) o.membrete = U.clonar(previo.membrete); else delete o.membrete;
       o.estado = opts.estado || previo.estado;
       if (!opts.factura) o.factura = U.clonar(previo.factura || null);
       o.pago = U.clonar(previo.pago || null);
       o.anulacion = U.clonar(previo.anulacion || null);
     }
     o.estado = o.estado || 'ESPERANDO';
+    /* Lo que lleva su papel queda en la orden al hacerla, como los datos del
+       proveedor: si después se corrige la configuración, la orden vieja se
+       reimprime como salió (lo aconsejó Caja Menor) */
+    if (!previo) { o.empresa = o.empresa || Empresa.activa; o.membrete = U.clonar(Empresa.cfg(o.empresa).empresa); }
     Validar.orden(o);
+    /* Lo que usa tiene que ser de su misma empresa (Caja Menor lo aprendió tarde) */
+    const eqo = o.equipoId && Datos.equipo(o.equipoId);
+    if (eqo && Empresa.de(eqo) !== o.empresa) throw new ErrorValidacion({ equipo: 'Ese equipo o destino es de ' + Empresa.nombre(Empresa.de(eqo)) + ': escoja uno de ' + Empresa.nombre(o.empresa) + '.' });
+    const plo = o.plantillaId && Datos.plantilla(o.plantillaId);
+    if (plo && Empresa.de(plo) !== o.empresa) o.plantillaId = null;
     this.normalizar(o);
     /* La factura vale lo que suman sus artículos: compras les pone los valores cuando llega */
     if (o.factura && o.total > 0) o.factura.valor = o.total;
@@ -3760,7 +3916,7 @@ const OrdenService = {
       if (!previo) { o.secuencia = Consecutivo.libre(); o.numero = Modelo.numero(o.secuencia, o.fecha); }
       try {
         await Datos.lote(comunes.concat([{ col: 'ordenes', tipo: 'put', doc: o },
-          Datos.evento(previo ? 'editar' : 'crear', 'orden', o.id, o.numero + ' · ' + (prov ? prov.nombre : ''))]));
+          Datos.evento(previo ? 'editar' : 'crear', 'orden', o.id, o.numero + (o.empresa !== 'SINUGRAVAS' ? ' ' + o.empresa : '') + ' · ' + (prov ? prov.nombre : ''))]));
         break;
       } catch (e) {
         /* Otra persona guardó una orden con ese número al mismo tiempo: se traen
@@ -3943,7 +4099,7 @@ const ProveedorService = {
 };
 
 const EquipoService = {
-  vacio() { return { id: null, nombre: '', tipo: 'carga', placa: '', clase: '', detalle: '', alias: [], notas: '', activo: true, origen: 'MANUAL' }; },
+  vacio() { return { id: null, empresa: Empresa.activa, nombre: '', tipo: Empresa.activa === 'SINUGRAVAS' ? 'carga' : 'sede', placa: '', clase: '', detalle: '', alias: [], notas: '', activo: true, origen: 'MANUAL' }; },
   /** Placa o código para comparar: mayúsculas, sin espacios ni guiones */
   placaNorm(s) { return Txt.mayus(String(s || '')).replace(/[^A-Z0-9Ñ]/g, ''); },
   /** Lo que se ve debajo del nombre: «Tractocamión · Marca y modelo · 2015» */
@@ -3956,7 +4112,8 @@ const EquipoService = {
     q.notas = String(q.notas || '').trim();
     q.clase = String(q.clase || '').trim();
     q.detalle = String(q.detalle || '').trim();
-    Validar.equipo(q, Datos.equipos);
+    q.empresa = q.empresa || Empresa.activa;
+    Validar.equipo(q, Datos.crudo('equipos').filter(x => Empresa.de(x) === q.empresa));
     const nuevo = !q.id;
     q.id = q.id || ID();
     q.alias = Array.isArray(q.alias) ? q.alias : [];
@@ -3984,11 +4141,12 @@ const EquipoService = {
 };
 
 const PlantillaService = {
-  vacia() { return { id: null, nombre: '', tipo: 'COMPRA', proveedorId: null, equipoId: null, concepto: '', items: [Modelo.itemVacio()], notas: '', usos: 0 }; },
+  vacia() { return { id: null, empresa: Empresa.activa, nombre: '', tipo: Empresa.tipoNuevo(), proveedorId: null, equipoId: null, concepto: '', items: [Modelo.itemVacio()], notas: '', usos: 0 }; },
   async guardar(entrada) {
     Permiso.exigir('editar');
     const p = U.clonar(entrada);
     p.nombre = String(p.nombre || '').trim();
+    p.empresa = p.empresa || Empresa.activa;
     Validar.plantilla(p);
     p.items = p.items.filter(Modelo.itemValido).map(it => ({ id: it.id || ID(), descripcion: String(it.descripcion).trim(),
       cantidad: Num.parse(it.cantidad) || 1, unidad: Txt.mayus(String(it.unidad || 'UND').trim()) || 'UND',
@@ -4000,7 +4158,7 @@ const PlantillaService = {
   },
   desdeOrden(o, nombre) {
     return Object.assign(this.vacia(), {
-      nombre, tipo: o.tipo, proveedorId: o.proveedorId, equipoId: o.equipoId, concepto: o.concepto || '',
+      empresa: Empresa.de(o), nombre, tipo: o.tipo, proveedorId: o.proveedorId, equipoId: o.equipoId, concepto: o.concepto || '',
       items: o.items.map(it => Object.assign(U.clonar(it), { id: ID() })), notas: 'Creada a partir de la orden ' + o.numero + '.'
     });
   },
@@ -4013,7 +4171,7 @@ const PlantillaService = {
 const Catalogo = {
   _c: null, _f: '',
   articulos() {
-    const f = Datos.ordenes.length + '|' + Datos.plantillas.length + '|' +
+    const f = Empresa.activa + '|' + Datos.ordenes.length + '|' + Datos.plantillas.length + '|' +
       Datos.ordenes.reduce((m, o) => (o.actualizadoEn > m ? o.actualizadoEn : m), '') + '|' +
       Datos.plantillas.reduce((m, o) => (o.actualizadoEn > m ? o.actualizadoEn : m), '');
     if (this._c && f === this._f) return this._c;
@@ -4694,10 +4852,11 @@ const Shell = {
     const vuelta = PANEL_URL ? '<div class="sb-vuelta"><a class="sb-item sb-portal" href="' + attr(PANEL_URL) + '">' + Icon('back', 'sb-ico', 17) + '<span>Panel de control</span></a></div>' : '';
     $('#app').innerHTML =
       '<aside class="sidebar" id="sidebar">' +
-        '<div class="sb-brand">' + (MARCA.emblema ? '<div class="sb-logo marca"><img src="' + MARCA.emblema + '" alt="SINUGRAVAS"></div>' : '<div class="sb-logo">SG</div>') +
-          '<div class="sb-name">' + esc(Datos.cfg.empresa.nombre || APP.empresa) + '<small>Facturación</small></div>' +
+        '<div class="sb-brand"><div id="sbLogo"></div>' +
+          '<div class="sb-name"><span id="sbEmpNombre">' + esc(Empresa.nombre()) + '</span><small>Facturación</small></div>' +
           '<button class="sb-toggle" id="sbToggle" data-tip="Contraer o expandir el menú" aria-label="Contraer menú">' + Icon('chevsL', 'sb-toggle-ic', 15) + '</button></div>' +
         vuelta +
+        '<div class="sb-emp" id="sbEmp"></div>' +
         '<div class="sb-cons" id="sbCons"></div><div class="sb-cons-mini" id="sbConsMini" data-tip="Siguiente orden"></div>' +
         '<nav class="sb-nav" id="sbNav" aria-label="Menú principal"></nav>' +
         '<div class="sb-foot"><div class="sb-cuenta" id="sbCuenta" data-tip="' + attr(Nube.correo()) + '">' +
@@ -4735,10 +4894,29 @@ const Shell = {
     $('#sbCons').onclick = e => { if (e.target.closest('[data-ir]')) Router.ir(e.target.closest('[data-ir]').dataset.ir); };
     $('#sbConsMini').onclick = () => Router.ir('/configuracion');
     $('#sbNav').addEventListener('click', () => this.cerrarMenuMovil());
+    $('#sbEmp').addEventListener('change', e => {
+      const s = e.target.closest('select');
+      if (s) Empresa.cambiar(s.value).then(ok => { if (!ok) s.value = Empresa.activa; });
+    });
     Buscador.iniciar($('#gsInput'), $('#gsPanel'));
     this.tema(document.documentElement.getAttribute('data-theme'), true);
+    this.pintarEmpresa();
     this.pintarNav();
     this.refrescar();
+  },
+  /** Con qué empresa se trabaja: el selector (si la base ya tiene las dos) y su nombre arriba */
+  pintarEmpresa() {
+    const c = $('#sbEmp');
+    if (!c) return;
+    $('#sbEmpNombre').textContent = Empresa.nombre();
+    /* El emblema es de SINUGRAVAS: otra empresa lleva sus siglas en su color */
+    $('#sbLogo').outerHTML = Empresa.activa === 'SINUGRAVAS' && MARCA.emblema ? '<div class="sb-logo marca" id="sbLogo"><img src="' + MARCA.emblema + '" alt="SINUGRAVAS"></div>'
+      : '<div class="sb-logo" id="sbLogo" style="background:var(--empresa)">' + esc(Empresa.info().siglas) + '</div>';
+    const l = Empresa.lista();
+    c.classList.toggle('hidden', l.length < 2);
+    c.innerHTML = l.length < 2 ? '' : '<label for="sbEmpSel">Empresa</label><div class="sb-emp-sel"><i></i><select id="sbEmpSel" aria-label="Empresa con la que trabaja">' +
+      l.map(id => '<option value="' + attr(id) + '"' + (id === Empresa.activa ? ' selected' : '') + ' title="' + attr(Empresa.nombre(id)) + '">' + esc(Empresa.info(id).corto) + '</option>').join('') + '</select></div>' +
+      '<div class="sb-emp-mini" data-tip="' + attr(Empresa.nombre()) + '">' + esc(Empresa.info().siglas) + '</div>';
   },
   activo() {
     const a = Router.actual();
@@ -4796,7 +4974,7 @@ const Shell = {
     const a = $('#tbTitle'), b = $('#tbSub');
     if (a) a.textContent = t || '';
     if (b) b.textContent = sub || '';
-    document.title = (t ? t + ' · ' : '') + 'Facturación · SINUGRAVAS';
+    document.title = (t ? t + ' · ' : '') + 'Facturación · ' + Empresa.info().corto;
     this.pintarNav();
   },
   tema(t, sinGuardar) {
@@ -5023,13 +5201,13 @@ const VistaSinPermiso = {
 
 /* ---------- Dashboard ---------- */
 const VistaDashboard = {
-  titulo() { return ['Dashboard', Datos.cfg.empresa.nombre + ' · Facturación']; },
+  titulo() { return ['Dashboard', Empresa.nombre() + ' · Facturación']; },
   render(el) {
     const p = Prefs.get('perDash', { modo: 'todo' });
     const r = Analitica.rango(p);
     const lista = Analitica.filtrar(Datos.ordenes, { rango: r });
     const k = Analitica.kpis(lista);
-    let h = '<div class="page-head"><div><h1>Órdenes de compra</h1><div class="ph-sub">' + esc(Datos.cfg.empresa.nombre) + ' · ' + esc(r.etiqueta) +
+    let h = '<div class="page-head"><div><h1>Órdenes de compra</h1><div class="ph-sub">' + esc(Empresa.nombre()) + ' · ' + esc(r.etiqueta) +
       ' · siguiente orden <b class="mono">N.º ' + esc(Consecutivo.vistaPrevia()) + '</b></div></div>' +
       '<div class="ph-actions"><a class="btn" href="#/estadisticas">' + Icon('chart', '', 14) + 'Estadísticas</a>' +
       '<a class="btn" href="#/proveedores">' + Icon('building', '', 14) + 'Proveedores</a></div></div>';
@@ -5472,7 +5650,7 @@ const VistaOrdenForm = {
     Router.sucio = false;
     const pl = q.plantilla && Datos.plantilla(q.plantilla);
     const dup = q.duplicar && (Datos.orden(q.duplicar) || HistoricoExcel.orden(q.duplicar));
-    const emp = Datos.cfg.empresa;
+    const emp = o.membrete ? Object.assign({}, Empresa.cfg(Empresa.de(o)).empresa, o.membrete) : Empresa.cfg(Empresa.de(o)).empresa;
     /* Al guardar se abre la orden; se imprime desde ahí cuando haga falta */
     const etiqueta = !this.modoFactura ? 'Guardar orden' : o.estado === 'ESPERANDO' ? 'Pasar a contabilidad' : 'Guardar la factura';
     const acciones = '<button class="btn" data-acc="cancelar">Cancelar</button>' +
@@ -5500,10 +5678,10 @@ const VistaOrdenForm = {
           attr((o.factura && o.factura.fecha) || Fecha.hoy()) + '"></div></div>' +
         '<div class="fs12 txt-2">Si la factura trae algo más (flete, otro repuesto), agréguelo en una fila. El PDF de la factura se puede adjuntar al final.</div></div></div>' : '') +
       '<div class="hoja">' +
-        '<div class="hj-head"><div class="hj-logo">' + (Config.logo() ? '<img src="' + attr(Config.logo()) + '" alt="' + attr(emp.nombre) + '">' : '<b>' + esc(emp.nombre) + '</b>') + '</div>' +
+        '<div class="hj-head"><div class="hj-logo">' + (Config.logo(Empresa.de(o)) ? '<img src="' + attr(Config.logo(Empresa.de(o))) + '" alt="' + attr(emp.nombre) + '">' : '<b>' + esc(emp.nombre) + '</b>') + '</div>' +
           '<div class="hj-tit"><label class="sr" for="ofTipo">Tipo de orden</label><select id="ofTipo" class="hj-tipo">' +
-            tiposNuevos().map(k => '<option value="' + k + '"' + (o.tipo === k ? ' selected' : '') + '>' + esc(TIPOS[k].asunto) + '</option>').join('') + '</select>' +
-            '<div class="hj-emp">' + esc(emp.nombre) + '</div><div class="hj-meta">' + esc([emp.nit ? 'NIT ' + emp.nit : '', emp.ciudad].filter(Boolean).join(' · ')) + '</div></div>' +
+            Empresa.tipos(Empresa.de(o)).map(k => '<option value="' + k + '"' + (o.tipo === k ? ' selected' : '') + '>' + esc(TIPOS[k].asunto) + '</option>').join('') + '</select>' +
+            '<div class="hj-emp">' + esc(emp.nombre) + '</div><div class="hj-meta">' + esc([emp.nit ? (emp.tipoDoc || 'NIT') + ' ' + emp.nit : '', emp.ciudad].filter(Boolean).join(' · ')) + '</div></div>' +
           '<div class="hj-num"><small>N.º</small><b id="ofNumPrev">' + esc(this.editando ? o.numero : Consecutivo.vistaPrevia(o.fecha)) + '</b>' +
             (this.editando ? '' : '<span class="hj-prov">se confirma al guardar</span>') +
             '<small><label for="ofFecha">Fecha</label></small><input class="inp" type="date" id="ofFecha" value="' + attr(o.fecha) + '"></div></div>' +
@@ -5867,7 +6045,7 @@ const VistaOrdenForm = {
   },
   /** Las firmas como salen impresas: el solicitante se escoge sobre su línea */
   pintarSolicitante() {
-    const o = this.o, cfg = Datos.cfg;
+    const o = this.o, cfg = Datos.cfg, ce = Empresa.cfg(Empresa.de(o));
     const cont = $('#ofSol', this.el);
     const lista = Config.solicitantes();
     if (o.solicitante && !lista.some(s => s.id === o.solicitante.id)) lista.unshift(Object.assign({}, o.solicitante, { _viejo: true }));
@@ -5882,7 +6060,7 @@ const VistaOrdenForm = {
         lista.map(s => '<option value="' + attr(s.id) + '"' + (o.solicitante.id === s.id ? ' selected' : '') + '>' + esc(s.nombre) + (s._viejo ? ' (inactivo)' : '') + '</option>').join('') + '</select>',
         o.solicitante.cargo, 'Solicitante')
       : '<div class="hj-firma"><div class="hj-fm"></div><div class="hj-ln"></div><div class="fs12 txt-3">No hay firmantes activos. <a href="#/configuracion">Agregue uno en Configuración</a>.</div></div>') +
-      (cfg.autoriza && cfg.autoriza.nombre ? bloque(cfg.autoriza.firma, '<b>' + esc(cfg.autoriza.nombre) + '</b>', cfg.autoriza.cargo, 'Autorizó') : '');
+      (ce.autoriza && ce.autoriza.nombre ? bloque(ce.autoriza.firma, '<b>' + esc(ce.autoriza.nombre) + '</b>', ce.autoriza.cargo, 'Autorizó') : '');
     const s = $('#ofSolSel', cont);
     if (s) s.addEventListener('change', () => { const x = lista.find(y => y.id === s.value); if (x) o.solicitante = { id: x.id, nombre: x.nombre, cargo: x.cargo, telefono: x.telefono || '' }; this.marcar(); this.pintarSolicitante(); });
   },
@@ -6073,7 +6251,7 @@ const PlantillaForm = {
         titulo: p.id ? 'Editar plantilla' : 'Nueva plantilla', subtitulo: 'Lo que se repite en cada pedido de este tipo', ancho: 'wide',
         cuerpo: '<div class="row"><div class="field" style="flex:2 1 280px"><label>Nombre<span class="req">*</span></label><input class="inp" id="pfNombre" value="' + attr(p.nombre) +
           '" placeholder="Ej.: Kit de mantenimiento del cargador" autofocus></div><div class="field"><label>Tipo</label><select class="inp" id="pfTipo">' +
-          tiposNuevos().map(k => '<option value="' + k + '"' + (p.tipo === k ? ' selected' : '') + '>' + TIPOS[k].t + '</option>').join('') + '</select></div></div>' +
+          Empresa.tipos(Empresa.de(p)).map(k => '<option value="' + k + '"' + (p.tipo === k ? ' selected' : '') + '>' + TIPOS[k].t + '</option>').join('') + '</select></div></div>' +
           '<div class="row"><div class="field"><label>Proveedor</label><select class="inp" id="pfProv"><option value="">El que se escoja en la orden</option>' +
           provs.map(x => '<option value="' + attr(x.id) + '"' + (p.proveedorId === x.id ? ' selected' : '') + '>' + esc(x.nombre) + '</option>').join('') + '</select></div>' +
           '<div class="field"><label>Equipo o destino</label><select class="inp" id="pfEq"><option value="">Ninguno</option>' +
@@ -6489,7 +6667,7 @@ const VistaEstadisticas = {
       '<div class="filters mb16">' +
       '<div class="field"><label>Proveedor</label><select class="inp" id="esProv" style="max-width:240px"><option value="">Todos</option>' + provs.map(x => '<option value="' + attr(x.id) + '"' + (f.proveedorId === x.id ? ' selected' : '') + '>' + esc(x.nombre) + '</option>').join('') + '</select></div>' +
       '<div class="field"><label>Equipo o destino</label><select class="inp" id="esEq" style="max-width:220px"><option value="">Todos</option>' + eqs.map(x => '<option value="' + attr(x.id) + '"' + (f.equipoId === x.id ? ' selected' : '') + '>' + esc(x.nombre) + '</option>').join('') + '</select></div>' +
-      '<div class="field"><label>Tipo</label><select class="inp" id="esTipo"><option value="">Todos</option>' + tiposNuevos().filter(t => t !== 'COTIZACION').map(t => '<option value="' + t + '"' + (f.tipo === t ? ' selected' : '') + '>' + TIPOS[t].c + '</option>').join('') + '</select></div>' +
+      '<div class="field"><label>Tipo</label><select class="inp" id="esTipo"><option value="">Todos</option>' + Empresa.tipos().filter(t => t !== 'COTIZACION').map(t => '<option value="' + t + '"' + (f.tipo === t ? ' selected' : '') + '>' + TIPOS[t].c + '</option>').join('') + '</select></div>' +
       '<div class="field"><label>Estado</label><select class="inp" id="esEst"><option value="">Todos</option>' + Object.keys(ESTADOS).filter(e => e !== 'ANULADA').map(e => '<option value="' + e + '"' + (f.estado === e ? ' selected' : '') + '>' + ESTADOS[e].t + '</option>').join('') + '</select></div>' +
       '<button class="btn" id="esLimpiar">' + Icon('refresh', '', 13) + 'Limpiar</button></div>';
     if (!Datos.ordenes.length) {
@@ -6764,33 +6942,39 @@ const VistaRespaldos = {
 
 /* ---------- Configuración ---------- */
 const VistaConfiguracion = {
-  titulo() { return ['Configuración', 'Empresa, consecutivo, firmantes y formato de la orden']; },
+  titulo() { return ['Configuración', Empresa.nombre() + ': membrete, consecutivo y formato de la orden']; },
   render(el) {
-    const c = U.clonar(Datos.cfg);
-    this.c = c; this.el = el;
+    /* c: lo común (firmantes e IVA) y lo de SINUGRAVAS; ce: lo de la empresa activa
+       (membrete, logo, consecutivo, textos y firma). En SINUGRAVAS son la misma fila */
+    const emp = Empresa.activa, comun = emp === 'SINUGRAVAS';
+    const c = U.clonar(Datos.cfg), ce = comun ? c : U.clonar(Empresa.cfg(emp));
+    this.c = c; this.ce = ce; this.emp = emp; this.el = el;
     Router.sucio = false;
-    const d = c.documento, e = c.empresa;
+    const d = ce.documento, e = ce.empresa;
     const campo = (id, label, valor, extra) => '<div class="field"' + (extra && extra.flex ? ' style="flex:' + extra.flex + '"' : '') + '><label>' + label + (extra && extra.req ? '<span class="req">*</span>' : '') +
       '</label>' + (extra && extra.area ? '<textarea class="inp" id="' + id + '" rows="2">' + esc(valor) + '</textarea>' : '<input class="inp' + (extra && extra.mono ? ' inp-mono' : '') + '" id="' + id + '" value="' + attr(valor) + '"' +
       (extra && extra.ph ? ' placeholder="' + attr(extra.ph) + '"' : '') + '>') + (extra && extra.hint ? '<div class="hint">' + extra.hint + '</div>' : '') + '</div>';
     const maxUsado = Consecutivo.maximo();
-    el.innerHTML = '<div class="page-head"><div><h1>Configuración</h1><div class="ph-sub">Estos datos alimentan el formato impreso y toda la plataforma</div></div>' +
+    el.innerHTML = '<div class="page-head"><div><h1>Configuración · ' + esc(Empresa.nombre()) + '</h1><div class="ph-sub">' +
+      (Empresa.lista().length > 1 ? 'El membrete, el logo, el consecutivo, los textos y la segunda firma son de esta empresa. Los firmantes y el IVA son de las dos' : 'Estos datos alimentan el formato impreso y toda la plataforma') + '</div></div>' +
       '<div class="ph-actions"><button class="btn" id="cfPrev">' + Icon('eye', '', 14) + 'Ver el formato</button>' + si('configurar', '<button class="btn btn-primary" id="cfGuardar">' + Icon('save', '', 14) + 'Guardar configuración</button>') + '</div></div>' +
       (Permiso.puede('configurar') ? '' : '<div class="alert a-info mb12">' + Icon('lock') + '<div><b>Solo consulta.</b> Puede ver la configuración, pero no cambiarla.</div></div>') +
       '<div id="cfErr"></div><div class="grid g-form"><div class="col">' +
       '<div class="card"><div class="card-h"><h3>Empresa</h3></div><div class="card-b">' +
-        '<div class="row">' + campo('cfNom', 'Razón social', e.nombre, { req: 1, flex: '2 1 260px' }) + campo('cfNit', 'NIT', e.nit, { mono: 1 }) + '</div>' +
+        '<div class="row">' + campo('cfNom', 'Razón social', e.nombre, { req: 1, flex: '2 1 260px' }) +
+          '<div class="field" style="flex:0 1 96px"><label>Documento</label><select class="inp" id="cfTipoDoc">' + ['NIT', 'C.C.'].map(t => '<option' + ((e.tipoDoc || 'NIT') === t ? ' selected' : '') + '>' + t + '</option>').join('') + '</select></div>' +
+          campo('cfNit', 'Número', e.nit, { mono: 1 }) + '</div>' +
         '<div class="row">' + campo('cfDir', 'Dirección', e.direccion, { flex: '2 1 260px', ph: 'Sale en el encabezado de la orden' }) + campo('cfCiu', 'Ciudad', e.ciudad) + '</div>' +
         '<div class="row">' + campo('cfTel', 'Teléfono', e.telefono) + campo('cfCor', 'Correo', e.correo, { ph: 'compras@…' }) + '</div></div></div>' +
       '<div class="card"><div class="card-h"><h3>Consecutivo de las órdenes</h3></div><div class="card-b"><div class="row">' +
-        '<div class="field" style="flex:0 1 200px"><label>Numerar desde</label><input class="inp inp-num inp-mono" id="cfSig" value="' + attr(c.consecutivo.siguiente) + '" inputmode="numeric"></div>' +
+        '<div class="field" style="flex:0 1 200px"><label>Numerar desde</label><input class="inp inp-num inp-mono" id="cfSig" value="' + attr(ce.consecutivo.siguiente) + '" inputmode="numeric"></div>' +
         '<div class="field" style="flex:1 1 260px"><label>La próxima orden será</label><div class="inp" style="display:flex;align-items:center;font-family:var(--mono);font-weight:700" id="cfSigPrev"></div></div></div>' +
         '<div class="fs12 txt-2" style="line-height:1.55">El formato es el del Excel: el número corre sin reiniciarse y lleva al final los dos dígitos del año (…245-25, 246-26…). ' +
-        'El Excel terminó en <b class="mono">289-26</b>. Cada orden toma el número que sigue a la última' + (maxUsado ? ' (hoy, la <b class="mono">' + maxUsado + '</b>)' : '') +
+        'El Excel terminó en <b class="mono">' + ({ SINUGRAVAS: '289-26', JDPR: '471-26' }[emp] || '—') + '</b>. Cada orden toma el número que sigue a la última' + (maxUsado ? ' (hoy, la <b class="mono">' + maxUsado + '</b>)' : '') +
         ', nunca uno menor que el de aquí: súbalo sólo si necesita saltar a otro número. Si se borra la última orden, su número vuelve a quedar libre.' +
         '<div class="alert a-info mt12" style="padding:8px 11px">' + Icon('cloud', '', 14) + '<div>Varias personas pueden hacer órdenes al mismo tiempo: ' +
         'la base de datos nunca deja repetir un número. Si dos se guardan a la vez, la segunda toma el siguiente.</div></div></div></div></div>' +
-      '<div class="card"><div class="card-h"><h3>Firmantes</h3><span class="ch-sub">quien solicita la orden y firma</span><div class="ch-act"><button class="btn btn-sm" id="cfAddSol">' + Icon('plus', '', 12) + 'Agregar</button></div></div>' +
+      '<div class="card"><div class="card-h"><h3>Firmantes</h3><span class="ch-sub">quien solicita la orden y firma' + (Empresa.lista().length > 1 ? ' · en las dos empresas' : '') + '</span><div class="ch-act"><button class="btn btn-sm" id="cfAddSol">' + Icon('plus', '', 12) + 'Agregar</button></div></div>' +
         '<div class="tbl-wrap"><table class="tbl compacta"><thead><tr><th>Nombre</th><th>Cargo</th><th>Teléfono</th><th>Firma</th><th class="tc">Por defecto</th><th class="tc">Activo</th><th></th></tr></thead><tbody id="cfSol"></tbody></table></div>' +
         '<div class="card-f">La firma se imprime sobre la línea. Use una imagen con fondo blanco o transparente (una foto recortada sirve).</div></div>' +
       '<div class="card"><div class="card-h"><h3>Formato de la orden</h3><span class="ch-sub">los textos del Excel, ya corregidos</span></div><div class="card-b">' +
@@ -6801,7 +6985,7 @@ const VistaConfiguracion = {
         '<div class="row"><div class="field"><label>IVA por defecto</label><select class="inp" id="cfIva">' + PCT_IVA.map(v => '<option value="' + v + '"' + (+c.ivaPct === v ? ' selected' : '') + '>' + v + ' %</option>').join('') + '</select></div>' +
         '<div class="field"><label>Renglones mínimos de la tabla</label><input class="inp inp-num" id="cfFilas" value="' + attr(d.filasMinimas) + '" inputmode="numeric"><div class="hint">Para que la hoja se vea como el formato, aunque la orden tenga pocos artículos.</div></div></div>' +
         '<div class="divider"></div><div class="fs12 fw7 txt-2 mb8">Segunda firma (opcional) <span class="txt-3 fw6">· por ejemplo, quien autoriza</span></div>' +
-        '<div class="row">' + campo('cfAutN', 'Nombre', c.autoriza.nombre, { ph: 'Vacío = no sale' }) + campo('cfAutC', 'Cargo', c.autoriza.cargo) +
+        '<div class="row">' + campo('cfAutN', 'Nombre', ce.autoriza.nombre, { ph: 'Vacío = no sale' }) + campo('cfAutC', 'Cargo', ce.autoriza.cargo) +
         '<div class="field" style="flex:0 1 auto"><label>Firma</label><div class="flex aic g6"><div class="firma-th" id="cfAutFirma"></div>' +
         '<button type="button" class="btn btn-sm btn-icon" id="cfAutCargar" data-tip="Cargar la firma" aria-label="Cargar firma">' + Icon('pen', '', 12) + '</button>' +
         '<button type="button" class="btn btn-sm btn-icon btn-danger-ghost" id="cfAutQuitar" data-tip="Quitar la firma" aria-label="Quitar firma">' + Icon('x', '', 12) + '</button></div>' +
@@ -6810,7 +6994,7 @@ const VistaConfiguracion = {
       '</div></div></div><div class="col sticky-col">' +
       '<div class="card"><div class="card-h"><h3>Logotipo</h3><span class="ch-sub">de la empresa</span></div><div class="card-b">' +
         '<div class="logo-prev mb12"><img id="cfLogo" alt="Logo"></div><div class="flex g8 wrap"><button class="btn btn-sm" id="cfLogoCargar">' + Icon('upload', '', 12) + 'Cargar imagen</button>' +
-        '<button class="btn btn-sm" id="cfLogoQuitar">' + Icon('rotate', '', 12) + 'Usar el de SINUGRAVAS</button></div>' +
+        '<button class="btn btn-sm" id="cfLogoQuitar">' + Icon('rotate', '', 12) + (comun ? 'Usar el de SINUGRAVAS' : 'Quitar el logo') + '</button></div>' +
         '<div class="fs11 txt-3 mt8">PNG, JPG o WEBP. Sale en el encabezado de cada orden.</div><input type="file" id="cfLogoFile" accept="image/*" hidden></div></div>' +
       '<div class="card"><div class="card-h"><h3>Apariencia</h3></div><div class="card-b">' +
         '<div class="field"><label>Tema</label><div class="seg" id="cfTema"><button data-t="light">Claro</button><button data-t="dark">Oscuro</button></div></div>' +
@@ -6841,26 +7025,30 @@ const VistaConfiguracion = {
     $('#cfLogoFile', el).onchange = async ev => {
       const f = ev.target.files[0]; if (!f) return;
       if (!/^image\//.test(f.type)) { Toast.err('Escoja una imagen.'); return; }
-      c.logo = await U.reducirImagen(await U.leerArchivo(f), 900, 'image/png');
+      ce.logo = await U.reducirImagen(await U.leerArchivo(f), 900, 'image/png');
       this.pintarLogo(); Router.sucio = true; ev.target.value = '';
       Toast.info('Logo cargado. Recuerde «Guardar configuración».');
     };
-    $('#cfLogoQuitar', el).onclick = () => { c.logo = ''; this.pintarLogo(); Router.sucio = true; };
+    $('#cfLogoQuitar', el).onclick = () => { ce.logo = ''; this.pintarLogo(); Router.sucio = true; };
     const firmaAut = () => {
-      $('#cfAutFirma', el).innerHTML = c.autoriza.firma ? '<img src="' + attr(c.autoriza.firma) + '" alt="Firma">' : 'Sin firma';
-      $('#cfAutQuitar', el).disabled = !c.autoriza.firma;
+      $('#cfAutFirma', el).innerHTML = ce.autoriza.firma ? '<img src="' + attr(ce.autoriza.firma) + '" alt="Firma">' : 'Sin firma';
+      $('#cfAutQuitar', el).disabled = !ce.autoriza.firma;
     };
     firmaAut();
     $('#cfAutCargar', el).onclick = () => $('#cfAutFile', el).click();
     $('#cfAutFile', el).onchange = async ev => {
       const f = ev.target.files[0]; if (!f) return;
       if (!/^image\//.test(f.type)) { Toast.err('Escoja una imagen.'); return; }
-      c.autoriza.firma = await U.reducirImagen(await U.leerArchivo(f), 600, 'image/png');
+      ce.autoriza.firma = await U.reducirImagen(await U.leerArchivo(f), 600, 'image/png');
       ev.target.value = ''; firmaAut(); Router.sucio = true;
     };
-    $('#cfAutQuitar', el).onclick = () => { c.autoriza.firma = ''; firmaAut(); Router.sucio = true; };
+    $('#cfAutQuitar', el).onclick = () => { ce.autoriza.firma = ''; firmaAut(); Router.sucio = true; };
   },
-  pintarLogo() { const i = $('#cfLogo', this.el); i.src = this.c.logo || MARCA.logo || ''; $('#cfLogoQuitar', this.el).disabled = !this.c.logo; },
+  pintarLogo() {
+    const i = $('#cfLogo', this.el), l = this.ce.logo || (this.emp === 'SINUGRAVAS' ? MARCA.logo : '');
+    i.src = l || ''; i.style.visibility = l ? '' : 'hidden';
+    $('#cfLogoQuitar', this.el).disabled = !this.ce.logo;
+  },
   pintarSol() {
     const c = this.c, el = this.el;
     $('#cfSol', el).innerHTML = c.solicitantes.map((s, i) => '<tr data-s="' + i + '"><td><input class="inp" data-f="nombre" value="' + attr(s.nombre) + '" placeholder="Nombre completo" style="min-width:200px"></td>' +
@@ -6906,25 +7094,26 @@ const VistaConfiguracion = {
     });
   },
   leer() {
-    const c = this.c, el = this.el, v = id => $('#' + id, el).value.trim();
+    const c = this.c, ce = this.ce, el = this.el, v = id => $('#' + id, el).value.trim();
     this.leerSol();
-    c.empresa = { nombre: Txt.mayus(v('cfNom')), nit: v('cfNit'), direccion: v('cfDir'), ciudad: v('cfCiu'), telefono: v('cfTel'), correo: v('cfCor').toLowerCase() };
-    c.consecutivo = { siguiente: parseInt(v('cfSig'), 10) };
+    ce.empresa = Object.assign({}, ce.empresa, { nombre: Txt.mayus(v('cfNom')), tipoDoc: $('#cfTipoDoc', el).value, nit: v('cfNit'), direccion: v('cfDir'), ciudad: v('cfCiu'),
+      telefono: v('cfTel'), correo: v('cfCor').toLowerCase() });
+    ce.consecutivo = { siguiente: parseInt(v('cfSig'), 10) };
     c.ivaPct = +$('#cfIva', el).value;
-    c.documento = Object.assign({}, c.documento, { saludoCompra: v('cfSalC'), saludoServicio: v('cfSalS'), saludoCotizacion: v('cfSalQ'), intro: v('cfIntro'),
+    ce.documento = Object.assign({}, ce.documento, { saludoCompra: v('cfSalC'), saludoServicio: v('cfSalS'), saludoCotizacion: v('cfSalQ'), intro: v('cfIntro'),
       citar: v('cfCitar'), cierre: v('cfCierre'), lugarEntrega: v('cfLugar'), telefono: v('cfTelDoc'), filasMinimas: parseInt(v('cfFilas'), 10) });
-    c.autoriza = { nombre: Txt.mayus(v('cfAutN')), cargo: Txt.mayus(v('cfAutC')), firma: (c.autoriza && c.autoriza.firma) || '' };
+    ce.autoriza = { nombre: Txt.mayus(v('cfAutN')), cargo: Txt.mayus(v('cfAutC')), firma: (ce.autoriza && ce.autoriza.firma) || '' };
     return c;
   },
   validar(c) {
-    const e = [];
-    if (!c.empresa.nombre) e.push('Escriba la razón social de la empresa.');
-    if (!(c.consecutivo.siguiente >= 1)) e.push('El siguiente número debe ser un entero mayor que cero.');
-    if (!(c.documento.filasMinimas >= 0 && c.documento.filasMinimas <= 30)) e.push('Los renglones mínimos deben estar entre 0 y 30.');
+    const e = [], ce = this.ce;
+    if (!ce.empresa.nombre) e.push('Escriba la razón social de la empresa.');
+    if (!(ce.consecutivo.siguiente >= 1)) e.push('El siguiente número debe ser un entero mayor que cero.');
+    if (!(ce.documento.filasMinimas >= 0 && ce.documento.filasMinimas <= 30)) e.push('Los renglones mínimos deben estar entre 0 y 30.');
     const act = c.solicitantes.filter(s => s.activo);
     if (c.solicitantes.some(s => !s.nombre)) e.push('Todos los firmantes necesitan nombre.');
     if (!act.length) e.push('Deje al menos un firmante activo.');
-    if (c.empresa.correo && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(c.empresa.correo)) e.push('Revise el correo de la empresa.');
+    if (ce.empresa.correo && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(ce.empresa.correo)) e.push('Revise el correo de la empresa.');
     return e;
   },
   async guardar() {
@@ -6937,16 +7126,21 @@ const VistaConfiguracion = {
     c.solicitantes.forEach(s => { if (!s.activo) s.predeterminado = false; });
     if (!act.some(s => s.predeterminado)) act[0].predeterminado = true;
     try {
-      await Datos.lote([{ col: 'configuracion', tipo: 'put', doc: c }, Datos.evento('editar', 'configuración', 'general', 'Consecutivo ' + c.consecutivo.siguiente)]);
+      /* Lo común en su fila; lo de otra empresa, en la suya */
+      const ops = [{ col: 'configuracion', tipo: 'put', doc: c }];
+      if (this.ce !== c) ops.push({ col: 'configuracion', tipo: 'put', doc: Object.assign(this.ce, { id: this.emp }) });
+      await Datos.lote(ops.concat([Datos.evento('editar', 'configuración', this.ce === c ? 'general' : this.emp, Empresa.nombre(this.emp) + ' · consecutivo ' + this.ce.consecutivo.siguiente)]));
       Router.sucio = false;
-      Toast.ok('Configuración guardada.');
-      Shell.render();
+      Toast.ok('Configuración de <b>' + esc(Empresa.nombre(this.emp)) + '</b> guardada.');
+      Shell.pintarEmpresa();
+      Shell.refrescar();
       Router.resolver(true);
     } catch (e) { Toast.err(esc(e.message)); }
   },
   vistaPrevia() {
-    const guardada = Datos.cfg;
+    const guardada = Datos.cfg, otra = Datos.cfgs[this.emp];
     Datos.cfg = Config.completar(U.clonar(this.leer()));
+    if (this.emp !== 'SINUGRAVAS') Datos.cfgs[this.emp] = U.clonar(this.ce);
     try {
       const prov = ProveedorService.ordenados(true)[0];
       const eq = EquipoService.ordenados(true)[0];
@@ -6960,7 +7154,7 @@ const VistaConfiguracion = {
         cuerpo: '<div class="preview-shell doc-marco" id="cfDoc"><div class="doc-escala">' + Documento.html(o, { provisional: true }) + '</div></div>',
         pie: '<button class="btn btn-primary" data-cerrar>Cerrar</button>' });
       Documento.escalar($('#cfDoc', m));
-    } finally { Datos.cfg = guardada; }
+    } finally { Datos.cfg = guardada; if (this.emp !== 'SINUGRAVAS') { if (otra) Datos.cfgs[this.emp] = otra; else delete Datos.cfgs[this.emp]; } }
   }
 };
 
@@ -6995,14 +7189,15 @@ const VistaPruebas = {
 const Documento = {
   html(o, opts) {
     opts = opts || {};
-    const cfg = Datos.cfg, d = cfg.documento, emp = cfg.empresa;
+    /* El membrete, el logo, los textos y la firma son de la empresa de la orden; los solicitantes, comunes */
+    const cfg = Datos.cfg, ce = Empresa.cfg(Empresa.de(o)), d = ce.documento, emp = o.membrete ? Object.assign({}, ce.empresa, o.membrete) : ce.empresa, logo = Config.logo(Empresa.de(o));
     const f = o.proveedor || Modelo.fotoProveedor(Datos.prov(o.proveedorId)) || { nombre: '' };
     const t = Modelo.totales(o);
     const items = (o.items || []).filter(Modelo.itemValido);
     const filas = Math.max(+d.filasMinimas || 0, items.length);
     const eq = Datos.equipo(o.equipoId);
     const num = o.numero || Consecutivo.vistaPrevia(o.fecha);
-    const saludo = { COMPRA: d.saludoCompra, SERVICIO: d.saludoServicio, COTIZACION: d.saludoCotizacion }[o.tipo] || '';
+    const saludo = { COMPRA: d.saludoCompra, PEDIDO: d.saludoCompra, SERVICIO: d.saludoServicio, COTIZACION: d.saludoCotizacion }[o.tipo] || '';
     const sol = o.solicitante;
     const solCfg = sol && cfg.solicitantes.find(s => s.id === sol.id);
     const firma = solCfg && solCfg.firma;
@@ -7011,9 +7206,9 @@ const Documento = {
     const x = (txt, on) => '<span class="dp-x"><i>' + (on ? '✕' : '') + '</i>' + esc(txt) + '</span>';
     const cred = o.formaPago === 'CREDITO';
     const cont = o.formaPago === 'CONTADO' || (!cred && !o.excel);
-    let h = '<div class="dp-head"><div class="dp-logo">' + (Config.logo() ? '<img src="' + attr(Config.logo()) + '" alt="' + attr(emp.nombre) + '">' : '<b>' + esc(emp.nombre) + '</b>') + '</div>' +
+    let h = '<div class="dp-head"><div class="dp-logo">' + (logo ? '<img src="' + attr(logo) + '" alt="' + attr(emp.nombre) + '">' : '<b>' + esc(emp.nombre) + '</b>') + '</div>' +
       '<div class="dp-hc"><h1>' + esc(TIPOS[o.tipo].asunto) + '</h1><div class="dp-co">' + esc(emp.nombre) + '</div><div class="dp-meta">' +
-      esc([emp.nit ? 'NIT ' + emp.nit : '', emp.direccion, emp.ciudad, emp.telefono ? 'Tel. ' + emp.telefono : '', emp.correo].filter(Boolean).join(' · ')) + '</div></div>' +
+      esc([emp.nit ? (emp.tipoDoc || 'NIT') + ' ' + emp.nit : '', emp.direccion, emp.ciudad, emp.telefono ? 'Tel. ' + emp.telefono : '', emp.correo].filter(Boolean).join(' · ')) + '</div></div>' +
       '<div class="dp-num"><div>N.º</div><b>' + esc(num) + '</b><div>Fecha</div><b class="dp-fecha">' + esc(o.excel && o.excel.sinDia ? Fecha.mesLargo(o.fecha.slice(0, 7)) : Fecha.larga(o.fecha)) + '</b></div></div>';
     h += '<div class="dp-sec"><div class="dp-sec-t">Señor(es)</div><div class="dp-fields">' +
       '<div class="dp-f full"><label>Proveedor</label><span class="fuerte">' + esc(f.nombre || '') + '</span></div>' +
@@ -7049,8 +7244,8 @@ const Documento = {
     h += '<div class="dp-cierre">' + esc(d.cierre || '') + '</div>';
     h += '<div class="dp-sign"><div><div class="fm">' + (firma ? '<img src="' + attr(firma) + '" alt="Firma">' : '') + '</div><div class="ln"></div>' +
       '<b>' + esc(sol ? sol.nombre : '') + '</b><small>' + esc(sol ? sol.cargo : '') + '</small><small>Solicitante</small></div>' +
-      (!o.excel && cfg.autoriza && cfg.autoriza.nombre ? '<div><div class="fm">' + (cfg.autoriza.firma ? '<img src="' + attr(cfg.autoriza.firma) + '" alt="Firma">' : '') + '</div><div class="ln"></div><b>' +
-        esc(cfg.autoriza.nombre) + '</b><small>' + esc(cfg.autoriza.cargo || '') + '</small><small>Autorizó</small></div>' : '') + '</div>';
+      (!o.excel && ce.autoriza && ce.autoriza.nombre ? '<div><div class="fm">' + (ce.autoriza.firma ? '<img src="' + attr(ce.autoriza.firma) + '" alt="Firma">' : '') + '</div><div class="ln"></div><b>' +
+        esc(ce.autoriza.nombre) + '</b><small>' + esc(ce.autoriza.cargo || '') + '</small><small>Autorizó</small></div>' : '') + '</div>';
     const tel = (sol && sol.telefono) || d.telefono;
     if (tel) h += '<div class="dp-tel">TEL N.º ' + esc(tel) + '</div>';
     h += '<div class="dp-foot"><span>' + esc(emp.nombre) + ' · ' + esc(TIPOS[o.tipo].t) + ' ' + esc(num) + '</span><span>' +
@@ -7291,7 +7486,7 @@ const Exportar = {
     const q = v => { if (v == null) return ''; const t = String(v); return /["\n\r;]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
     return '﻿' + [columnas.map(q).join(';'), ...filas.map(f => f.map(q).join(';'))].join('\r\n');
   },
-  sello() { return Datos.cfg.empresa.nombre + ' · Facturación · generado el ' + Fecha.stamp(Fecha.ahora()); },
+  sello() { return Empresa.nombre() + ' · Facturación · generado el ' + Fecha.stamp(Fecha.ahora()); },
   descargar(base, formato, hojas) {
     if (formato === 'csv') {
       const h = hojas[0];
@@ -7306,7 +7501,7 @@ const Exportar = {
     Toast.ok('Archivo descargado.');
   },
   hojaOrdenes(lista) {
-    return { nombre: 'Órdenes', titulo: 'Órdenes de compra · ' + Datos.cfg.empresa.nombre, nota: this.sello(),
+    return { nombre: 'Órdenes', titulo: 'Órdenes de compra · ' + Empresa.nombre(), nota: this.sello(),
       columnas: [{ t: 'N.º', ancho: 10 }, { t: 'Fecha', tipo: 'fecha', ancho: 11 }, { t: 'Tipo', ancho: 12 }, { t: 'Estado', ancho: 11 }, { t: 'Proveedor', ancho: 34 },
         { t: 'NIT', ancho: 15 }, { t: 'Concepto', ancho: 40 }, { t: 'Equipo o destino', ancho: 26 }, { t: 'Ítems', tipo: 'numero', ancho: 7 },
         { t: 'Subtotal', tipo: 'pesos' }, { t: 'Retención', tipo: 'pesos' }, { t: 'IVA', tipo: 'pesos' }, { t: 'Total', tipo: 'pesos' }, { t: 'Valor facturado', tipo: 'pesos' },
@@ -7334,7 +7529,7 @@ const Exportar = {
   },
   proveedores(lista, formato) {
     const st = VistaProveedores.stats();
-    this.descargar('proveedores', formato, [{ nombre: 'Proveedores', titulo: 'Proveedores · ' + Datos.cfg.empresa.nombre, nota: this.sello(),
+    this.descargar('proveedores', formato, [{ nombre: 'Proveedores', titulo: 'Proveedores · ' + Empresa.nombre(), nota: this.sello(),
       columnas: [{ t: 'Proveedor', ancho: 38 }, { t: 'NIT', ancho: 15 }, { t: 'Persona', ancho: 9 }, { t: 'Suministra', ancho: 34 }, { t: 'Contacto', ancho: 22 }, { t: 'Cargo', ancho: 16 },
         { t: 'Teléfono', ancho: 14 }, { t: 'Celular', ancho: 14 }, { t: 'Correo', ancho: 26 }, { t: 'Dirección', ancho: 30 }, { t: 'Ciudad', ancho: 14 }, { t: 'Forma de pago', ancho: 12 },
         { t: 'Plazo (días)', tipo: 'numero', ancho: 10 }, { t: 'Medio de pago', ancho: 13 }, { t: 'Activo', ancho: 8 }, { t: 'Órdenes aquí', tipo: 'numero', ancho: 11 },
@@ -7453,12 +7648,21 @@ const HistoricoExcel = {
   /** Las hojas en el formato corto en que se copiaron, en el orden del libro */
   poner(lista) { this._crudo = (lista || []).slice().sort((a, b) => (a.k || 0) - (b.k || 0)); this.invalidar(); },
   crudo() { return this._crudo; },
-  invalidar() { this._lista = null; },
-  lista() { if (!this._lista) this.armar(); return this._lista; },
-  orden(id) { if (!this._lista) this.armar(); return (id && this._idx.get(id)) || null; },
+  invalidar() { this._todas = null; this._lista = null; },
+  /** Las de la empresa activa (las de JDPR traen «em»); orden(id) las encuentra todas */
+  lista() {
+    if (!this._todas) this.armar();
+    if (!this._lista || this._lista.emp !== Empresa.activa) {
+      this._lista = this._todas.filter(o => o.empresa === Empresa.activa);
+      this._lista.emp = Empresa.activa;
+    }
+    return this._lista;
+  },
+  orden(id) { if (!this._todas) this.armar(); return (id && this._idx.get(id)) || null; },
   armar() {
-    this._lista = this.crudo().map(r => this.convertir(r));
-    this._idx = new Map(this._lista.map(o => [o.id, o]));
+    this._todas = this.crudo().map(r => this.convertir(r));
+    this._idx = new Map(this._todas.map(o => [o.id, o]));
+    this._lista = null;
   },
   proveedor(nombre) {
     if (!nombre) return null;
@@ -7468,22 +7672,25 @@ const HistoricoExcel = {
     for (let i = 0; p && p.fusionadoCon && i < 9; i++) p = Datos.prov(p.fusionadoCon);
     return p || null;
   },
-  equipo(clave) {
+  /** Entre los equipos de la empresa de la hoja */
+  equipo(clave, emp) {
     if (!clave) return null;
     const pn = EquipoService.placaNorm(clave), n = Txt.norm(clave);
-    return Datos.equipos.find(q => q.placa && EquipoService.placaNorm(q.placa) === pn) ||
-      Datos.equipos.find(q => [q.nombre, ...(q.alias || [])].some(a => Txt.norm(a) === n)) || null;
+    const l = Datos.crudo('equipos').filter(q => Empresa.de(q) === (emp || 'SINUGRAVAS'));
+    return l.find(q => q.placa && EquipoService.placaNorm(q.placa) === pn) ||
+      l.find(q => [q.nombre, ...(q.alias || [])].some(a => Txt.norm(a) === n)) || null;
   },
   /** Una hoja convertida a orden, con los mismos campos que una de la plataforma */
   convertir(r) {
-    const p = this.proveedor(r.p), q = this.equipo(r.e);
+    const emp = r.em || 'SINUGRAVAS', pre = r.em ? r.em + '-' : 'EXCEL-';
+    const p = this.proveedor(r.p), q = this.equipo(r.e, emp);
     const st = r.st || 0, iv = r.iv || 0, rt = r.rt || 0;
     const pct = v => st && v ? Math.round(v / st * 1000) / 10 : 0;
     return {
-      id: 'EXCEL-' + r.k, origen: 'EXCEL', numero: r.n, secuencia: null, tipo: r.t, fecha: r.f, estado: 'EXCEL',
+      id: pre + r.k, empresa: emp, origen: 'EXCEL', numero: r.n, secuencia: null, tipo: r.t, fecha: r.f, estado: 'EXCEL',
       proveedorId: p ? p.id : null, proveedor: { nombre: r.ps || r.p || '' }, equipoId: q ? q.id : null, concepto: '', referencia: '',
       items: r.it.map(([descripcion, cantidad, unidad, valorUnitario, observacion], i) =>
-        ({ id: 'EXCEL-' + r.k + '-' + i, descripcion, cantidad: cantidad == null ? '' : cantidad, unidad: unidad || '', valorUnitario: valorUnitario || 0, observacion: observacion || '' })),
+        ({ id: pre + r.k + '-' + i, descripcion, cantidad: cantidad == null ? '' : cantidad, unidad: unidad || '', valorUnitario: valorUnitario || 0, observacion: observacion || '' })),
       ivaPct: pct(iv), retencionPct: pct(rt), subtotal: st, iva: iv, retencion: rt, total: r.tt || 0,
       formaPago: { C: 'CONTADO', R: 'CREDITO' }[r.fp] || '', plazoDias: r.pl || 0, cuotas: r.cu || 0, medioPago: '',
       entregaLugar: r.en || '', entregaRecibe: '', entregaCedula: '', notaProveedor: r.nt || '', notasInternas: '',
@@ -7501,7 +7708,7 @@ const HistoricoExcel = {
     if (!o) return null;
     const n = OrdenService.nueva({ proveedorId: o.proveedorId });
     return Object.assign(n, {
-      tipo: TIPOS[o.tipo].excel ? 'COMPRA' : o.tipo, equipoId: o.equipoId, numero: o.numero + ' del Excel',
+      tipo: Empresa.tipos().includes(o.tipo) ? o.tipo : Empresa.tipoNuevo(), equipoId: o.empresa === Empresa.activa ? o.equipoId : null, numero: o.numero + ' del Excel',
       items: o.items.map(it => {
         const u = Txt.mayus(String(it.unidad || '').trim()).replace(/\.$/, '');
         return Object.assign(Modelo.itemVacio(), { descripcion: it.descripcion, cantidad: +it.cantidad > 0 ? it.cantidad : 1, unidad: this.UNIDADES[u] || u || 'UND', observacion: it.observacion });
@@ -7548,10 +7755,14 @@ const Pruebas = {
     return Object.assign(o, extra || {});
   },
   async correr() {
-    const real = { db, cfg: Datos.cfg, proveedores: Datos.proveedores, equipos: Datos.equipos, ordenes: Datos.ordenes, plantillas: Datos.plantillas, acceso: Permiso.acceso,
-      historico: HistoricoExcel.crudo(), autores: Autores.mapa };
-    /* Las pruebas no ven los nombres de la nube */
+    /* Se guardan las de todas las empresas, no sólo las que se ven */
+    const real = { db, cfg: Datos.cfg, cfgs: Datos.cfgs, proveedores: Datos.proveedores, equipos: Datos.crudo('equipos'), ordenes: Datos.crudo('ordenes'),
+      plantillas: Datos.crudo('plantillas'), acceso: Permiso.acceso, historico: HistoricoExcel.crudo(), autores: Autores.mapa,
+      empresa: Empresa.activa, disponible: Empresa.disponible };
+    /* Las pruebas no ven los nombres de la nube, y empiezan en SINUGRAVAS con las dos empresas */
     Autores.mapa = new Map();
+    Empresa.disponible = true;
+    Empresa.poner('SINUGRAVAS');
     const avisar = Canal.avisar;
     Canal.avisar = () => {};
     /* Mientras corren, nada llega de la nube y se prueba con todos los permisos */
@@ -7562,6 +7773,7 @@ const Pruebas = {
       for (const t of this.lista) {
         const ini = performance.now();
         try {
+          Empresa.poner('SINUGRAVAS');
           const ctx = await this.base();
           const det = await t.fn(ctx);
           res.push({ nombre: t.nombre, ok: true, detalle: det || '', ms: performance.now() - ini });
@@ -7571,7 +7783,9 @@ const Pruebas = {
       }
     } finally {
       db = real.db;
-      Object.assign(Datos, { cfg: real.cfg, proveedores: real.proveedores, equipos: real.equipos, ordenes: real.ordenes, plantillas: real.plantillas });
+      Object.assign(Datos, { cfg: real.cfg, cfgs: real.cfgs, proveedores: real.proveedores, equipos: real.equipos, ordenes: real.ordenes, plantillas: real.plantillas });
+      Empresa.disponible = real.disponible;
+      Empresa.poner(real.empresa);
       Permiso.acceso = real.acceso;
       Datos.indexar();
       HistoricoExcel.poner(real.historico);
@@ -7659,7 +7873,7 @@ Pruebas.def('Hacer una orden no toca la configuración: el número sale de las �
 Pruebas.def('Dos personas a la vez: si otra orden ya tomó el número, esta toma el siguiente', async ({ p1 }) => {
   const a = await OrdenService.guardar(Pruebas.orden(p1, { fecha: '2026-10-26' }));
   /* Como si «a» la hubiera hecho otra persona y aquí todavía no se supiera */
-  Datos.ordenes = Datos.ordenes.filter(o => o.id !== a.id); Datos.indexar('ordenes');
+  Datos.ordenes = Datos.crudo('ordenes').filter(o => o.id !== a.id); Datos.indexar('ordenes');
   Pruebas.igual(Consecutivo.vistaPrevia('2026-10-26'), a.numero, 'aquí debía creerse libre el número de «a»');
   const b = await OrdenService.guardar(Pruebas.orden(p1, { fecha: '2026-10-26' }));
   Pruebas.igual([b.secuencia, Datos.ordenes.length], [a.secuencia + 1, 2], 'debía traer la de la otra persona y tomar el siguiente');
@@ -7705,7 +7919,8 @@ Pruebas.def('La nube: cada dato va a su columna, lo demás a «extra», y vuelve
   const canon = v => Array.isArray(v) ? v.map(canon) : v && typeof v === 'object' ? Object.keys(v).sort().reduce((o, k) => { o[k] = canon(v[k]); return o; }, {}) : v;
   const o = await OrdenService.guardar(Pruebas.orden(p1));
   const f = MAPA.fila('ordenes', o);
-  Pruebas.igual([f.proveedor_id, f.iva_pct, f.secuencia, f.creado, 'actualizado' in f, Object.keys(f.extra).length], [p1.id, 19, o.secuencia, o.creadoEn, false, 0]);
+  /* En «extra» sólo el membrete con que salió (no tiene columna) */
+  Pruebas.igual([f.proveedor_id, f.iva_pct, f.secuencia, f.creado, 'actualizado' in f, Object.keys(f.extra), f.empresa], [p1.id, 19, o.secuencia, o.creadoEn, false, ['membrete'], 'SINUGRAVAS']);
   Pruebas.igual(canon(MAPA.doc('ordenes', Object.assign({}, f, { actualizado: o.actualizadoEn }))), canon(o), 'la orden debía volver igual');
   const a = { id: ID(), ordenId: o.id, nombre: 'x.pdf', tipo: 'application/pdf', tamano: 10, en: Fecha.ahora(), datos: 'data:application/pdf;base64,AA==' };
   const fa = MAPA.fila('adjuntos', a);
@@ -7878,10 +8093,10 @@ Pruebas.def('Integridad: detecta números repetidos y totales descuadrados', asy
   await Datos.guardar('ordenes', Object.assign(U.clonar(c), { total: 1 }));
   /* La base no deja repetir números: el repetido se mete a la fuerza, sólo en memoria */
   const b = U.clonar(a); b.id = ID();
-  Datos.ordenes.push(b); Datos.indexar('ordenes');
+  Datos.crudo('ordenes').push(b); Datos.indexar('ordenes');
   const r = Integridad.revisar().filter(x => x.nivel === 'err').map(x => x.texto).join(' | ');
   Pruebas.cierto(/repetidos/.test(r) && /cuadran/.test(r), 'no detectó: ' + r);
-  Datos.ordenes = Datos.ordenes.filter(o => o.id !== b.id); Datos.indexar('ordenes');
+  Datos.ordenes = Datos.crudo('ordenes').filter(o => o.id !== b.id); Datos.indexar('ordenes');
   Pruebas.igual(await Integridad.repararTotales(), 1);
 });
 Pruebas.def('CSV con punto y coma, comillas y saltos de línea', async () => {
@@ -8097,6 +8312,38 @@ Pruebas.def('Quién hizo la orden es la cuenta que la creó, no la firma', async
     Pruebas.igual([Modelo.autor(vieja), Modelo.autorCorto(vieja)], ['JUAN MARTÍNEZ', 'Juan Martínez'], 'con el 206 sale el nombre de hoy');
   } finally { Permiso.acceso = antes; Autores.mapa = new Map(); }
   return 'Delsy Rojas';
+});
+Pruebas.def('Dos empresas: cada una con sus órdenes, su consecutivo, sus equipos y su membrete', async ({ p1, e1 }) => {
+  try {
+    const sg = await OrdenService.guardar(Object.assign(Pruebas.orden(p1), { equipoId: e1.id }));
+    Pruebas.igual([sg.empresa, sg.numero.slice(0, 3), sg.tipo], ['SINUGRAVAS', '290', 'COMPRA'], 'la de SINUGRAVAS sigue igual');
+    Empresa.poner('JDPR');
+    Pruebas.igual([Datos.ordenes.length, Datos.equipos.length, Consecutivo.vistaPrevia('2026-10-30')], [0, 0, '472-26'], 'JDPR empieza en la 472-26, sin lo de SINUGRAVAS');
+    const finca = await EquipoService.guardar(Object.assign(EquipoService.vacio(), { nombre: 'Finca de prueba' }));
+    const jd = await OrdenService.guardar(Object.assign(Pruebas.orden(p1), { equipoId: finca.id }));
+    Pruebas.igual([jd.empresa, jd.numero, jd.tipo, finca.empresa, finca.tipo], ['JDPR', Modelo.numero(472, jd.fecha), 'PEDIDO', 'JDPR', 'sede'], 'la de JDPR');
+    await Pruebas.falla(() => OrdenService.guardar(Object.assign(Pruebas.orden(p1), { equipoId: e1.id })), ErrorValidacion, 'no debía usar un equipo de SINUGRAVAS');
+    const doc = Documento.html(jd);
+    Pruebas.cierto(doc.includes('ORDEN DE PEDIDO') && doc.includes('JUAN DAVID POSADA RESTREPO') && !doc.includes('SINUGRAVAS S.A.S.'), 'el documento de JDPR lleva su membrete');
+    await Datos.guardarCfgEmpresa('JDPR', { empresa: Object.assign({}, Empresa.cfg('JDPR').empresa, { tipoDoc: 'C.C.', nit: '1.234.567' }), consecutivo: { siguiente: 500 } });
+    Pruebas.igual(Consecutivo.vistaPrevia('2026-10-30'), '500-26', 'su consecutivo se configura aparte');
+    Pruebas.cierto(!Documento.html(jd).includes('1.234.567'), 'la orden que ya se hizo conserva el membrete con que salió');
+    const jd2 = await OrdenService.guardar(Object.assign(Pruebas.orden(p1), { equipoId: finca.id }));
+    Pruebas.cierto(Documento.html(jd2).includes('C.C. 1.234.567') && jd2.numero.startsWith('500-'), 'una nueva sale con la cédula y el número nuevo');
+    Empresa.poner('SINUGRAVAS');
+    Pruebas.igual([Datos.ordenes.map(o => o.id), Datos.equipos.map(q => q.id), Consecutivo.vistaPrevia('2026-10-30')], [[sg.id], [e1.id], '291-26'], 'SINUGRAVAS no ve lo de JDPR');
+    Pruebas.igual([Datos.orden(jd.id).empresa, Datos.crudo('ordenes').length], ['JDPR', 3], 'por id se encuentran todas');
+    /* El mismo número en las dos empresas sí; dos veces en la misma, no */
+    await db.lote([{ col: 'ordenes', tipo: 'put', doc: Object.assign(U.clonar(jd), { id: 'otra-jd', secuencia: sg.secuencia }) }]);
+    await Pruebas.falla(() => db.lote([{ col: 'ordenes', tipo: 'put', doc: Object.assign(U.clonar(sg), { id: 'otra-sg' }) }]), ErrorDominio, 'el número no se repite en la misma empresa');
+    /* El histórico: cada hoja en su empresa */
+    HistoricoExcel.poner([{ k: 1, em: 'JDPR', n: '001-14', f: '2014-05-08', t: 'PEDIDO', p: 'X', it: [['FILTRO', 1, 'UND', 0, '']] },
+      { k: 2, n: '120-19', f: '2019-03-02', t: 'PEDIDO', p: 'X', it: [['ACEITE', 1, 'UND', 0, '']] }]);
+    Pruebas.igual(HistoricoExcel.lista().map(o => o.id), ['EXCEL-2'], 'SINUGRAVAS ve su histórico');
+    Empresa.poner('JDPR');
+    Pruebas.igual([HistoricoExcel.lista().map(o => o.id), HistoricoExcel.orden('EXCEL-2').empresa], [['JDPR-1'], 'SINUGRAVAS'], 'y JDPR el suyo');
+  } finally { Empresa.poner('SINUGRAVAS'); HistoricoExcel.poner([]); }
+  return 'SINUGRAVAS 290-26 · JDPR 472-26';
 });
 Pruebas.def('El menú «⋯» trae sólo lo que no tiene otro lugar, y la factura se corrige con el lápiz', async ({ p1 }) => {
   const antes = Permiso.acceso;
@@ -8538,7 +8785,8 @@ async function arrancar() {
     msg('Revisando la sesión…');
     await Sesion.iniciar();
     msg('Trayendo los datos de la nube…');
-    await Promise.all([Datos.cargar(), HistoricoExcel.cargar(), Autores.traer(true)]);
+    await Promise.all([Datos.cargar(), HistoricoExcel.cargar(), Autores.traer(true), Empresa.revisar()]);
+    Empresa.iniciar();
     /* Quien administra pone al día lo que llegue de una versión anterior */
     if (Permiso.puede('configurar') && await Semillas.aplicar()) msg('Poniendo al día los datos…');
     Shell.render();
