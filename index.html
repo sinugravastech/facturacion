@@ -799,6 +799,9 @@ html[data-theme="dark"] .hj-fm img{background:#fff;border-radius:4px}
   font:inherit;font-size:12.5px;font-weight:600;color:var(--text);cursor:pointer}
 .adj-n:hover{color:var(--accent);text-decoration:underline}
 .adj-p{font-size:11px;color:var(--text-3);white-space:nowrap}
+.adj-fac{display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:6px 6px 6px 10px;border-radius:var(--radius-sm);background:var(--accent-soft);font-size:12.5px}
+.adj-fac>svg{color:var(--accent);flex:0 0 auto}
+.adj-fac>span{flex:1;min-width:0}
 .adj-ic{color:var(--text-3);vertical-align:-1px}
 .adj-pdf{display:block;width:100%;height:72vh;border:0;border-radius:var(--radius-sm);background:#fff}
 .adj-img{display:grid;place-items:center;background:var(--ink-300);border-radius:var(--radius-sm);padding:10px}
@@ -1706,7 +1709,7 @@ const APP = Object.freeze({
   nombre: 'Facturación',
   area: 'Órdenes de compra',
   empresa: 'SINUGRAVAS S.A.S.',
-  version: '2.5.0',
+  version: '2.6.0',
   /* 3: los datos viven en la nube y el número de cada orden sale de las órdenes */
   esquema: 3,
   /* La base del navegador de la versión local (1.x). Ya no se guarda en ella:
@@ -3349,16 +3352,159 @@ const Consecutivo = {
   }
 };
 
+/* Los PDF que se adjuntan se comprimen al guardarlos, igual que en las demás
+   plataformas de SINUGRAVAS (Juan, 30/10/2026): se recodifican sus fotos JPEG
+   para bajar entre el 18 y el 30 % del peso, sin tocar la resolución ni el
+   texto. Se guarda tal cual un PDF con firma digital, uno de menos de 200 KB
+   o sin fotos JPEG (casi siempre una factura electrónica, sólo texto) o lo
+   que no baje de peso. Si algo falla, también: comprimir nunca impide adjuntar. */
+const Compresor = {
+  TOPE: 0.30,
+  MIN: 200 * 1024,
+  /* Todo corre en el navegador: pasado este tiempo, las fotos que falten se
+     dejan como venían (un escaneo de muchas páginas no se queda pegado) */
+  TIEMPO: 25000,
+  /* Las fotos JPEG de un PDF dicen /DCTDecode en su diccionario, que nunca va
+     comprimido ni cifrado. Si no aparece, no hay nada que recomprimir y no
+     hace falta traer pdf-lib */
+  tieneFotos(bytes) {
+    const p = [47, 68, 67, 84, 68, 101, 99, 111, 100, 101]; /* «/DCTDecode» */
+    for (let i = bytes.indexOf(47); i >= 0 && i <= bytes.length - p.length; i = bytes.indexOf(47, i + 1)) {
+      let k = 1;
+      while (k < p.length && bytes[i + k] === p[k]) k++;
+      if (k === p.length) return true;
+    }
+    return false;
+  },
+  /* pdf-lib se trae de internet la primera vez que se comprime un PDF. Con su
+     huella (integrity) el navegador no lo ejecuta si alguien lo cambia */
+  LIB: ['https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js', 'https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js'],
+  HUELLA: 'sha512-z8IYLHO8bTgFqj+yrPyIJnzBDf7DDhWwiEsk4sY+Oe6J2M+WQequeGS7qioI5vT6rXgVRb4K1UVQC5ER7MKzKQ==',
+  _lib: null,
+  lib() {
+    if (window.PDFLib) return Promise.resolve(window.PDFLib);
+    const traer = src => new Promise((ok, mal) => {
+      const s = document.createElement('script');
+      s.src = src;
+      s.integrity = this.HUELLA;
+      s.crossOrigin = 'anonymous';
+      s.onload = () => (window.PDFLib ? ok(window.PDFLib) : mal(new Error('pdf-lib')));
+      s.onerror = () => { s.remove(); mal(new Error('Sin conexión')); };
+      document.head.appendChild(s);
+    });
+    return this._lib || (this._lib = this.LIB.slice(1).reduce((p, src) => p.catch(() => traer(src)), traer(this.LIB[0]))
+      .catch(e => { this._lib = null; throw e; }));
+  },
+  num(x) { return x && (typeof x.asNumber === 'function' ? x.asNumber() : x.numberValue); },
+  /* JPEG → JPEG con otra calidad y la misma resolución. Dentro de un PDF la
+     orientación de la cámara no cuenta, así que no se gira nada */
+  async recodificar(bytes, q) {
+    const blob = new Blob([bytes], { type: 'image/jpeg' });
+    let bmp;
+    try { bmp = await createImageBitmap(blob, { imageOrientation: 'none' }); } catch (e) { bmp = await createImageBitmap(blob); }
+    const c = document.createElement('canvas');
+    c.width = bmp.width;
+    c.height = bmp.height;
+    const g = c.getContext('2d');
+    g.fillStyle = '#fff';
+    g.fillRect(0, 0, c.width, c.height);
+    g.drawImage(bmp, 0, 0);
+    if (bmp.close) bmp.close();
+    const out = await new Promise(ok => c.toBlob(ok, 'image/jpeg', q));
+    return { bytes: new Uint8Array(await out.arrayBuffer()), w: c.width, h: c.height };
+  },
+  /* La calidad que deja la foto entre un 18 y un 30 % más liviana, sin bajar
+     nunca de 0,80: que se siga leyendo va primero. Se va acercando entre 0,80
+     y 0,98, y si no cae en la franja se queda con la más cercana que no pasó
+     del tope. Nada, si no conviene tocarla */
+  async calidad(bytes) {
+    const ahorro = async q => 1 - (await this.recodificar(bytes, q)).bytes.length / bytes.length;
+    let bajo = 0.8, alto = 0.98, mejor = null;
+    for (let i = 0; i < 6 && alto - bajo > 0.015; i++) {
+      const q = Math.round((bajo + alto) * 50) / 100;
+      const r = await ahorro(q);
+      if (r >= 0.18 && r <= this.TOPE) return q;
+      if (r > this.TOPE) bajo = q;
+      else { if (r >= 0.03) mejor = q; alto = q; }
+    }
+    return mejor;
+  },
+  /** Un PDF → { blob, nota }: el comprimido, o el original y por qué quedó así.
+      El resultado se vuelve a abrir para comprobar que está sano */
+  async pdf(f) {
+    if (f.size < this.MIN) return { blob: f, nota: 'es liviano' };
+    const orig = new Uint8Array(await f.arrayBuffer());
+    if (!this.tieneFotos(orig)) return { blob: f, nota: 'no tiene fotos' };
+    const hasta = performance.now() + this.TIEMPO;
+    const L = await this.lib();
+    const N = n => L.PDFName.of(n);
+    const doc = await L.PDFDocument.load(orig, { updateMetadata: false });
+    const objs = doc.context.enumerateIndirectObjects();
+    const dic = o => (o instanceof L.PDFDict ? o : o && o.dict instanceof L.PDFDict ? o.dict : null);
+    /* Con firma digital no se toca: la firma dejaría de valer */
+    if (objs.some(([, o]) => { const d = dic(o); return d && (d.get(N('FT')) === N('Sig') || d.get(N('Type')) === N('Sig') || d.has(N('ByteRange'))); }))
+      return { blob: f, nota: 'tiene firma digital' };
+    /* Las máscaras de otras imágenes tampoco se tocan */
+    const mascaras = new Set();
+    objs.forEach(([, o]) => {
+      const d = dic(o);
+      if (d) ['SMask', 'Mask'].forEach(k => { const v = d.get(N(k)); if (v instanceof L.PDFRef) mascaras.add(v.toString()); });
+    });
+    const fotos = objs.filter(([ref, o]) => o instanceof L.PDFRawStream && !mascaras.has(ref.toString()) && this.esFoto(L, doc, o));
+    if (fotos.length) {
+      const mayor = fotos.reduce((a, b) => (b[1].contents.length > a[1].contents.length ? b : a))[1];
+      const q = await this.calidad(mayor.contents);
+      if (q) for (const [ref, o] of fotos) {
+        if (performance.now() > hasta) break;
+        const out = await this.recodificar(o.contents, q);
+        const W = this.num(doc.context.lookup(o.dict.get(N('Width')))), H = this.num(doc.context.lookup(o.dict.get(N('Height'))));
+        if (out.bytes.length >= o.contents.length * 0.97 || out.w !== W || out.h !== H) continue;
+        o.dict.set(N('Length'), L.PDFNumber.of(out.bytes.length));
+        if (o.dict.get(N('ColorSpace')) === N('DeviceGray')) o.dict.set(N('ColorSpace'), N('DeviceRGB'));
+        doc.context.assign(ref, L.PDFRawStream.of(o.dict, out.bytes));
+      }
+    }
+    const paginas = doc.getPageCount();
+    const out = await doc.save({ useObjectStreams: true });
+    if ((await L.PDFDocument.load(out, { updateMetadata: false })).getPageCount() !== paginas) throw new Error('verificación');
+    if (out.length > orig.length * 0.97) return { blob: f, nota: 'ya venía liviano' };
+    return { blob: new File([out], f.name, { type: 'application/pdf' }) };
+  },
+  /* Sólo fotos JPEG corrientes (RGB o grises), sin máscaras ni ajustes raros */
+  esFoto(L, doc, o) {
+    const N = n => L.PDFName.of(n), d = o.dict;
+    if (d.get(N('Subtype')) !== N('Image') || d.get(N('Decode')) || d.get(N('DecodeParms')) || d.get(N('ImageMask'))) return false;
+    let filtro = d.get(N('Filter'));
+    if (filtro instanceof L.PDFArray) { if (filtro.size() !== 1) return false; filtro = filtro.get(0); }
+    if (filtro !== N('DCTDecode')) return false;
+    let cs = d.get(N('ColorSpace'));
+    if (cs instanceof L.PDFRef) cs = doc.context.lookup(cs);
+    if (cs === N('DeviceRGB') || cs === N('DeviceGray')) return true;
+    if (cs instanceof L.PDFArray && cs.get(0) === N('ICCBased')) {
+      const icc = doc.context.lookup(cs.get(1));
+      return Boolean(icc && icc.dict && this.num(icc.dict.get(N('N'))) === 3);
+    }
+    return false;
+  }
+};
+
 /* La cotización del proveedor (o la factura, una foto del repuesto…) va
    adjunta a la orden. El archivo va al depósito de archivos de la nube y en la
    orden queda sólo su nombre, tipo y peso: así las listas no cargan megas que
-   nadie está mirando. Las fotos se reducen antes de guardarlas. */
+   nadie está mirando. Las fotos se reducen y los PDF se comprimen antes de
+   guardarlos. */
 const Adjuntos = {
   MAX: 8 * 1048576,
   ACEPTA: 'application/pdf,image/jpeg,image/png,image/webp',
   async preparar(file) {
     if (!/^(application\/pdf|image\/(jpeg|png|webp))$/.test(file.type)) throw new ErrorDominio('«' + file.name + '»: sólo se adjuntan PDF o fotos (JPG, PNG).');
-    let datos = await U.leerArchivo(file);
+    /* Uno que ni comprimido cabría no se intenta: tardaría para nada */
+    if (file.size > 2 * this.MAX) throw new ErrorDominio('«' + file.name + '» pesa ' + this.peso(file.size) + '; el máximo es 8 MB.');
+    let f = file;
+    if (file.type === 'application/pdf') {
+      try { f = (await Compresor.pdf(file)).blob; } catch (e) { console.warn('El PDF se adjunta sin comprimir:', e); }
+    }
+    let datos = await U.leerArchivo(f);
     let tipo = file.type;
     if (tipo !== 'application/pdf') { datos = await U.reducirImagen(datos, 1800, 'image/jpeg'); tipo = 'image/jpeg'; }
     const tamano = Math.round((datos.length - datos.indexOf(',') - 1) * 3 / 4);
@@ -3366,6 +3512,8 @@ const Adjuntos = {
     const nombre = tipo === file.type ? file.name : file.name.replace(/\.[^.]+$/, '') + '.jpg';
     return { id: ID(), nombre, tipo, tamano, en: Fecha.ahora(), datos };
   },
+  /** «comprimido de 2,4 MB a 1,7 MB» si el PDF bajó de peso, o nada */
+  ahorro(file, a) { return a.tipo === 'application/pdf' && a.tamano < file.size * 0.97 ? 'comprimido de ' + this.peso(file.size) + ' a ' + this.peso(a.tamano) : ''; },
   meta(a) { return { id: a.id, nombre: a.nombre, tipo: a.tipo, tamano: a.tamano, en: a.en }; },
   peso(n) { return n >= 1048576 ? (n / 1048576).toFixed(1).replace('.', ',') + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB'; },
   html(lista, editable) {
@@ -3381,14 +3529,28 @@ const Adjuntos = {
     const input = document.createElement('input');
     input.type = 'file'; input.accept = this.ACEPTA; input.multiple = true; input.hidden = true;
     cont.appendChild(input);
-    const tomar = async files => {
-      for (const f of files) { try { await alAgregar(await this.preparar(f)); } catch (e) { Toast.err(esc(e.message)); } }
+    /* Comprimir un PDF puede tardar unos segundos: se avisa, y los archivos se
+       preparan de a uno. Lo que devuelve dice si todavía hay alguno en camino */
+    let cola = Promise.resolve(), trabajando = 0;
+    const tomar = files => {
+      trabajando++;
+      cola = cola.then(async () => {
+        for (const f of files) {
+          const pesado = f.type === 'application/pdf' && f.size >= Compresor.MIN;
+          if (pesado) { Cargando.on(); Toast.info('Comprimiendo <b>' + esc(f.name) + '</b>…', { ms: 3000 }); }
+          let a = null;
+          try { a = await this.preparar(f); } catch (e) { Toast.err(esc(e.message)); } finally { if (pesado) Cargando.off(); }
+          if (a) try { await alAgregar(a, this.ahorro(f, a)); } catch (e) { Toast.err(esc(e.message)); }
+        }
+      }).finally(() => { trabajando--; });
+      return cola;
     };
     cont.addEventListener('click', e => { if (e.target.closest('[data-adj-subir]')) input.click(); });
     input.addEventListener('change', () => { const l = [...input.files]; input.value = ''; tomar(l); });
     cont.addEventListener('dragover', e => { if ([...e.dataTransfer.types].includes('Files')) { e.preventDefault(); cont.classList.add('adj-sobre'); } });
     cont.addEventListener('dragleave', e => { if (!cont.contains(e.relatedTarget)) cont.classList.remove('adj-sobre'); });
     cont.addEventListener('drop', e => { if (!e.dataTransfer.files.length) return; e.preventDefault(); cont.classList.remove('adj-sobre'); tomar([...e.dataTransfer.files]); });
+    return { ocupado: () => trabajando > 0, listo: () => cola, tomar };
   },
   /** Lo muestra en grande; «pendientes» son los que todavía no se han guardado */
   async ver(meta, pendientes) {
@@ -4703,38 +4865,33 @@ const AccionesOrden = {
     } catch (e) { Toast.err(esc(e.message)); }
   },
   imprimir(o) { Documento.imprimir(o); },
-  menu(boton, o, alCambiar) {
+  /** Lo que va en «⋯»: sólo lo que no tiene otro lugar (Juan, 30/10/2026).
+      Ver la orden es un clic en la fila; copiar e imprimir tienen su ícono;
+      editar y la factura están dentro de la orden, y los pasos (la factura, el
+      pago y deshacerlo) en el estado. enLaOrden: allá Duplicar ya es un botón */
+  opciones(o, alCambiar, enLaOrden) {
     const listo = r => { if (r) alCambiar && alCambiar(r); };
     const ed = Permiso.puede('editar');
-    const ops = [
-      { texto: 'Ver la orden', icono: 'eye', accion: () => Router.ir('/orden/' + o.id) },
-      { texto: 'Copiar como imagen', icono: 'image', accion: () => Documento.copiarImagen(o) },
-      { texto: 'Imprimir o PDF', icono: 'print', accion: () => this.imprimir(o) }
-    ];
+    const ops = [];
+    if (ed && !enLaOrden) ops.push({ texto: 'Duplicar', icono: 'copy', accion: () => Router.ir('/orden-nueva?duplicar=' + o.id) });
     if (o.excel) {
-      if (ed) ops.push({ texto: 'Duplicar', icono: 'copy', accion: () => Router.ir('/orden-nueva?duplicar=' + o.id) },
-        { texto: 'Guardar como plantilla', icono: 'layers', accion: () => this.comoPlantilla(HistoricoExcel.paraCopiar(o.id)) });
-      Menu.abrir(boton, ops);
-      return;
+      if (ed) ops.push({ texto: 'Guardar como plantilla', icono: 'layers', accion: () => this.comoPlantilla(HistoricoExcel.paraCopiar(o.id)) });
+      return ops;
     }
     /* Duplicar y hacer plantilla crean algo nuevo: cualquier editor. Lo demás
        cambia la orden: el administrador, o el Editor que la hizo */
-    const mia = Permiso.puedeOrden(o);
-    if (ed) ops.push({ texto: 'Duplicar', icono: 'copy', accion: () => Router.ir('/orden-nueva?duplicar=' + o.id) });
-    if (mia && o.estado !== 'ANULADA') ops.push({ texto: 'Editar', icono: 'edit', accion: () => Router.ir('/orden-editar/' + o.id) });
     if (ed) ops.push({ texto: 'Guardar como plantilla', icono: 'layers', accion: () => this.comoPlantilla(o) });
-    if (mia && o.estado === 'ESPERANDO') ops.push({ texto: 'Llegó la factura', icono: 'receipt', accion: () => this.registrarFactura(o) });
-    if (mia && Permiso.puede('pagar') && o.estado === 'CONTABILIDAD') ops.push({ texto: 'Marcar como pagada', icono: 'checkCircle', accion: async () => listo(await this.marcarPagada(o)) });
-    /* Si se marcó pagada por error, se devuelve */
-    if (mia && Permiso.puede('pagar') && o.estado === 'PAGADA') ops.push({ texto: 'Deshacer el pago', icono: 'rotate', accion: async () => listo(await this.cambiar(o, 'CONTABILIDAD')) });
-    if (mia && ['CONTABILIDAD', 'PAGADA'].includes(o.estado)) ops.push({ texto: 'Corregir la factura', icono: 'receipt', accion: () => this.registrarFactura(o) });
-    if (mia) {
-      ops.push('-');
+    if (Permiso.puedeOrden(o)) {
+      if (ops.length) ops.push('-');
       if (o.estado === 'ANULADA') ops.push({ texto: 'Reactivar', icono: 'rotate', accion: async () => listo(await this.reactivar(o)) });
       else ops.push({ texto: 'Anular', icono: 'ban', peligro: true, accion: async () => listo(await this.anular(o)) });
       ops.push({ texto: 'Eliminar', icono: 'trash', peligro: true, accion: async () => { if (await this.eliminar(o)) alCambiar && alCambiar(null); } });
     }
-    Menu.abrir(boton, ops);
+    return ops;
+  },
+  menu(boton, o, alCambiar, enLaOrden) {
+    const ops = this.opciones(o, alCambiar, enLaOrden);
+    if (ops.length) Menu.abrir(boton, ops);
   }
 };
 
@@ -4940,7 +5097,8 @@ const VistaOrdenes = {
           '<td class="td-estado">' + Comp.selEstado(o) + '</td>' +
           '<td class="nowrap tr"><button class="btn btn-ghost btn-icon btn-sm" data-copiar="' + attr(o.id) + '" data-tip="Copiar como imagen" aria-label="Copiar como imagen">' + Icon('image', '', 13) + '</button>' +
           '<button class="btn btn-ghost btn-icon btn-sm" data-imp="' + attr(o.id) + '" data-tip="Imprimir o PDF" aria-label="Imprimir">' + Icon('print', '', 13) + '</button>' +
-          '<button class="btn btn-ghost btn-icon btn-sm" data-mas="' + attr(o.id) + '" data-tip="Más acciones" aria-label="Más acciones">' + Icon('more', '', 14) + '</button></td></tr>';
+          (AccionesOrden.opciones(o).length ? '<button class="btn btn-ghost btn-icon btn-sm" data-mas="' + attr(o.id) + '" data-tip="Más acciones" aria-label="Más acciones">' + Icon('more', '', 14) + '</button>'
+            : '<span class="btn-icon btn-sm" style="display:inline-block" aria-hidden="true"></span>') + '</td></tr>';
       }).join('') + '</tbody>' +
       '<tfoot><tr><td colspan="7">Total de lo filtrado (sin anuladas, cotizaciones ni el Excel)</td><td class="num">' + Money.redondo(k.total) + '</td><td colspan="2"></td></tr></tfoot></table>';
     $('#orPager', el).innerHTML = Comp.pager(l.length, this.pag, porPag, 'ordenes');
@@ -4968,7 +5126,7 @@ const VistaOrden = {
       '<button class="btn btn-primary" id="odImp">' + Icon('print', '', 14) + 'Imprimir o PDF</button>' +
       si('editar', '<a class="btn" href="#/orden-nueva?duplicar=' + attr(o.id) + '">' + Icon('copy', '', 14) + 'Duplicar</a>') +
       (Permiso.puedeOrden(o) && o.estado !== 'ANULADA' ? '<a class="btn" href="#/orden-editar/' + attr(o.id) + '">' + Icon('edit', '', 14) + 'Editar</a>' : '') +
-      '<button class="btn btn-icon" id="odMas" aria-label="Más acciones" data-tip="Más acciones">' + Icon('more', '', 15) + '</button></div></div>';
+      (AccionesOrden.opciones(o, null, true).length ? '<button class="btn btn-icon" id="odMas" aria-label="Más acciones" data-tip="Más acciones">' + Icon('more', '', 15) + '</button>' : '') + '</div></div>';
     /* Un Editor mirando la orden de otra persona: sabe por qué no la puede cambiar */
     if (Permiso.puede('editar') && !Permiso.puedeOrden(o)) {
       h += '<div class="alert a-info mb16">' + Icon('lock') + '<div>Esta orden la hizo <b>' + esc(Modelo.autor(o) || 'otra persona') +
@@ -4998,7 +5156,8 @@ const VistaOrden = {
       const r = await AccionesOrden.cambiar(Datos.orden(o.id), s.value);
       if (r) recargar(); else if (Datos.orden(o.id)) s.value = Datos.orden(o.id).estado;
     });
-    $('#odMas', el).onclick = e => AccionesOrden.menu(e.currentTarget, o, r => { if (r === null) Router.ir('/ordenes'); else recargar(); });
+    const mas = $('#odMas', el);
+    if (mas) mas.onclick = e => AccionesOrden.menu(e.currentTarget, o, r => { if (r === null) Router.ir('/ordenes'); else recargar(); }, true);
     el.addEventListener('click', async e => {
       const b = e.target.closest('[data-paso]');
       if (b) {
@@ -5020,13 +5179,19 @@ const VistaOrden = {
       }
     });
     const cAdj = $('#odAdj', el);
-    if (cAdj && Permiso.puedeOrden(o)) Adjuntos.unir(cAdj, async a => { await OrdenService.adjuntar(Datos.orden(o.id), a); Toast.ok('<b>' + esc(a.nombre) + '</b> adjuntado.'); recargar(); });
+    if (cAdj && Permiso.puedeOrden(o)) Adjuntos.unir(cAdj, async (a, ahorro) => { await OrdenService.adjuntar(Datos.orden(o.id), a); Toast.ok('<b>' + esc(a.nombre) + '</b> adjuntado' + (ahorro ? ', ' + esc(ahorro) : '') + '.'); recargar(); });
   },
   adjuntos(o) {
     const l = o.adjuntos || [];
+    const mia = Permiso.puedeOrden(o);
+    /* La factura que se registró, con su lápiz para corregirla (Juan, 30/10/2026) */
+    const fac = o.factura && o.factura.numero ? '<div class="adj-fac">' + Icon('receipt', '', 15) + '<span>Factura <b>' + esc(o.factura.numero) + '</b>' +
+      (o.factura.fecha ? ' · ' + esc(Fecha.corta(o.factura.fecha)) : '') + ' · ' + esc(Money.fmt(Modelo.valor(o))) + '</span>' +
+      (mia && ['CONTABILIDAD', 'PAGADA'].includes(o.estado) ? '<button type="button" class="btn btn-ghost btn-icon btn-sm" data-fact data-tip="Corregir la factura" aria-label="Corregir la factura">' + Icon('edit', '', 13) + '</button>' : '') +
+      '</div>' : '';
     return '<div class="card" id="odAdj"><div class="card-h"><h3>' + Icon('clip', '', 15) + 'Cotización y soportes</h3><span class="ch-sub">' + (l.length ? Txt.plural(l.length, 'archivo') : 'PDF o fotos') + '</span>' +
-      (Permiso.puedeOrden(o) ? '<div class="ch-act"><button type="button" class="btn btn-sm" data-adj-subir>' + Icon('upload', '', 12) + 'Adjuntar</button></div>' : '') + '</div>' +
-      '<div class="card-b">' + Adjuntos.html(l, Permiso.puedeOrden(o)) + '</div></div>';
+      (mia ? '<div class="ch-act"><button type="button" class="btn btn-sm" data-adj-subir>' + Icon('upload', '', 12) + 'Adjuntar</button></div>' : '') + '</div>' +
+      '<div class="card-b">' + fac + Adjuntos.html(l, mia) + '</div></div>';
   },
   /** Una orden del Excel: la hoja con el formato de hoy y sus datos, sin seguimiento */
   renderExcel(el, o) {
@@ -5331,7 +5496,10 @@ const VistaOrdenForm = {
     $('#ofPlantilla', el).onclick = e => this.menuPlantillas(e.currentTarget);
     /* Adjuntos: quedan pendientes hasta guardar la orden */
     const cAdj = $('#ofAdj', el);
-    Adjuntos.unir(cAdj, a => { this.adjNuevos.push(a); o.adjuntos.push(Adjuntos.meta(a)); this.marcar(); this.pintarAdjuntos(); });
+    this.adjuntando = Adjuntos.unir(cAdj, (a, ahorro) => {
+      this.adjNuevos.push(a); o.adjuntos.push(Adjuntos.meta(a)); this.marcar(); this.pintarAdjuntos();
+      if (ahorro) Toast.info('<b>' + esc(a.nombre) + '</b>: ' + esc(ahorro) + '.');
+    });
     cAdj.addEventListener('click', e => {
       const v = e.target.closest('[data-adj-ver]');
       if (v) { const m = o.adjuntos.find(x => x.id === v.dataset.adjVer); if (m) Adjuntos.ver(m, this.adjNuevos); return; }
@@ -5631,6 +5799,13 @@ const VistaOrdenForm = {
     const btns = $$('[data-acc="guardar"]', el);
     btns.forEach(b => { b.disabled = true; });
     try {
+      /* Un PDF que todavía se está comprimiendo se espera: así se guarda con la orden */
+      if (this.adjuntando && this.adjuntando.ocupado()) {
+        const textos = btns.map(b => b.innerHTML);
+        btns.forEach(b => { b.innerHTML = '<span class="spin"></span>Comprimiendo el adjunto…'; });
+        await this.adjuntando.listo();
+        btns.forEach((b, i) => { b.innerHTML = textos[i]; });
+      }
       if (this.editando && !Datos.orden(this.o.id)) {
         btns.forEach(b => { b.disabled = false; });
         Modal.alerta('Esta orden ya no existe', 'Otra persona la eliminó mientras usted la editaba. Lo que escribió no se guardó.', 'err');
@@ -7743,6 +7918,46 @@ Pruebas.def('La cotización adjunta se guarda aparte, entra al respaldo y se va 
   Pruebas.igual(e.adjuntos, [], 'al duplicar no se copian los archivos');
   await OrdenService.eliminar(n);
   Pruebas.igual(await db.get('adjuntos', b.id), null, 'al borrar la orden se debía borrar su archivo');
+});
+Pruebas.def('Un PDF que no se puede comprimir se adjunta igual, tal cual', async () => {
+  const lib = Compresor.lib;
+  let pedidas = 0;
+  try {
+    Compresor.lib = () => { pedidas++; return Promise.reject(new Error('Sin conexión')); };
+    const grande = new File(['%PDF-1.4\n<< /Subtype /Image /Filter /DCTDecode >>\n' + 'x'.repeat(Compresor.MIN)], 'escaneada.pdf', { type: 'application/pdf' });
+    const a = await Adjuntos.preparar(grande);
+    Pruebas.cierto(pedidas === 1 && a.tipo === 'application/pdf' && a.tamano >= grande.size && !Adjuntos.ahorro(grande, a), 'sin internet debía quedar el original');
+    const texto = new File(['%PDF-1.4\n<< /Type /Font >>\n' + 'x'.repeat(Compresor.MIN)], 'factura-electronica.pdf', { type: 'application/pdf' });
+    Pruebas.igual([(await Compresor.pdf(texto)).nota, pedidas], ['no tiene fotos', 1], 'uno sin fotos JPEG se guarda tal cual, sin traer pdf-lib');
+    const chico = new File(['%PDF-1.4 factura electrónica'], 'factura.pdf', { type: 'application/pdf' });
+    Pruebas.igual((await Compresor.pdf(chico)).nota, 'es liviano', 'uno de menos de 200 KB no se toca');
+  } finally { Compresor.lib = lib; }
+  await Pruebas.falla(() => Adjuntos.preparar(new File([new Uint8Array(17 * 1048576)], 'enorme.pdf', { type: 'application/pdf' })), ErrorDominio,
+    'uno que ni comprimido cabría no se intenta');
+  return 'sin internet, tal cual';
+});
+Pruebas.def('El menú «⋯» trae sólo lo que no tiene otro lugar, y la factura se corrige con el lápiz', async ({ p1 }) => {
+  const antes = Permiso.acceso;
+  const textos = (o, enLaOrden) => AccionesOrden.opciones(o, null, enLaOrden).map(x => x === '-' ? '-' : x.texto).join(' · ');
+  const o = Object.assign(Pruebas.orden(p1), { id: 'menu-1', estado: 'CONTABILIDAD', factura: { numero: 'F-77', fecha: Fecha.hoy(), valor: 1000 }, creadoPor: 'u1' });
+  const admin = { id: 'u1', rol: 'admin', acciones: ['ver', 'editar', 'eliminar', 'configurar', 'pagar'], activo: true };
+  try {
+    Permiso.acceso = admin;
+    Pruebas.igual(textos(o), 'Duplicar · Guardar como plantilla · - · Anular · Eliminar', 'sin ver, copiar, imprimir, editar, pagar ni corregir la factura');
+    Pruebas.igual(textos(o, true), 'Guardar como plantilla · - · Anular · Eliminar', 'dentro de la orden, Duplicar ya es un botón');
+    Pruebas.igual(textos(Object.assign({}, o, { estado: 'ESPERANDO', factura: null })), 'Duplicar · Guardar como plantilla · - · Anular · Eliminar', 'los pasos van en el estado');
+    Pruebas.igual(textos(Object.assign({}, o, { estado: 'PAGADA' })), 'Duplicar · Guardar como plantilla · - · Anular · Eliminar', 'deshacer el pago también va en el estado');
+    Pruebas.igual(textos(Object.assign({}, o, { estado: 'ANULADA' })), 'Duplicar · Guardar como plantilla · - · Reactivar · Eliminar');
+    const vista = VistaOrden.adjuntos(o);
+    Pruebas.cierto(vista.includes('F-77') && vista.includes('data-fact'), 'en «Cotización y soportes» debía estar la factura con su lápiz');
+    Pruebas.cierto(!VistaOrden.adjuntos(Object.assign({}, o, { estado: 'ANULADA' })).includes('data-fact'), 'una anulada no se corrige');
+    Permiso.acceso = { id: 'u2', rol: 'editor', acciones: ['ver', 'editar', 'pagar'], activo: true };
+    Pruebas.igual(textos(o), 'Duplicar · Guardar como plantilla', 'el Editor, en la orden de otro, sólo hace algo nuevo');
+    Pruebas.cierto(!VistaOrden.adjuntos(o).includes('data-fact'), 'ni corrige la factura de otro');
+    Permiso.acceso = { id: 'u3', rol: 'consulta', acciones: ['ver'], activo: true };
+    Pruebas.igual(textos(o), '', 'el Visualizador no tiene menú');
+  } finally { Permiso.acceso = antes; }
+  return '4 opciones como mucho';
 });
 Pruebas.def('La hoja de nueva orden crece al escribir y guarda sólo las filas llenas', async ({ p1 }) => {
   const div = document.createElement('div');
