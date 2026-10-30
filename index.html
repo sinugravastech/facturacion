@@ -684,7 +684,7 @@ table.items-ed tr.it-vacio .inp{background:transparent}
   background:var(--surface-2);border-radius:0 0 var(--radius-lg) var(--radius-lg)}
 .items-pie .ip-nota{font-size:11.5px;color:var(--text-3);margin-left:auto}
 /* En el celular cada artículo es una tarjeta: descripción arriba; cantidad,
-   unidad y valor en una fila; luego la observación y el total. */
+   unidad y valor en una fila; luego el descuento y la observación, y el total. */
 @media(max-width:760px){
   table.items-ed thead{display:none}
   table.items-ed tr{display:grid;grid-template-columns:24px repeat(3,minmax(0,1fr));gap:6px;padding:10px 8px;border-bottom:1px solid var(--border)}
@@ -695,6 +695,8 @@ table.items-ed tr.it-vacio .inp{background:transparent}
   table.items-ed td.it-uni{grid-column:3;grid-row:2}
   table.items-ed td.it-val{grid-column:4;grid-row:2}
   table.items-ed td.it-obs{grid-column:2 / 5;grid-row:3}
+  table.items-ed td.it-dto{grid-column:2;grid-row:3}
+  table.items-ed.hj-tbl td.it-obs{grid-column:3 / 5}
   table.items-ed td.it-tot{grid-column:2 / 4;grid-row:4;text-align:left;align-self:center;padding-left:2px}
   table.items-ed td.it-acc{grid-column:4;grid-row:4;justify-self:end}
   table.items-ed.pl td.it-acc{grid-row:3}
@@ -778,6 +780,8 @@ table.hj-tbl tr:hover .it-acc .btn,table.hj-tbl .it-acc .btn:focus{opacity:1}
 .hj-tot .ht-chk input{margin:0;width:13px;height:13px}
 .hj-tot .ht-l .inp{width:auto;min-width:0;max-width:100%;height:26px;padding:0 22px 0 6px;background-position:right 6px center;
   font-size:11.5px;font-weight:500;text-transform:none;letter-spacing:0}
+.hj-tot .ht-l .inp.ht-in{width:78px;padding:0 6px;text-align:right;background-image:none}
+.hj-tot .ht-pm{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;letter-spacing:0}
 .hj-tot .ht-v{display:flex;align-items:center;justify-content:flex-end;font-size:12.5px;font-weight:650;font-variant-numeric:tabular-nums;white-space:nowrap}
 .hj-tot .ht-g{border-bottom:none;background:var(--accent-soft)}
 .hj-tot .ht-l.ht-g{font-size:11px;color:var(--text)}
@@ -1764,7 +1768,7 @@ const APP = Object.freeze({
   nombre: 'Facturación',
   area: 'Órdenes de compra',
   empresa: 'SINUGRAVAS S.A.S.',
-  version: '2.9.0',
+  version: '2.10.0',
   /* 3: los datos viven en la nube y el número de cada orden sale de las órdenes */
   esquema: 3,
   /* La base del navegador de la versión local (1.x). Ya no se guarda en ella:
@@ -3293,12 +3297,18 @@ const Autores = {
 const Modelo = {
   itemVacio() { return { id: ID(), descripcion: '', cantidad: 1, unidad: 'UND', valorUnitario: 0, observacion: '' }; },
   itemValido(it) { return !!(it && String(it.descripcion || '').trim()); },
-  totalItem(it) { return Money.cent(Num.parse(it.cantidad) * Money.parse(it.valorUnitario)); },
-  /** Igual que el Excel: TOTAL = SUBTOTAL − RETENCIÓN EN LA FUENTE + IVA, al
-      centavo, como las cotizaciones. Con el IVA ya incluido en los precios
-      (muchas cotizaciones llegan así), no se suma: el subtotal es la base sin
-      IVA, el IVA sale de adentro y el total es lo que suman los artículos,
-      menos la retención (que va sobre la base). */
+  /** Cantidad × valor unitario, menos el descuento del renglón si lo tiene (como la «% Desc.» de las facturas) */
+  totalItem(it) {
+    const bruto = Num.parse(it.cantidad) * Money.parse(it.valorUnitario);
+    return Money.cent(bruto * (1 - Modelo.descuento(it) / 100));
+  },
+  descuento(it) { return Math.min(100, Math.max(0, Num.parse(it.descuentoPct))); },
+  /** Igual que la factura: TOTAL = SUBTOTAL − RETENCIÓN EN LA FUENTE − RETEICA
+      + IVA + FLETE, al centavo. El subtotal ya trae los descuentos de cada
+      artículo; la retención y la ReteICA (por mil) van sobre él, y el flete se
+      suma al final, sin IVA: si el proveedor le cobra IVA, va como un artículo.
+      Con el IVA ya incluido en los precios (muchas cotizaciones llegan así), no
+      se suma: el subtotal es la base sin IVA y el IVA sale de adentro. */
   totales(o) {
     const items = (o.items || []).filter(Modelo.itemValido);
     const suma = Money.cent(U.sumar(items, Modelo.totalItem));
@@ -3306,7 +3316,9 @@ const Modelo = {
     const subtotal = o.ivaIncluido ? Money.cent(suma / (1 + pct / 100)) : suma;
     const iva = o.ivaIncluido ? Money.cent(suma - subtotal) : Money.cent(subtotal * pct / 100);
     const retencion = Money.cent(subtotal * (+o.retencionPct || 0) / 100);
-    return { subtotal, iva, retencion, total: Money.cent(subtotal - retencion + iva), valorizada: subtotal > 0, nItems: items.length };
+    const reteIca = Money.cent(subtotal * Num.parse(o.reteIcaPorMil) / 1000);
+    const flete = Math.max(0, Money.parse(o.flete));
+    return { subtotal, iva, retencion, reteIca, flete, total: Money.cent(subtotal - retencion - reteIca + iva + flete), valorizada: subtotal > 0, nItems: items.length };
   },
   /** «290-26»: consecutivo de tres cifras y los dos últimos dígitos del año */
   numero(secuencia, fecha) {
@@ -3367,9 +3379,14 @@ const Validar = {
     its.forEach((it, i) => {
       if (!(Num.parse(it.cantidad) > 0)) e['cant-' + it.id] = 'La cantidad del artículo ' + (i + 1) + ' debe ser mayor que cero.';
       if (Money.parse(it.valorUnitario) < 0) e['val-' + it.id] = 'El valor del artículo ' + (i + 1) + ' no puede ser negativo.';
+      const d = Num.parse(it.descuentoPct);
+      if (!(d >= 0 && d <= 100)) e['desc-' + it.id] = 'El descuento del artículo ' + (i + 1) + ' debe estar entre 0 y 100 %.';
     });
     if (!(+o.ivaPct >= 0 && +o.ivaPct <= 100)) e.iva = 'El IVA debe estar entre 0 y 100 %.';
     if (!(+o.retencionPct >= 0 && +o.retencionPct <= 100)) e.retencion = 'La retención debe estar entre 0 y 100 %.';
+    const ica = Num.parse(o.reteIcaPorMil);
+    if (!(ica >= 0 && ica <= 100)) e.reteIca = 'La ReteICA debe estar entre 0 y 100 por mil.';
+    if (Money.parse(o.flete) < 0) e.flete = 'El flete no puede ser negativo.';
     if (+o.plazoDias < 0 || +o.plazoDias > 720) e.plazo = 'El plazo debe estar entre 0 y 720 días.';
     if (Object.keys(e).length) throw new ErrorValidacion(e);
   },
@@ -3882,7 +3899,7 @@ const OrdenService = {
     if (opts.duplicarId) {
       const b = Datos.orden(opts.duplicarId) || HistoricoExcel.paraCopiar(opts.duplicarId);
       if (b) {
-        ['tipo', 'proveedorId', 'equipoId', 'concepto', 'ivaPct', 'ivaIncluido', 'retencionPct', 'formaPago', 'plazoDias', 'cuotas', 'medioPago',
+        ['tipo', 'proveedorId', 'equipoId', 'concepto', 'ivaPct', 'ivaIncluido', 'retencionPct', 'reteIcaPorMil', 'formaPago', 'plazoDias', 'cuotas', 'medioPago',
           'entregaLugar', 'entregaRecibe', 'entregaCedula', 'notaProveedor'].forEach(k => { o[k] = U.clonar(b[k]); });
         o.items = b.items.map(it => Object.assign(U.clonar(it), { id: ID() }));
         o.duplicadaDe = b.numero;
@@ -3915,22 +3932,28 @@ const OrdenService = {
   },
   /** Deja la orden lista para guardar: artículos limpios y totales calculados */
   normalizar(o) {
-    o.items = (o.items || []).filter(Modelo.itemValido).map(it => ({
+    o.items = (o.items || []).filter(Modelo.itemValido).map(it => Object.assign({
       id: it.id || ID(),
       descripcion: String(it.descripcion).trim().replace(/\s+/g, ' '),
       cantidad: Num.parse(it.cantidad),
       unidad: Txt.mayus(String(it.unidad || '').trim()) || 'UND',
       valorUnitario: Money.parse(it.valorUnitario),
       observacion: String(it.observacion || '').trim()
-    }));
+    }, Modelo.descuento(it) ? { descuentoPct: Modelo.descuento(it) } : {}));
     o.ivaPct = +o.ivaPct || 0;
     if (o.ivaIncluido) o.ivaIncluido = true; else delete o.ivaIncluido;
     o.retencionPct = +o.retencionPct || 0;
+    /* La ReteICA (por mil) y el flete sólo quedan en la orden que los tiene */
+    const ica = Num.parse(o.reteIcaPorMil), flete = Money.parse(o.flete);
+    if (ica > 0) o.reteIcaPorMil = ica; else delete o.reteIcaPorMil;
+    if (flete > 0) o.flete = flete; else delete o.flete;
     o.plazoDias = Math.max(0, Math.round(+o.plazoDias || 0));
     o.cuotas = Math.max(0, Math.round(+o.cuotas || 0));
     if (o.formaPago !== 'CREDITO') { o.plazoDias = 0; o.cuotas = 0; }
     Object.assign(o, Modelo.totales(o));
     delete o.valorizada; delete o.nItems;
+    if (!o.reteIca) delete o.reteIca;
+    if (!o.flete) delete o.flete;
     ['concepto', 'referencia', 'entregaLugar', 'entregaRecibe', 'entregaCedula', 'notaProveedor', 'notasInternas']
       .forEach(k => { o[k] = String(o[k] || '').trim(); });
     return o;
@@ -5659,7 +5682,9 @@ const VistaOrden = {
     let h = '<div class="card"><div class="card-h"><h3>' + Icon('cash', '', 15) + 'Resumen</h3>' + (t.valorizada ? '' : '<span class="pill p-gray np">Sin valorizar</span>') + '</div><div class="card-b"><div class="resumen">' +
       '<div class="rs-f"><span>' + (o.ivaIncluido ? 'Subtotal sin IVA' : 'Subtotal') + '</span><b>' + Money.fmt(t.subtotal) + '</b></div>' +
       '<div class="rs-f"><span>Retención en la fuente' + (o.retencionPct ? ' (' + Num.pct(o.retencionPct) + ')' : '') + '</span><b>' + (t.retencion ? '− ' + Money.fmt(t.retencion) : Money.fmt(0)) + '</b></div>' +
+      (t.reteIca ? '<div class="rs-f"><span>ReteICA (' + Num.fmt(o.reteIcaPorMil) + ' × 1.000)</span><b>− ' + Money.fmt(t.reteIca) + '</b></div>' : '') +
       '<div class="rs-f"><span>IVA (' + Num.pct(o.ivaPct) + ')' + (o.ivaIncluido ? ', incluido en los precios' : '') + '</span><b>' + Money.fmt(t.iva) + '</b></div>' +
+      (t.flete ? '<div class="rs-f"><span>Flete</span><b>+ ' + Money.fmt(t.flete) + '</b></div>' : '') +
       '<div class="rs-f rs-tot"><span>Total</span><b>' + Money.fmt(t.total) + '</b></div>';
     if (o.factura && o.factura.valor) {
       const dif = Money.cent(o.factura.valor - t.total);
@@ -5792,7 +5817,7 @@ const VistaOrdenForm = {
           attr(o.equipoId ? Modelo.nombreEquipo(o) : '') + '"><button type="button" class="btn btn-ghost btn-icon btn-sm" id="ofEqX" data-tip="Quitar el equipo" aria-label="Quitar el equipo">' +
           Icon('x', '', 13) + '</button></div><div class="hj-info" id="ofEqInfo"></div>') +
         '<div class="hj-items"><table class="items-ed hj-tbl"><thead><tr><th class="it-n">Ítem</th><th>Descripción</th><th class="num" style="width:84px">Cantidad</th>' +
-          '<th style="width:92px">Unidad</th><th class="num" style="width:126px">Valor unitario</th><th class="num" style="width:116px">Valor total</th><th style="width:156px">Observación</th>' +
+          '<th style="width:92px">Unidad</th><th class="num" style="width:126px">Valor unitario</th><th class="num" style="width:64px">% Desc.</th><th class="num" style="width:116px">Valor total</th><th style="width:156px">Observación</th>' +
           '<th class="it-acc"><span class="sr">Quitar</span></th></tr></thead><tbody id="ofItems"></tbody></table></div>' +
         '<div class="hj-itpie"><button type="button" class="btn btn-sm" id="ofAdd">' + Icon('plus', '', 12) + 'Otra fila</button>' +
           '<button type="button" class="btn btn-sm" id="ofPlantilla">' + Icon('layers', '', 12) + 'Usar plantilla</button><span class="fs12 txt-2" id="ofItSub"></span>' +
@@ -5921,6 +5946,7 @@ const VistaOrdenForm = {
       '<td class="it-cant"><input class="inp inp-num" data-k="cantidad" data-i="' + i + '" inputmode="decimal" value="' + attr(vacia || it.cantidad === '' ? '' : Num.fmt(it.cantidad)) + '" placeholder="Cant." aria-label="Cantidad"></td>' +
       '<td class="it-uni"><input class="inp" data-k="unidad" data-i="' + i + '" list="dlUnidades" value="' + attr(vacia ? '' : it.unidad) + '" placeholder="Unidad" aria-label="Unidad"></td>' +
       '<td class="it-val"><input class="inp" data-k="valorUnitario" data-i="' + i + '" value="' + attr(it.valorUnitario ? Money.num(it.valorUnitario) : '') + '" placeholder="Valor" aria-label="Valor unitario"></td>' +
+      '<td class="it-dto"><input class="inp inp-num" data-k="descuentoPct" data-i="' + i + '" inputmode="decimal" value="' + attr(Modelo.descuento(it) ? Num.fmt(Modelo.descuento(it)) : '') + '" placeholder="% Desc." aria-label="Descuento en %"></td>' +
       '<td class="it-tot" data-tot="' + i + '"></td>' +
       '<td class="it-obs"><input class="inp" data-k="observacion" data-i="' + i + '" value="' + attr(it.observacion) + '" placeholder="Observación" aria-label="Observación"></td>' +
       '<td class="it-acc"><button type="button" class="btn btn-ghost btn-icon btn-sm" data-quitar="' + i + '" tabindex="-1" data-tip="Quitar esta fila" aria-label="Quitar la fila ' + (i + 1) + '">' +
@@ -5964,7 +5990,7 @@ const VistaOrdenForm = {
         const i = +inp.dataset.i, k = inp.dataset.k, it = o.items[i];
         if (!it) return;
         it[k] = k === 'valorUnitario' ? Money.parse(inp.value) : inp.value;
-        if (k === 'cantidad' || k === 'valorUnitario') { this.totalFila(i); this.pintarResumen(); }
+        if (k === 'cantidad' || k === 'valorUnitario' || k === 'descuentoPct') { this.totalFila(i); this.pintarResumen(); }
         if (k === 'descripcion') {
           /* Al empezar una fila se ven la cantidad y la unidad que trae, y aparece otra vacía debajo */
           const tr = inp.closest('tr'), c = $('[data-k="cantidad"]', tr), u = $('[data-k="unidad"]', tr);
@@ -5983,6 +6009,8 @@ const VistaOrdenForm = {
         if (inp) { inp.value = Txt.mayus(inp.value.trim()); o.items[+inp.dataset.i].unidad = inp.value; }
         const c = e.target.closest('input[data-k="cantidad"]');
         if (c) { const v = Num.parse(c.value); c.value = c.value.trim() ? Num.fmt(v) : ''; o.items[+c.dataset.i].cantidad = v; this.totalFila(+c.dataset.i); this.pintarResumen(); }
+        const dp = e.target.closest('input[data-k="descuentoPct"]');
+        if (dp) { const v = Num.parse(dp.value); dp.value = v ? Num.fmt(v) : ''; o.items[+dp.dataset.i].descuentoPct = v; this.totalFila(+dp.dataset.i); this.pintarResumen(); }
       });
       tb.addEventListener('click', e => {
         const b = e.target.closest('[data-quitar]'); if (!b) return;
@@ -6100,26 +6128,50 @@ const VistaOrdenForm = {
   },
   pintarResumen() {
     const o = this.o;
-    const t = Modelo.totales(o);
     const cont = $('#ofResumen', this.el);
-    cont.innerHTML = '<div class="ht"><div class="ht-l">' + (o.ivaIncluido ? 'Subtotal sin IVA' : 'Subtotal') + '</div><div class="ht-v">' + Money.fmt(t.subtotal) + '</div>' +
+    cont.innerHTML = '<div class="ht"><div class="ht-l" id="ofSubL"></div><div class="ht-v" id="ofSubV"></div>' +
       '<div class="ht-l"><label for="ofRet">Retención</label><select class="inp" id="ofRet">' +
         PCT_RETENCION.map(r => '<option value="' + r.v + '"' + (+o.retencionPct === r.v ? ' selected' : '') + '>' + esc(r.t) + '</option>').join('') +
         (PCT_RETENCION.some(r => r.v === +o.retencionPct) ? '' : '<option value="' + o.retencionPct + '" selected>' + Num.pct(o.retencionPct) + '</option>') + '</select></div>' +
-        '<div class="ht-v">' + (t.retencion ? '− ' + Money.fmt(t.retencion) : Money.fmt(0)) + '</div>' +
+        '<div class="ht-v" id="ofRetV"></div>' +
+      '<div class="ht-l"><label for="ofIca">ReteICA</label><span class="ht-pm"><input class="inp ht-in" id="ofIca" inputmode="decimal" value="' +
+        attr(Num.parse(o.reteIcaPorMil) ? Num.fmt(o.reteIcaPorMil) : '') + '" placeholder="0" data-tip="Por mil, como dice la factura: 6 × 1.000 se escribe 6">× 1.000</span></div>' +
+        '<div class="ht-v" id="ofIcaV"></div>' +
       '<div class="ht-l"><label for="ofIva">IVA</label><select class="inp" id="ofIva">' +
         PCT_IVA.map(v => '<option value="' + v + '"' + (+o.ivaPct === v ? ' selected' : '') + '>' + v + ' %</option>').join('') +
         (PCT_IVA.includes(+o.ivaPct) ? '' : '<option value="' + o.ivaPct + '" selected>' + Num.pct(o.ivaPct) + '</option>') + '</select>' +
         '<label class="ht-chk" data-tip="Márquela si la cotización trae los precios con el IVA: así no se suma otra vez">' +
           '<input type="checkbox" id="ofIvaInc"' + (o.ivaIncluido ? ' checked' : '') + '>ya incluido en los precios</label></div>' +
-        '<div class="ht-v">' + Money.fmt(t.iva) + '</div>' +
-      '<div class="ht-l ht-g">Total</div><div class="ht-v ht-g">' + Money.fmt(t.total) + '</div></div>' +
-      '<div class="hj-nota">' + (!t.valorizada ? 'Sin precios: puede enviarla así y registrar la factura después.'
-        : o.ivaIncluido ? 'Los precios ya traen el IVA: no se suma. Total = lo que suman los artículos − retención.'
-        : 'Total = subtotal − retención + IVA, como en el Excel.') + '</div>';
-    $('#ofRet', cont).addEventListener('change', e => { o.retencionPct = +e.target.value; this.marcar(); this.pintarResumen(); });
-    $('#ofIva', cont).addEventListener('change', e => { o.ivaPct = +e.target.value; this.marcar(); this.pintarResumen(); });
-    $('#ofIvaInc', cont).addEventListener('change', e => { o.ivaIncluido = e.target.checked; this.marcar(); this.pintarResumen(); });
+        '<div class="ht-v" id="ofIvaV"></div>' +
+      '<div class="ht-l"><label for="ofFlete">Flete</label><input class="inp ht-in" id="ofFlete" value="' + attr(Money.parse(o.flete) ? Money.num(o.flete) : '') + '" placeholder="0"' +
+        ' data-tip="Se suma al final, sin IVA. Si el proveedor le cobra IVA al flete, póngalo como un artículo"></div>' +
+        '<div class="ht-v" id="ofFleV"></div>' +
+      '<div class="ht-l ht-g">Total</div><div class="ht-v ht-g" id="ofTotV"></div></div>' +
+      '<div class="hj-nota" id="ofTotNota"></div>';
+    $('#ofRet', cont).addEventListener('change', e => { o.retencionPct = +e.target.value; this.marcar(); this.pintarCifras(); });
+    $('#ofIva', cont).addEventListener('change', e => { o.ivaPct = +e.target.value; this.marcar(); this.pintarCifras(); });
+    $('#ofIvaInc', cont).addEventListener('change', e => { o.ivaIncluido = e.target.checked; this.marcar(); this.pintarCifras(); });
+    const ica = $('#ofIca', cont), flete = $('#ofFlete', cont);
+    ica.addEventListener('input', () => { o.reteIcaPorMil = Num.parse(ica.value); this.marcar(); this.pintarCifras(); });
+    ica.addEventListener('change', () => { ica.value = Num.parse(ica.value) ? Num.fmt(Num.parse(ica.value)) : ''; });
+    MoneyInput.unir(flete);
+    flete.addEventListener('input', () => { o.flete = Money.parse(flete.value); this.marcar(); this.pintarCifras(); });
+    this.pintarCifras();
+  },
+  /** Sólo las cifras del pie: así no se pierde lo que se está escribiendo en la ReteICA o el flete */
+  pintarCifras() {
+    const o = this.o, t = Modelo.totales(o), el = this.el;
+    const menos = v => v ? '− ' + Money.fmt(v) : Money.fmt(0);
+    $('#ofSubL', el).textContent = o.ivaIncluido ? 'Subtotal sin IVA' : 'Subtotal';
+    $('#ofSubV', el).textContent = Money.fmt(t.subtotal);
+    $('#ofRetV', el).textContent = menos(t.retencion);
+    $('#ofIcaV', el).textContent = menos(t.reteIca);
+    $('#ofIvaV', el).textContent = Money.fmt(t.iva);
+    $('#ofFleV', el).textContent = t.flete ? '+ ' + Money.fmt(t.flete) : Money.fmt(0);
+    $('#ofTotV', el).textContent = Money.fmt(t.total);
+    $('#ofTotNota', el).textContent = !t.valorizada ? 'Sin precios: puede enviarla así y registrar la factura después.'
+      : o.ivaIncluido ? 'Los precios ya traen el IVA: no se suma. Total = lo que suman los artículos − retención − ReteICA + flete.'
+      : 'Total = subtotal − retención − ReteICA + IVA + flete, como en la factura.';
     this.pintarSubItems();
   },
   /** Al lado del proveedor: lo que suministra, sus condiciones y su última orden (también la del Excel) */
@@ -6233,12 +6285,14 @@ const VistaOrdenForm = {
         if (er.facturaFecha) $('#ofFacFecha', el).classList.add('is-err');
         if (er.valores) $$('#ofItems input[data-k="valorUnitario"]', el).forEach((x, i) => { if (Modelo.itemValido(this.o.items[i])) x.classList.add('is-err'); });
         Object.keys(er).forEach(k => {
-          const m = /^(cant|val)-(.+)$/.exec(k);
+          const m = /^(cant|val|desc)-(.+)$/.exec(k);
           if (!m) return;
           const i = this.o.items.findIndex(it => it.id === m[2]);
-          const inp = $('#ofItems input[data-i="' + i + '"][data-k="' + (m[1] === 'cant' ? 'cantidad' : 'valorUnitario') + '"]', el);
+          const inp = $('#ofItems input[data-i="' + i + '"][data-k="' + { cant: 'cantidad', val: 'valorUnitario', desc: 'descuentoPct' }[m[1]] + '"]', el);
           if (inp) inp.classList.add('is-err');
         });
+        if (er.reteIca) $('#ofIca', el).classList.add('is-err');
+        if (er.flete) $('#ofFlete', el).classList.add('is-err');
         $('#ofErr', el).innerHTML = '<div class="alert a-err mb12">' + Icon('warn') + '<div><b>Falta algo para guardar:</b><ul style="margin:4px 0 0;padding-left:18px">' +
           Object.values(er).map(x => '<li>' + esc(x) + '</li>').join('') + '</ul></div></div>';
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -7335,15 +7389,18 @@ const Documento = {
       '<div class="dp-f full ult"><label>Dirección</label><span>' + esc([f.direccion, f.ciudad].filter(Boolean).join(', ')) + '</span></div></div></div>';
     h += '<div class="dp-asunto"><b>ASUNTO: ' + esc(TIPOS[o.tipo].asunto) + ' N.º ' + esc(num) + '</b>' + (o.referencia ? ' · Ref.: ' + esc(o.referencia) : '') +
       '<br>' + esc(saludo) + ' ' + esc(d.intro) + '</div>';
+    /* La columna del descuento sólo sale si algún artículo lo tiene */
+    const conDto = items.some(it => Modelo.descuento(it) > 0);
     h += '<table class="dp-tbl"><thead><tr><th style="width:9mm">Ítem</th><th>Descripción</th><th style="width:15mm">Cantidad</th><th style="width:15mm">Unidad</th>' +
-      '<th style="width:25mm">Valor unitario</th><th style="width:26mm">Valor total</th><th style="width:31mm">Observación</th></tr></thead><tbody>';
+      '<th style="width:25mm">Valor unitario</th>' + (conDto ? '<th style="width:12mm">% Desc.</th>' : '') + '<th style="width:26mm">Valor total</th><th style="width:31mm">Observación</th></tr></thead><tbody>';
     for (let i = 0; i < filas; i++) {
       const it = items[i];
       if (it) {
-        const tot = Modelo.totalItem(it);
+        const tot = Modelo.totalItem(it), dto = Modelo.descuento(it);
         h += '<tr><td class="c">' + (i + 1) + '</td><td>' + esc(it.descripcion) + '</td><td class="c">' + esc(it.cantidad === '' || it.cantidad == null ? '' : Num.fmt(it.cantidad)) + '</td><td class="c">' + esc(it.unidad) + '</td>' +
-          '<td class="n">' + (it.valorUnitario ? Money.fmt(it.valorUnitario) : '') + '</td><td class="n">' + (tot ? Money.fmt(tot) : '') + '</td><td class="obs">' + esc(it.observacion || '') + '</td></tr>';
-      } else h += '<tr class="vacia"><td class="c">' + (i + 1) + '</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>';
+          '<td class="n">' + (it.valorUnitario ? Money.fmt(it.valorUnitario) : '') + '</td>' + (conDto ? '<td class="c">' + (dto ? esc(Num.pct(dto)) : '') + '</td>' : '') +
+          '<td class="n">' + (tot ? Money.fmt(tot) : '') + '</td><td class="obs">' + esc(it.observacion || '') + '</td></tr>';
+      } else h += '<tr class="vacia"><td class="c">' + (i + 1) + '</td><td></td><td></td><td></td><td></td>' + (conDto ? '<td></td>' : '') + '<td></td><td></td></tr>';
     }
     h += '</tbody></table>';
     h += '<div class="dp-bajo"><div class="dp-cond">' +
@@ -7356,7 +7413,9 @@ const Documento = {
         (eq.placa && !EquipoService.placaNorm(eq.nombre).includes(EquipoService.placaNorm(eq.placa)) ? ' (' + eq.placa + ')' : '') : '') + '</span></div>' +
       '</div><div class="dp-tot"><table><tr><td>' + (o.ivaIncluido ? 'Subtotal sin IVA' : 'Subtotal') + '</td><td>' + m(t.subtotal) + '</td></tr>' +
       '<tr><td>Retención en la fuente' + (o.retencionPct ? ' (' + esc(Num.pct(o.retencionPct)) + ')' : '') + '</td><td>' + (val ? (t.retencion ? '− ' + Money.fmt(t.retencion) : Money.fmt(0)) : '') + '</td></tr>' +
+      (t.reteIca ? '<tr><td>ReteICA (' + esc(Num.fmt(o.reteIcaPorMil)) + ' × 1.000)</td><td>' + (val ? '− ' + Money.fmt(t.reteIca) : '') + '</td></tr>' : '') +
       '<tr><td>IVA (' + esc(Num.pct(o.ivaPct)) + ')' + (o.ivaIncluido ? ' incluido' : '') + '</td><td>' + m(t.iva) + '</td></tr>' +
+      (t.flete ? '<tr><td>Flete</td><td>' + (val ? '+ ' + Money.fmt(t.flete) : '') + '</td></tr>' : '') +
       '<tr class="grand"><td>Total</td><td>' + m(t.total) + '</td></tr></table></div></div>';
     h += '<div class="dp-obs"><b>Observaciones</b>' + (o.notaProveedor ? esc(o.notaProveedor).replace(/\n/g, '<br>') + '<br>' : '') + esc(d.citar || '') + '</div>';
     h += '<div class="dp-cierre">' + esc(d.cierre || '') + '</div>';
@@ -7622,12 +7681,13 @@ const Exportar = {
     return { nombre: 'Órdenes', titulo: 'Órdenes de compra · ' + Empresa.nombre(), nota: this.sello(),
       columnas: [{ t: 'N.º', ancho: 10 }, { t: 'Fecha', tipo: 'fecha', ancho: 11 }, { t: 'Tipo', ancho: 12 }, { t: 'Estado', ancho: 11 }, { t: 'Proveedor', ancho: 34 },
         { t: 'NIT', ancho: 15 }, { t: 'Concepto', ancho: 40 }, { t: 'Equipo o destino', ancho: 26 }, { t: 'Ítems', tipo: 'numero', ancho: 7 },
-        { t: 'Subtotal', tipo: 'pesos' }, { t: 'Retención', tipo: 'pesos' }, { t: 'IVA', tipo: 'pesos' }, { t: 'Total', tipo: 'pesos' }, { t: 'Valor facturado', tipo: 'pesos' },
+        { t: 'Subtotal', tipo: 'pesos' }, { t: 'Retención', tipo: 'pesos' }, { t: 'ReteICA', tipo: 'pesos' }, { t: 'IVA', tipo: 'pesos' }, { t: 'Flete', tipo: 'pesos' },
+        { t: 'Total', tipo: 'pesos' }, { t: 'Valor facturado', tipo: 'pesos' },
         { t: 'Factura N.º', ancho: 13 }, { t: 'Fecha factura', tipo: 'fecha', ancho: 12 }, { t: 'Pagada el', tipo: 'fecha', ancho: 12 }, { t: 'Forma de pago', ancho: 12 }, { t: 'Plazo (días)', tipo: 'numero', ancho: 10 },
         { t: 'Medio de pago', ancho: 13 }, { t: 'Entregar en', ancho: 34 }, { t: 'Recibe', ancho: 22 }, { t: 'Solicitante', ancho: 22 }, { t: 'Referencia', ancho: 18 },
         { t: 'Origen', ancho: 24 }],
       filas: lista.map(o => [o.numero, o.fecha, TIPOS[o.tipo].c, Modelo.estadoTexto(o), Modelo.nombreProveedor(o), (o.proveedor && o.proveedor.nit) || '',
-        Modelo.concepto(o), Modelo.nombreEquipo(o), o.items.length, o.subtotal, o.retencion, o.iva, o.total, o.factura ? o.factura.valor : '',
+        Modelo.concepto(o), Modelo.nombreEquipo(o), o.items.length, o.subtotal, o.retencion, o.reteIca || 0, o.iva, o.flete || 0, o.total, o.factura ? o.factura.valor : '',
         o.factura ? o.factura.numero : '', o.factura ? o.factura.fecha : '', o.pago ? o.pago.fecha : '', FORMAS_PAGO[o.formaPago] || '', o.formaPago === 'CREDITO' ? o.plazoDias : '',
         MEDIOS_PAGO[o.medioPago] || '', o.entregaLugar, o.entregaRecibe, o.solicitante ? o.solicitante.nombre : '', o.referencia,
         o.excel ? 'Excel · hoja ' + o.excel.hoja : 'Plataforma']) };
@@ -7635,10 +7695,11 @@ const Exportar = {
   hojaArticulos(lista) {
     const filas = [];
     lista.forEach(o => o.items.forEach(it => filas.push([o.numero, o.fecha, Modelo.nombreProveedor(o), Modelo.nombreEquipo(o), it.descripcion, it.cantidad, it.unidad,
-      it.valorUnitario || '', Modelo.totalItem(it) || '', it.observacion, Modelo.estadoTexto(o)])));
+      it.valorUnitario || '', Modelo.descuento(it) || '', Modelo.totalItem(it) || '', it.observacion, Modelo.estadoTexto(o)])));
     return { nombre: 'Artículos', titulo: 'Artículos de las órdenes', nota: 'Una fila por artículo. ' + this.sello(),
       columnas: [{ t: 'N.º', ancho: 10 }, { t: 'Fecha', tipo: 'fecha', ancho: 11 }, { t: 'Proveedor', ancho: 32 }, { t: 'Equipo o destino', ancho: 24 }, { t: 'Descripción', ancho: 46 },
-        { t: 'Cantidad', tipo: 'numero', ancho: 9 }, { t: 'Unidad', ancho: 9 }, { t: 'Valor unitario', tipo: 'pesos' }, { t: 'Valor total', tipo: 'pesos' }, { t: 'Observación', ancho: 22 }, { t: 'Estado', ancho: 11 }],
+        { t: 'Cantidad', tipo: 'numero', ancho: 9 }, { t: 'Unidad', ancho: 9 }, { t: 'Valor unitario', tipo: 'pesos' }, { t: '% Desc.', tipo: 'numero', ancho: 8 }, { t: 'Valor total', tipo: 'pesos' },
+        { t: 'Observación', ancho: 22 }, { t: 'Estado', ancho: 11 }],
       filas };
   },
   ordenes(lista, formato) {
@@ -8516,6 +8577,48 @@ Pruebas.def('El menú «⋯» trae sólo lo que no tiene otro lugar, y la factur
     Pruebas.igual(textos(o), '', 'el Visualizador no tiene menú');
   } finally { Permiso.acceso = antes; }
   return '4 opciones como mucho';
+});
+/* La factura que mostró Juan el 30/10/2026: 2 garrafas a $ 345.344 con 5 % de
+   descuento, IVA 19 %, retención 2,5 % y ReteICA 6 × 1.000. Dice $ 760.482,00:
+   su propio sistema redondea a 656.153,58 la base que en el renglón es 656.153,60 */
+Pruebas.def('Descuento, ReteICA y flete: la orden da como la factura', async ({ p1 }) => {
+  const f = { ivaPct: 19, retencionPct: 2.5, reteIcaPorMil: 6, items: [{ descripcion: 'MOBIL DELVAC 50/50', cantidad: 2, unidad: 'GARRAFA', valorUnitario: 345344, descuentoPct: 5 }] };
+  const t = Modelo.totales(f);
+  Pruebas.igual([t.subtotal, t.retencion, t.reteIca, t.iva, t.flete, t.total], [656153.6, 16403.84, 3936.92, 124669.18, 0, 760482.02], 'como la factura, salvo los 2 centavos del proveedor');
+  Pruebas.igual(Modelo.totales(Object.assign({}, f, { flete: '35.000' })).total, 795482.02, 'el flete se suma al final, sin IVA');
+  Pruebas.igual(Modelo.totales({ ivaPct: 19, ivaIncluido: true, items: [{ descripcion: 'A', cantidad: 1, valorUnitario: 119000, descuentoPct: '10' }] }).subtotal, 90000, 'el descuento va antes de sacar el IVA incluido');
+  await Pruebas.falla(() => OrdenService.guardar(Pruebas.orden(p1, { reteIcaPorMil: 150 })), ErrorValidacion, 'la ReteICA no pasa de 100 por mil');
+  await Pruebas.falla(() => OrdenService.guardar(Pruebas.orden(p1, { items: [Object.assign(Modelo.itemVacio(), { descripcion: 'X', cantidad: 1, valorUnitario: 1000, descuentoPct: 120 })] })), ErrorValidacion, 'ni un descuento de más de 100 %');
+  const g = await OrdenService.guardar(Pruebas.orden(p1, Object.assign(U.clonar(f), { flete: 35000 })));
+  Pruebas.igual([g.items[0].descuentoPct, g.reteIcaPorMil, g.reteIca, g.flete, g.total], [5, 6, 3936.92, 35000, 795482.02], 'se guardan con la orden');
+  const fila = MAPA.fila('ordenes', g);
+  Pruebas.igual([fila.extra.reteIcaPorMil, fila.extra.flete, MAPA.doc('ordenes', fila).reteIca], [6, 35000, 3936.92], 'en la nube van en «extra», sin SQL');
+  const doc = Documento.html(g);
+  Pruebas.cierto(doc.includes('% Desc.') && doc.includes('<td class="c">' + esc(Num.pct(5)) + '</td>') && doc.includes('ReteICA (6 × 1.000)') && doc.includes('Flete'), 'la orden impresa los muestra');
+  const sin = await OrdenService.guardar(Pruebas.orden(p1));
+  const doc2 = Documento.html(sin);
+  Pruebas.cierto(!doc2.includes('% Desc.') && !doc2.includes('ReteICA') && !doc2.includes('Flete') && !('reteIcaPorMil' in sin) && !('flete' in sin) && !('reteIca' in sin) && !('descuentoPct' in sin.items[0]),
+    'y la que no los tiene queda como antes');
+  return '$ 760.482,02';
+});
+Pruebas.def('En la hoja, el descuento, la ReteICA y el flete cambian el total al escribir', async ({ p1 }) => {
+  const div = document.createElement('div');
+  div.style.cssText = 'position:fixed;left:-9999px;top:0;width:1100px';
+  document.body.appendChild(div);
+  try {
+    VistaOrdenForm.render(div, {}, { proveedor: p1.id });
+    const poner = (inp, v) => { inp.value = v; inp.dispatchEvent(new Event('input', { bubbles: true })); inp.dispatchEvent(new Event('change', { bubbles: true })); };
+    const celda = k => $('#ofItems input[data-i="0"][data-k="' + k + '"]', div);
+    poner(celda('descripcion'), 'MOBIL DELVAC 50/50'); poner(celda('cantidad'), '2'); poner(celda('valorUnitario'), '345344'); poner(celda('descuentoPct'), '5');
+    $('#ofRet', div).value = '2.5'; $('#ofRet', div).dispatchEvent(new Event('change', { bubbles: true }));
+    const ica = $('#ofIca', div);
+    ica.focus(); poner(ica, '6');
+    Pruebas.igual([$('[data-tot="0"]', div).textContent, $('#ofIcaV', div).textContent, $('#ofTotV', div).textContent, document.activeElement === ica],
+      [Money.fmt(656153.6), '− ' + Money.fmt(3936.92), Money.fmt(760482.02), true], 'da como la factura, y escribir la ReteICA no saca el cursor');
+    poner($('#ofFlete', div), '35.000');
+    Pruebas.igual([$('#ofTotV', div).textContent, VistaOrdenForm.o.flete], [Money.fmt(795482.02), 35000], 'y el flete se suma');
+  } finally { Router.sucio = false; Combo.limpiar(); div.remove(); }
+  return '$ 795.482,02 con $ 35.000 de flete';
 });
 Pruebas.def('La hoja de nueva orden crece al escribir y guarda sólo las filas llenas', async ({ p1 }) => {
   const div = document.createElement('div');
