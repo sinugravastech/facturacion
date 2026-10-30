@@ -857,6 +857,28 @@ html[data-theme="dark"] .hj-fm img{background:#fff;border-radius:4px}
 /* Quién hizo la orden, en pequeño debajo de la fecha */
 .or-autor{max-width:130px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10.5px;font-weight:500;color:var(--text-3)}
 .or-autor svg{vertical-align:-1px;margin-right:3px}
+/* Contado o crédito, debajo del tipo */
+.or-pago{display:flex;align-items:center;gap:3px;margin-top:3px;font-size:10.5px;font-weight:650;white-space:nowrap}
+.or-pago.contado{color:var(--ok-700)}
+.or-pago.credito{color:var(--warn-700)}
+html[data-theme="dark"] .or-pago.contado{color:var(--ok-500)}
+html[data-theme="dark"] .or-pago.credito{color:var(--warn-500)}
+/* «Ya se pagó», en la forma de pago de la hoja */
+.hj-ya{display:inline-flex;align-items:center;gap:5px;margin-left:auto;padding:3px 9px;border:1px solid var(--ok-500);border-radius:999px;
+  font-size:11.5px;font-weight:650;color:var(--ok-700);background:var(--ok-50);cursor:pointer;white-space:nowrap}
+.hj-ya input{margin:0;width:13px;height:13px;accent-color:var(--ok-500)}
+html[data-theme="dark"] .hj-ya{color:var(--ok-500)}
+.hj-pagada .hj-cv{background:var(--ok-50)}
+.hj-pagada #ofPgNum{width:110px}
+.hj-pagada #ofPgFecha{width:142px}
+/* La factura: su número, su fecha y su archivo en el mismo recuadro */
+.fac-adj{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-height:36px}
+.fac-adj-l{display:flex;flex-wrap:wrap;gap:5px;min-width:0}
+.fac-chip{display:inline-flex;align-items:center;gap:5px;max-width:220px;padding:3px 9px;border:1px solid var(--border);border-radius:999px;
+  background:var(--surface-2);color:var(--text);font:inherit;font-size:11.5px;cursor:pointer}
+.fac-chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fac-chip:hover{border-color:var(--accent);background:var(--accent-soft)}
+#ofFacCard.adj-sobre{outline:2px dashed var(--accent);outline-offset:-6px;border-radius:var(--radius)}
 .adj-ic{color:var(--text-3);vertical-align:-1px}
 .adj-pdf{display:block;width:100%;height:72vh;border:0;border-radius:var(--radius-sm);background:#fff}
 .adj-img{display:grid;place-items:center;background:var(--ink-300);border-radius:var(--radius-sm);padding:10px}
@@ -1768,7 +1790,7 @@ const APP = Object.freeze({
   nombre: 'Facturación',
   area: 'Órdenes de compra',
   empresa: 'SINUGRAVAS S.A.S.',
-  version: '2.10.0',
+  version: '2.11.0',
   /* 3: los datos viven en la nube y el número de cada orden sale de las órdenes */
   esquema: 3,
   /* La base del navegador de la versión local (1.x). Ya no se guarda en ella:
@@ -3168,12 +3190,14 @@ class NubeAdapter extends StorageAdapter {
    ========================================================================== */
 /* Los tres asuntos que tuvo el formato en Excel comparten un solo consecutivo,
    como allá: 001-22 … 245-25, 246-26 … */
+/* «sigla» va delante del número (Juan, 30/10/2026): un solo consecutivo para
+   todos los tipos, como en el Excel, y las iniciales dicen de qué es */
 const TIPOS = Object.freeze({
-  COMPRA: { t: 'Orden de compra', c: 'Compra', asunto: 'ORDEN DE COMPRA', pill: 'p-brand' },
-  SERVICIO: { t: 'Orden de servicio', c: 'Servicio', asunto: 'ORDEN DE SERVICIO', pill: 'p-sun' },
-  COTIZACION: { t: 'Solicitud de cotización', c: 'Cotización', asunto: 'SOLICITUD DE COTIZACIÓN', pill: 'p-gray' },
+  COMPRA: { t: 'Orden de compra', c: 'Compra', asunto: 'ORDEN DE COMPRA', pill: 'p-brand', sigla: 'OC' },
+  SERVICIO: { t: 'Orden de servicio', c: 'Servicio', asunto: 'ORDEN DE SERVICIO', pill: 'p-sun', sigla: 'OS' },
+  COTIZACION: { t: 'Solicitud de cotización', c: 'Cotización', asunto: 'SOLICITUD DE COTIZACIÓN', pill: 'p-gray', sigla: 'SC' },
   /* Así se llamaron las de SINUGRAVAS de 2014 a 2021, y así las hace JDPR */
-  PEDIDO: { t: 'Orden de pedido', c: 'Pedido', asunto: 'ORDEN DE PEDIDO', pill: 'p-violet' }
+  PEDIDO: { t: 'Orden de pedido', c: 'Pedido', asunto: 'ORDEN DE PEDIDO', pill: 'p-violet', sigla: 'OP' }
 });
 
 /* Las dos empresas (Juan, 30/10/2026): aquí se manejan siempre SINUGRAVAS y
@@ -3324,6 +3348,13 @@ const Modelo = {
   numero(secuencia, fecha) {
     const anio = Fecha.anio(fecha) || new Date().getFullYear();
     return String(secuencia).padStart(3, '0') + '-' + String(anio).slice(2);
+  },
+  /** Como se muestra: «OS-296-26». El número guardado no lleva las iniciales: si
+      la orden cambia de tipo, cambian sólo ellas */
+  codigo(o, numero) {
+    const s = o && TIPOS[o.tipo] ? TIPOS[o.tipo].sigla : '';
+    const n = numero || (o && o.numero) || '';
+    return s && n ? s + '-' + n : n;
   },
   concepto(o) {
     if (o.concepto) return o.concepto;
@@ -3970,10 +4001,10 @@ const OrdenService = {
   },
   /** nuevos: los archivos adjuntados en el formulario que aún no se han guardado;
       nota: lo que queda en el historial si el cambio lo amerita;
-      opts.estado y opts.factura: los cambia «Llegó la factura». Lo demás que
-      el formulario no toca (el estado, la factura, el pago, la anulación) sale
-      de la orden como está ahora en la nube: otra persona pudo pagarla mientras
-      tanto, y eso no se pisa. */
+      opts.estado y opts.factura: los cambia «Llegó la factura»; con opts.pago,
+      «Ya se pagó». Lo demás que el formulario no toca (el estado, la factura,
+      el pago, la anulación) sale de la orden como está ahora en la nube: otra
+      persona pudo pagarla mientras tanto, y eso no se pisa. */
   async guardar(entrada, nuevos, nota, opts) {
     Permiso.exigir('editar');
     opts = opts || {};
@@ -3987,9 +4018,10 @@ const OrdenService = {
       if (previo.membrete) o.membrete = U.clonar(previo.membrete); else delete o.membrete;
       o.estado = opts.estado || previo.estado;
       if (!opts.factura) o.factura = U.clonar(previo.factura || null);
-      o.pago = U.clonar(previo.pago || null);
+      if (!opts.pago) o.pago = U.clonar(previo.pago || null);
       o.anulacion = U.clonar(previo.anulacion || null);
     }
+    if (!previo && opts.estado) o.estado = opts.estado;
     o.estado = o.estado || 'ESPERANDO';
     /* Lo que lleva su papel queda en la orden al hacerla, como los datos del
        proveedor: si después se corrige la configuración, la orden vieja se
@@ -4012,7 +4044,7 @@ const OrdenService = {
       /* Es de quien la crea (la base pone lo mismo): sólo esa persona o el administrador la cambian */
       const yo = Permiso.yo();
       if (yo) o.creadoPor = yo; else delete o.creadoPor;
-      o.historial = [this.paso(o.estado, o.duplicadaDe ? 'Creada a partir de la ' + o.duplicadaDe : 'Creada')];
+      o.historial = [this.paso(o.estado, (o.duplicadaDe ? 'Creada a partir de la ' + o.duplicadaDe : 'Creada') + (nota ? ' · ' + nota : ''))];
       delete o.duplicadaDe;
       if (o.plantillaId && Datos.plantilla(o.plantillaId)) {
         const pl = U.clonar(Datos.plantilla(o.plantillaId));
@@ -4059,6 +4091,25 @@ const OrdenService = {
     o.factura = Object.assign({}, ahora.factura, { numero, fecha: factura.fecha });
     return this.guardar(o, nuevos, (llega ? 'Llegó la factura ' : 'Factura corregida: ') + numero,
       { estado: llega ? 'CONTABILIDAD' : ahora.estado, factura: true });
+  },
+  /** De contado y ya pagada (Juan, 30/10/2026): lo que se paga en efectivo al
+      momento, como el arreglo de una carpa, queda con su recibo como pagada, sin
+      esperar cotización ni factura. Toma el consecutivo como cualquier orden */
+  async guardarPagada(entrada, recibo, nuevos) {
+    Permiso.exigir('pagar');
+    const o = U.clonar(entrada);
+    const previo = o.id ? Datos.orden(o.id) : null;
+    const e = {};
+    if (o.formaPago !== 'CONTADO') e.formaPago = 'Sólo las de contado se registran como ya pagadas.';
+    if (previo && previo.estado !== 'ESPERANDO') e.estado = 'Esta orden ya no está esperando: su pago se registra desde la orden.';
+    if (!Fecha.valida(recibo.fecha)) e.pagoFecha = 'Revise la fecha del pago.';
+    if (!(Modelo.totales(o).subtotal > 0)) e.valores = 'Ponga lo que se pagó en la columna «Valor unitario».';
+    if (Object.keys(e).length) throw new ErrorValidacion(e);
+    const numero = String(recibo.numero || '').trim();
+    o.factura = { numero: numero || 'S/N', fecha: recibo.fecha };
+    o.pago = { fecha: recibo.fecha, nota: 'De contado', contado: true };
+    return this.guardar(o, nuevos, 'Pagada de contado el ' + Fecha.corta(recibo.fecha) + (numero ? ' · recibo ' + numero : ''),
+      { estado: 'PAGADA', factura: true, pago: true });
   },
   /** Contabilidad, cuando la paga */
   async marcarPagada(entrada, pago) {
@@ -4551,15 +4602,15 @@ const Buscador = {
     const nq = Txt.norm(q);
     const g = [];
     if (!nq) return g;
-    const ord = Datos.ordenes.filter(o => [o.numero, Modelo.nombreProveedor(o), o.concepto, o.referencia, Modelo.nombreEquipo(o),
+    const ord = Datos.ordenes.filter(o => [o.numero, Modelo.codigo(o), Modelo.nombreProveedor(o), o.concepto, o.referencia, Modelo.nombreEquipo(o),
       o.factura && o.factura.numero, ...o.items.map(i => i.descripcion)].some(x => Txt.norm(x).includes(nq)))
       .sort((a, b) => (b.secuencia || 0) - (a.secuencia || 0)).slice(0, 7);
-    if (ord.length) g.push({ t: 'Órdenes', items: ord.map(o => ({ ic: 'doc', html: '<span class="mono fw7">' + esc(o.numero) + '</span> · ' + Txt.resaltar(Modelo.nombreProveedor(o), q),
+    if (ord.length) g.push({ t: 'Órdenes', items: ord.map(o => ({ ic: 'doc', html: '<span class="mono fw7">' + esc(Modelo.codigo(o)) + '</span> · ' + Txt.resaltar(Modelo.nombreProveedor(o), q),
       m: Money.fmt(o.total) + ' · ' + ESTADOS[o.estado].t, ir: '/orden/' + o.id })) });
-    const hx = HistoricoExcel.lista().filter(o => [o.numero, o.excel.hoja, Modelo.nombreProveedor(o), o.excel.textoProveedor, Modelo.nombreEquipo(o),
+    const hx = HistoricoExcel.lista().filter(o => [o.numero, Modelo.codigo(o), o.excel.hoja, Modelo.nombreProveedor(o), o.excel.textoProveedor, Modelo.nombreEquipo(o),
       ...o.items.map(i => i.descripcion + ' ' + i.observacion)].some(x => Txt.norm(x).includes(nq)))
       .sort(HistoricoExcel.porNumero).slice(0, 5);
-    if (hx.length) g.push({ t: 'Del Excel (histórico)', items: hx.map(o => ({ ic: 'archive', html: '<span class="mono fw7">' + esc(o.numero) + '</span> · ' + Txt.resaltar(Modelo.nombreProveedor(o), q),
+    if (hx.length) g.push({ t: 'Del Excel (histórico)', items: hx.map(o => ({ ic: 'archive', html: '<span class="mono fw7">' + esc(Modelo.codigo(o)) + '</span> · ' + Txt.resaltar(Modelo.nombreProveedor(o), q),
       m: Fecha.corta(o.fecha), ir: '/orden/' + o.id })) });
     const prov = Datos.proveedores.filter(p => !p.fusionadoCon && ProveedorService.coincide(p, q)).slice(0, 6);
     if (prov.length) g.push({ t: 'Proveedores', items: prov.map(p => ({ ic: 'building', html: Txt.resaltar(p.nombre, q), m: p.categoria || '', ir: '/proveedor/' + p.id })) });
@@ -4620,13 +4671,19 @@ const Buscador = {
 const Comp = {
   pillEstado(e) { const x = ESTADOS[e] || ESTADOS.ESPERANDO; return '<span class="pill ' + x.pill + '" data-tip="' + attr(x.ayuda) + '">' + esc(x.t) + '</span>'; },
   pillTipo(t) { const x = TIPOS[t] || TIPOS.COMPRA; return '<span class="pill np ' + x.pill + '">' + esc(x.c) + '</span>'; },
+  /** De contado o a crédito, a simple vista: las de crédito son las que esperan factura y pago */
+  pago(o) {
+    if (o.formaPago === 'CREDITO') return '<div class="or-pago credito">' + Icon('calendar', '', 10) + 'Crédito' + (o.plazoDias ? ' · ' + o.plazoDias + ' d' : '') + '</div>';
+    if (o.formaPago === 'CONTADO') return '<div class="or-pago contado">' + Icon('cash', '', 10) + 'Contado' + (o.pago && o.pago.contado ? ' · pagada' : '') + '</div>';
+    return '';
+  },
   /** El estado de una orden, o «Excel» si es del histórico */
   pillOrden(o) { return o.excel ? '<span class="pill p-gray np" data-tip="Copiada del Excel: sólo para consultar">Excel</span>' : Comp.pillEstado(o.estado); },
   /** El estado como desplegable: se cambia ahí mismo, también si algo se marcó por error */
   selEstado(o) {
     if (o.excel || !Permiso.puedeOrden(o)) return Comp.pillOrden(o);
     const x = ESTADOS[o.estado] || ESTADOS.ESPERANDO;
-    return '<select class="sel-estado ' + x.pill + '" data-estado="' + attr(o.id) + '" data-tip="Cambiar el estado" aria-label="Estado de la orden ' + attr(o.numero) + '">' +
+    return '<select class="sel-estado ' + x.pill + '" data-estado="' + attr(o.id) + '" data-tip="Cambiar el estado" aria-label="Estado de la orden ' + attr(Modelo.codigo(o)) + '">' +
       Object.keys(ESTADOS).map(k => '<option value="' + k + '"' + (k === o.estado ? ' selected' : '') + '>' + esc(ESTADOS[k].t) + '</option>').join('') + '</select>';
   },
   kpi(o) {
@@ -4675,7 +4732,7 @@ const Comp = {
     return '<div class="tbl-wrap"><table class="tbl compacta"><thead><tr><th>N.º</th><th>Fecha</th>' +
       (opts.sinProveedor ? '' : '<th>Proveedor</th>') + '<th>Concepto</th><th class="num">Total</th><th>Estado</th>' +
       (opts.dias ? '<th class="num">Días</th>' : '') + '</tr></thead><tbody>' +
-      lista.map(o => '<tr class="row-click est-' + o.estado + '" data-ir="/orden/' + o.id + '"><td class="mono fw7 t-num">' + esc(o.numero) + '</td>' +
+      lista.map(o => '<tr class="row-click est-' + o.estado + '" data-ir="/orden/' + o.id + '"><td class="mono fw7 t-num">' + esc(Modelo.codigo(o)) + '</td>' +
         '<td class="nowrap">' + Fecha.corta(o.fecha) + '</td>' +
         (opts.sinProveedor ? '' : '<td class="trunc" style="max-width:180px" title="' + attr(Modelo.nombreProveedor(o)) + '">' + esc(Modelo.nombreProveedor(o)) + '</td>') +
         '<td class="trunc" style="max-width:220px" title="' + attr(Modelo.concepto(o)) + '">' + esc(Modelo.concepto(o)) + '</td>' +
@@ -5145,7 +5202,7 @@ const AccionesOrden = {
       const quitados = new Set();
       const fac = o.factura || {};
       const m = Modal.abrir({
-        titulo: 'Corregir la factura', subtitulo: 'Orden ' + esc(o.numero) + ' · ' + esc(Modelo.nombreProveedor(o)),
+        titulo: 'Corregir la factura', subtitulo: 'Orden ' + esc(Modelo.codigo(o)) + ' · ' + esc(Modelo.nombreProveedor(o)),
         cuerpo: '<div class="row"><div class="field"><label for="cfNum">N.º de la factura</label><input class="inp" id="cfNum" autocomplete="off" value="' + attr(fac.numero || '') + '"></div>' +
           '<div class="field" style="flex:0 1 180px"><label for="cfFecha">Fecha de la factura</label><input class="inp" type="date" id="cfFecha" value="' + attr(fac.fecha || '') + '"></div></div>' +
           '<div class="cf-valor"><span>Valor <b>' + esc(Money.fmt(Modelo.valor(o))) + '</b>, lo que suman los artículos.</span><button type="button" class="link fs12" id="cfValores">Cambiar los valores</button></div>' +
@@ -5197,7 +5254,7 @@ const AccionesOrden = {
     return new Promise(res => {
       let hecho = null;
       const m = Modal.abrir({
-        titulo: 'Marcar como pagada', subtitulo: 'Orden ' + esc(o.numero) + ' · ' + esc(Modelo.nombreProveedor(o)) + (o.factura ? ' · factura ' + esc(o.factura.numero || 's/n') : ''),
+        titulo: 'Marcar como pagada', subtitulo: 'Orden ' + esc(Modelo.codigo(o)) + ' · ' + esc(Modelo.nombreProveedor(o)) + (o.factura ? ' · factura ' + esc(o.factura.numero || 's/n') : ''),
         cuerpo: '<p class="fs13 txt-2 mb12">Contabilidad la marca cuando paga la factura de <b>' + esc(Money.fmt(Modelo.valor(o))) + '</b>.</p>' +
           '<div class="row"><div class="field" style="flex:0 1 190px"><label>Fecha del pago</label><input class="inp" type="date" id="mpFecha" value="' + attr(Fecha.hoy()) + '"></div>' +
           '<div class="field"><label>Nota</label><input class="inp" id="mpNota" placeholder="Opcional: transferencia, cheque…"></div></div>',
@@ -5208,7 +5265,7 @@ const AccionesOrden = {
         try {
           hecho = await OrdenService.marcarPagada(o, { fecha: $('#mpFecha', m).value, nota: $('#mpNota', m).value.trim() });
           Modal.cerrar(m, hecho);
-          Toast.ok('Orden <b>' + esc(o.numero) + '</b> pagada.');
+          Toast.ok('Orden <b>' + esc(Modelo.codigo(o)) + '</b> pagada.');
         } catch (e) { Toast.err(esc(e instanceof ErrorValidacion ? Object.values(e.errores).join(' ') : e.message)); }
       };
     });
@@ -5227,36 +5284,36 @@ const AccionesOrden = {
     if (estado === 'PAGADA') return this.marcarPagada(o);
     const quita = estado === 'ESPERANDO' ? [fac ? 'la factura ' + o.factura.numero : '', o.pago ? 'el pago' : ''].filter(Boolean) : o.pago ? ['el pago'] : [];
     const ok = await Modal.confirmar({ titulo: 'Cambiar el estado', ok: 'Cambiar',
-      mensaje: 'La orden <b>' + esc(o.numero) + '</b> pasa de «' + esc(ESTADOS[o.estado].t) + '» a «' + esc(ESTADOS[estado].t) + '».' +
+      mensaje: 'La orden <b>' + esc(Modelo.codigo(o)) + '</b> pasa de «' + esc(ESTADOS[o.estado].t) + '» a «' + esc(ESTADOS[estado].t) + '».' +
         (quita.length ? ' Se quita ' + esc(quita.join(' y ')) + (estado === 'ESPERANDO' && fac ? '; los valores de los artículos se quedan.' : '.') : '') });
     if (!ok) return null;
     try {
       const n = await OrdenService.cambiarEstado(o, estado, { nota: 'Cambiado a mano', quitarFactura: estado === 'ESPERANDO', quitarPago: true,
         permiso: o.estado === 'PAGADA' ? 'pagar' : 'editar' });
-      Toast.ok('Orden <b>' + esc(n.numero) + '</b>: ' + esc(ESTADOS[estado].t.toLowerCase()) + '.');
+      Toast.ok('Orden <b>' + esc(Modelo.codigo(n)) + '</b>: ' + esc(ESTADOS[estado].t.toLowerCase()) + '.');
       return n;
     } catch (e) { Toast.err(esc(e.message)); return null; }
   },
   async anular(o) {
-    const motivo = await Modal.pedir({ titulo: 'Anular la orden ' + esc(o.numero), etiqueta: 'Motivo', obligatorio: true, largo: true,
+    const motivo = await Modal.pedir({ titulo: 'Anular la orden ' + esc(Modelo.codigo(o)), etiqueta: 'Motivo', obligatorio: true, largo: true,
       mensaje: 'La orden conserva su número y queda marcada como anulada. No cuenta en las estadísticas.', ok: 'Anular orden', peligro: true,
       placeholder: 'Ej.: el proveedor no tenía el repuesto' });
     if (motivo == null) return null;
     const n = await OrdenService.cambiarEstado(o, 'ANULADA', { motivo, nota: motivo });
-    Toast.ok('Orden <b>' + esc(o.numero) + '</b> anulada.');
+    Toast.ok('Orden <b>' + esc(Modelo.codigo(o)) + '</b> anulada.');
     return n;
   },
   async reactivar(o) {
     const a = (o.anulacion && o.anulacion.estadoPrevio) || 'ESPERANDO';
     const n = await OrdenService.cambiarEstado(o, a, { nota: 'Reactivada' });
-    Toast.ok('Orden <b>' + esc(o.numero) + '</b> reactivada como ' + esc(ESTADOS[a].t.toLowerCase()) + '.');
+    Toast.ok('Orden <b>' + esc(Modelo.codigo(o)) + '</b> reactivada como ' + esc(ESTADOS[a].t.toLowerCase()) + '.');
     return n;
   },
   async eliminar(o) {
     const ultima = Consecutivo.esUltima(o);
     const fac = o.factura && o.factura.numero;
     const despues = Datos.ordenes.some(x => (x.secuencia || 0) > (o.secuencia || 0));
-    const ok = await Modal.confirmar({ titulo: 'Eliminar la orden ' + esc(o.numero), peligro: true, ok: 'Eliminar',
+    const ok = await Modal.confirmar({ titulo: 'Eliminar la orden ' + esc(Modelo.codigo(o)), peligro: true, ok: 'Eliminar',
       mensaje: 'Se borra del todo y no se puede deshacer. ' +
         (fac ? 'Se pierde también su factura <b>' + esc(fac) + '</b>' + (o.pago ? ' y su pago' : '') + ', y deja de contar en las estadísticas. ' : '') + (ultima
         ? 'Como es la última, el número <b>' + esc(o.numero) + '</b> vuelve a quedar libre y lo toma la próxima orden.' +
@@ -5266,7 +5323,7 @@ const AccionesOrden = {
     if (!ok) return false;
     try {
       await OrdenService.eliminar(o);
-      Toast.ok('Orden ' + esc(o.numero) + ' eliminada.' + (ultima ? ' La próxima será la <b class="mono">' + esc(Consecutivo.vistaPrevia()) + '</b>.' : ''));
+      Toast.ok('Orden ' + esc(Modelo.codigo(o)) + ' eliminada.' + (ultima ? ' La próxima será la <b class="mono">' + esc(Consecutivo.vistaPrevia()) + '</b>.' : ''));
       Shell.refrescar();
       return true;
     } catch (e) { Toast.err(esc(e.message)); return false; }
@@ -5412,6 +5469,8 @@ const VistaOrdenes = {
           Object.keys(ESTADOS).map(k => '<option value="' + k + '"' + (f.estado === k ? ' selected' : '') + '>' + ESTADOS[k].t + '</option>').join('') + '</select></div>' +
         '<div class="field"><label>Tipo</label><select class="inp" id="fTipo"><option value="">Todos</option>' +
           Object.keys(TIPOS).map(k => '<option value="' + k + '"' + (f.tipo === k ? ' selected' : '') + '>' + TIPOS[k].c + '</option>').join('') + '</select></div>' +
+        '<div class="field"><label>Pago</label><select class="inp" id="fPago"><option value="">Todos</option>' +
+          Object.keys(FORMAS_PAGO).map(k => '<option value="' + k + '"' + (f.pago === k ? ' selected' : '') + '>' + FORMAS_PAGO[k] + '</option>').join('') + '</select></div>' +
         '<div class="field"><label>Origen</label><select class="inp" id="fOrigen"><option value="">Todas</option>' +
           [['plataforma', 'Plataforma'], ['excel', 'Excel (histórico)']].map(([k, x]) => '<option value="' + k + '"' + (f.origen === k ? ' selected' : '') + '>' + x + '</option>').join('') + '</select></div>' +
         '<div class="field"><label>Proveedor</label><select class="inp" id="fProv" style="max-width:220px"><option value="">Todos</option>' +
@@ -5424,10 +5483,10 @@ const VistaOrdenes = {
       '</div></div></div>' +
       '<div class="card"><div class="tbl-wrap" id="orTabla"></div><div id="orPager"></div></div>';
     const leer = () => ({ q: $('#fQ', el).value.trim(), estado: $('#fEstado', el).value, tipo: $('#fTipo', el).value, proveedorId: $('#fProv', el).value,
-      equipoId: $('#fEq', el).value, desde: $('#fDesde', el).value, hasta: $('#fHasta', el).value, origen: $('#fOrigen', el).value });
+      equipoId: $('#fEq', el).value, desde: $('#fDesde', el).value, hasta: $('#fHasta', el).value, origen: $('#fOrigen', el).value, pago: $('#fPago', el).value });
     const cambiar = () => { Prefs.set('filOrd', leer()); this.pag = 1; this.pintar(el); };
     $('#fQ', el).addEventListener('input', U.debounce(cambiar, 160));
-    ['#fEstado', '#fTipo', '#fOrigen', '#fProv', '#fEq', '#fDesde', '#fHasta'].forEach(s => $(s, el).addEventListener('change', cambiar));
+    ['#fEstado', '#fTipo', '#fPago', '#fOrigen', '#fProv', '#fEq', '#fDesde', '#fHasta'].forEach(s => $(s, el).addEventListener('change', cambiar));
     $('#fLimpiar', el).onclick = () => { Prefs.set('filOrd', {}); Router.ir('/ordenes'); };
     $('#orCsv', el).onclick = () => Exportar.ordenes(this.lista(), 'csv');
     $('#orXlsx', el).onclick = () => Exportar.ordenes(this.lista(), 'xlsx');
@@ -5464,9 +5523,9 @@ const VistaOrdenes = {
     /* El histórico del Excel va detrás de las órdenes de la plataforma, por su número; no tiene estado */
     const fuente = (f.origen === 'excel' ? [] : Datos.ordenes).concat(f.origen === 'plataforma' || f.estado ? [] : HistoricoExcel.lista());
     let l = fuente.filter(o =>
-      (!f.estado || o.estado === f.estado) && (!f.tipo || o.tipo === f.tipo) && (!f.proveedorId || o.proveedorId === f.proveedorId) &&
+      (!f.estado || o.estado === f.estado) && (!f.tipo || o.tipo === f.tipo) && (!f.pago || o.formaPago === f.pago) && (!f.proveedorId || o.proveedorId === f.proveedorId) &&
       (!f.equipoId || o.equipoId === f.equipoId) && (!f.desde || o.fecha >= f.desde) && (!f.hasta || o.fecha <= f.hasta) &&
-      (!nq || [o.numero, Modelo.nombreProveedor(o), o.concepto, o.referencia, Modelo.nombreEquipo(o), o.factura && o.factura.numero, o.entregaRecibe,
+      (!nq || [o.numero, Modelo.codigo(o), Modelo.nombreProveedor(o), o.concepto, o.referencia, Modelo.nombreEquipo(o), o.factura && o.factura.numero, o.entregaRecibe,
         o.excel && o.excel.hoja, o.excel && o.excel.textoProveedor, ...o.items.map(i => i.descripcion + ' ' + i.observacion)].some(x => Txt.norm(x).includes(nq))));
     const { k, d } = this.orden || { k: 'secuencia', d: -1 };
     const pos = o => o.excel ? '0' + HistoricoExcel.clave(o) : '1' + String(o.secuencia || 0).padStart(7, '0');
@@ -5503,11 +5562,11 @@ const VistaOrdenes = {
       '<th></th></tr></thead><tbody>' +
       vis.map(o => {
         const eq = Modelo.nombreEquipo(o);
-        return '<tr class="row-click est-' + o.estado + '" data-ir="/orden/' + o.id + '"><td class="mono fw7 t-num nowrap">' + esc(o.numero) +
+        return '<tr class="row-click est-' + o.estado + '" data-ir="/orden/' + o.id + '"><td class="mono fw7 t-num nowrap">' + esc(Modelo.codigo(o)) +
           (o.adjuntos && o.adjuntos.length ? ' <span class="adj-ic" data-tip="' + attr(Txt.plural(o.adjuntos.length, 'archivo adjunto', 'archivos adjuntos')) + '">' + Icon('clip', '', 12) + '</span>' : '') + '</td>' +
           '<td class="nowrap">' + (o.excel && o.excel.sinDia ? o.fecha.slice(5, 7) + '/' + o.fecha.slice(0, 4) : Fecha.corta(o.fecha)) +
           (o.excel || !Modelo.autor(o) ? '' : '<div class="or-autor" title="Hecha por ' + attr(Modelo.autor(o)) + '">' + Icon('user', '', 10) + esc(Modelo.autorCorto(o)) + '</div>') +
-          '</td><td>' + Comp.pillTipo(o.tipo) + '</td>' +
+          '</td><td>' + Comp.pillTipo(o.tipo) + Comp.pago(o) + '</td>' +
           '<td class="trunc" style="max-width:200px" title="' + attr(Modelo.nombreProveedor(o)) + '">' + esc(Modelo.nombreProveedor(o)) + '</td>' +
           '<td class="trunc" style="max-width:240px" title="' + attr(Modelo.concepto(o)) + '">' + esc(Modelo.concepto(o)) + '</td>' +
           '<td class="trunc txt-2" style="max-width:150px" title="' + attr(eq) + '">' + (eq ? esc(eq) : '<span class="txt-3">—</span>') + '</td>' +
@@ -5526,7 +5585,7 @@ const VistaOrdenes = {
 
 /* ---------- Detalle de una orden ---------- */
 const VistaOrden = {
-  titulo(p) { const o = Datos.orden(p.id) || HistoricoExcel.orden(p.id); return o ? [TIPOS[o.tipo].t + ' ' + o.numero, Modelo.nombreProveedor(o)] : ['Orden', '']; },
+  titulo(p) { const o = Datos.orden(p.id) || HistoricoExcel.orden(p.id); return o ? [TIPOS[o.tipo].t + ' ' + Modelo.codigo(o), Modelo.nombreProveedor(o)] : ['Orden', '']; },
   render(el, p) {
     const o = Datos.orden(p.id);
     if (!o && HistoricoExcel.orden(p.id)) { this.renderExcel(el, HistoricoExcel.orden(p.id)); return; }
@@ -5538,7 +5597,7 @@ const VistaOrden = {
     const eq = Datos.equipo(o.equipoId);
     const recargar = () => Router.resolver(true);
     let h = '<div class="page-head"><div><h1><button class="ph-back" id="odVolver" aria-label="Volver" data-tip="Volver">' + Icon('back', '', 16) + '</button>' +
-      esc(TIPOS[o.tipo].t) + ' <span class="mono">N.º ' + esc(o.numero) + '</span> ' + Comp.selEstado(o) + '</h1>' +
+      esc(TIPOS[o.tipo].t) + ' <span class="mono">N.º ' + esc(Modelo.codigo(o)) + '</span> ' + Comp.selEstado(o) + '</h1>' +
       '<div class="ph-sub">' + esc(Fecha.larga(o.fecha)) + ' · ' + esc(Modelo.nombreProveedor(o)) + (eq ? ' · ' + esc(eq.nombre) : '') + ' · ' +
       Txt.plural(o.items.length, 'artículo') + (Modelo.autor(o) ? ' · hecha por <b>' + esc(Modelo.autor(o)) + '</b>' : '') + '</div></div><div class="ph-actions">' +
       '<button class="btn" id="odCopiar" data-tip="Para pegarla en WhatsApp o en un correo">' + Icon('image', '', 14) + 'Copiar imagen</button>' +
@@ -5619,7 +5678,7 @@ const VistaOrden = {
       prov ? '' : (x.textoProveedor || x.proveedor) ? 'El proveedor «' + esc(x.textoProveedor || x.proveedor) + '» no está en la lista de proveedores.' : 'La hoja no dice a qué proveedor.'
     ].filter(Boolean);
     el.innerHTML = '<div class="page-head"><div><h1><button class="ph-back" id="odVolver" aria-label="Volver" data-tip="Volver">' + Icon('back', '', 16) + '</button>' +
-      esc(TIPOS[o.tipo].t) + ' <span class="mono">N.º ' + esc(o.numero) + '</span> ' + Comp.pillOrden(o) + '</h1>' +
+      esc(TIPOS[o.tipo].t) + ' <span class="mono">N.º ' + esc(Modelo.codigo(o)) + '</span> ' + Comp.pillOrden(o) + '</h1>' +
       '<div class="ph-sub">' + esc(x.sinDia ? Fecha.mesLargo(o.fecha.slice(0, 7)) : Fecha.larga(o.fecha)) + ' · ' + esc(Modelo.nombreProveedor(o)) + (eq ? ' · ' + esc(eq.nombre) : '') + ' · ' +
       Txt.plural(o.items.length, 'artículo') + '</div></div><div class="ph-actions">' +
       '<button class="btn" id="odCopiar" data-tip="Para pegarla en WhatsApp o en un correo">' + Icon('image', '', 14) + 'Copiar imagen</button>' +
@@ -5665,8 +5724,8 @@ const VistaOrden = {
       const cerrada = o.estado === 'PAGADA' && i === actual;
       const cls = o.estado === 'ANULADA' ? (u ? 'hecho' : '') : i < actual || cerrada ? 'hecho' : i === actual ? 'actual' : '';
       h += '<div class="ruta-p ' + cls + '"><div class="ruta-ic">' + Icon(i < actual || cerrada || (o.estado === 'ANULADA' && u) ? 'check' : ESTADOS[e].ic, '', 12) + '</div><div class="ruta-tx"><b>' + esc(ESTADOS[e].t) + '</b>' +
-        '<small>' + (u ? esc(Fecha.stamp(u.en)) + (u.nota && u.nota !== 'Creada' ? ' · ' + esc(u.nota) : '') : (i > actual ? 'Pendiente' : '')) + '</small>' +
-        (e === 'CONTABILIDAD' && o.factura ? '<small>Factura ' + esc(o.factura.numero || 's/n') + ' · ' + Money.fmt(Modelo.valor(o)) + '</small>' : '') +
+        '<small>' + (u ? esc(Fecha.stamp(u.en)) + (u.nota && u.nota !== 'Creada' ? ' · ' + esc(u.nota) : '') : (i > actual ? 'Pendiente' : o.pago && o.pago.contado && e === 'ESPERANDO' ? 'No aplica: se pagó de contado' : '')) + '</small>' +
+        (e === 'CONTABILIDAD' && o.factura ? '<small>' + (o.pago && o.pago.contado ? 'Recibo ' : 'Factura ') + esc(o.factura.numero || 's/n') + ' · ' + Money.fmt(Modelo.valor(o)) + '</small>' : '') +
         (i === actual && siguiente ? (Permiso.puedeOrden(o) ? si(siguiente[3], '<button class="btn btn-sm btn-primary" data-paso="' + siguiente[0] + '">' + Icon(siguiente[2], '', 12) + esc(siguiente[1]) + '</button>') : '') +
           (siguiente[3] === 'pagar' ? '<small>Lo hace contabilidad cuando paga</small>' : '<small>Con ella se ponen los valores de lo comprado</small>') : '') +
         '</div></div>';
@@ -5770,6 +5829,9 @@ const VistaOrdenForm = {
     this.version = this.editando ? db.version('ordenes', o.id) : null;
     /* «Llegó la factura»: la misma hoja, con el número de la factura y los valores */
     this.modoFactura = this.editando && !!q.factura;
+    /* «Ya se pagó»: sólo vive en la hoja, hasta guardar */
+    this.yaPagada = false;
+    this.recibo = { numero: '', fecha: '' };
     o.adjuntos = o.adjuntos || [];
     this.adjNuevos = [];
     this.completarFilas();
@@ -5785,30 +5847,33 @@ const VistaOrdenForm = {
       '</label></div><div class="hj-val">' + cuerpo + '</div></div>';
     el.innerHTML =
       '<div class="page-head"><div><h1><button class="ph-back" id="ofVolver" aria-label="Volver" data-tip="Volver">' + Icon('back', '', 16) + '</button>' +
-        (this.modoFactura ? (o.estado === 'ESPERANDO' ? 'Llegó la factura' : 'Factura') + ' · orden <span class="mono">N.º ' + esc(o.numero) + '</span>'
-          : this.editando ? 'Editar orden <span class="mono">N.º ' + esc(o.numero) + '</span> ' + Comp.pillEstado(o.estado) : 'Nueva orden') + '</h1>' +
+        (this.modoFactura ? (o.estado === 'ESPERANDO' ? 'Llegó la factura' : 'Factura') + ' · orden <span class="mono">N.º ' + esc(Modelo.codigo(o)) + '</span>'
+          : this.editando ? 'Editar orden <span class="mono">N.º ' + esc(Modelo.codigo(o)) + '</span> ' + Comp.pillEstado(o.estado) : 'Nueva orden') + '</h1>' +
         '<div class="ph-sub">' + (this.modoFactura ? (o.estado === 'ESPERANDO' ? 'Escriba el número de la factura y ponga abajo los valores de lo que compró. Al guardar, la orden pasa a contabilidad.'
             : 'Corrija el número, la fecha o los valores de la factura.')
           : this.editando ? 'Creada el ' + esc(Fecha.stamp(o.creadoEn)) + '. El número no cambia.'
           : 'Se llena como la hoja del Excel. Al escoger el proveedor se cargan sus condiciones de pago.') + '</div></div>' +
         '<div class="ph-actions">' + acciones + '</div></div>' +
       (pl ? '<div class="alert a-info mb12">' + Icon('layers') + '<div>Orden armada con la plantilla <b>' + esc(pl.nombre) + '</b>. Revise cantidades y referencias antes de guardar.</div></div>' : '') +
-      (dup ? '<div class="alert a-info mb12">' + Icon('copy') + '<div>Copia de la orden <b class="mono">' + esc(dup.numero) + '</b>' + (dup.excel ? ' del Excel' : '') +
+      (dup ? '<div class="alert a-info mb12">' + Icon('copy') + '<div>Copia de la orden <b class="mono">' + esc(Modelo.codigo(dup)) + '</b>' + (dup.excel ? ' del Excel' : '') +
         ': mismos artículos y proveedor, fecha de hoy y número nuevo' + (dup.excel ? ', sin los precios de entonces' : '') + '.</div></div>' : '') +
       '<div id="ofErr"></div>' +
       (this.modoFactura ? '<div class="card hj-factura"><div class="card-h"><h3>' + Icon('receipt', '', 15) + 'Factura del proveedor</h3>' +
-        '<span class="ch-sub">los valores van abajo, en «Valor unitario»</span></div><div class="card-b"><div class="row">' +
-        '<div class="field" style="flex:1 1 220px"><label for="ofFacNum">N.º de la factura<span class="req">*</span></label><input class="inp inp-mono" id="ofFacNum" value="' +
+        '<span class="ch-sub">los valores van abajo, en «Valor unitario»</span></div><div class="card-b" id="ofFacCard"><div class="row">' +
+        '<div class="field" style="flex:0 1 190px"><label for="ofFacNum">N.º de la factura<span class="req">*</span></label><input class="inp inp-mono" id="ofFacNum" value="' +
           attr((o.factura && o.factura.numero) || '') + '" placeholder="Ej.: FE-10234" autocomplete="off" autofocus></div>' +
-        '<div class="field" style="flex:0 1 190px"><label for="ofFacFecha">Fecha de la factura</label><input class="inp" type="date" id="ofFacFecha" value="' +
-          attr((o.factura && o.factura.fecha) || Fecha.hoy()) + '"></div></div>' +
-        '<div class="fs12 txt-2">Si la factura trae algo más (flete, otro repuesto), agréguelo en una fila. El PDF de la factura se puede adjuntar al final.</div></div></div>' : '') +
+        '<div class="field" style="flex:0 1 170px"><label for="ofFacFecha">Fecha de la factura</label><input class="inp" type="date" id="ofFacFecha" value="' +
+          attr((o.factura && o.factura.fecha) || Fecha.hoy()) + '"></div>' +
+        /* El PDF de la factura se adjunta aquí mismo, al lado de su número (Juan, 30/10/2026) */
+        '<div class="field" style="flex:1 1 260px"><label>Factura en PDF o foto</label><div class="fac-adj"><button type="button" class="btn btn-sm" id="ofFacAdjBtn">' + Icon('clip', '', 12) + 'Adjuntar la factura</button>' +
+          '<div class="fac-adj-l" id="ofFacAdjLista"></div></div></div></div>' +
+        '<div class="fs12 txt-2">Ponga abajo los valores de lo que llegó. Si la factura trae flete o ReteICA, van en el pie de la hoja; otro repuesto, en una fila. También puede soltar el PDF encima de este recuadro.</div></div></div>' : '') +
       '<div class="hoja">' +
         '<div class="hj-head"><div class="hj-logo">' + (Config.logo(Empresa.de(o)) ? '<img src="' + attr(Config.logo(Empresa.de(o))) + '" alt="' + attr(emp.nombre) + '" style="max-height:' + Math.round(62 * Config.tamLogo(Empresa.de(o))) + 'px">' : '<b>' + esc(emp.nombre) + '</b>') + '</div>' +
           '<div class="hj-tit"><label class="sr" for="ofTipo">Tipo de orden</label><select id="ofTipo" class="hj-tipo">' +
             Empresa.tipos(Empresa.de(o)).map(k => '<option value="' + k + '"' + (o.tipo === k ? ' selected' : '') + '>' + esc(TIPOS[k].asunto) + '</option>').join('') + '</select>' +
             '<div class="hj-emp">' + esc(emp.nombre) + '</div><div class="hj-meta">' + esc([emp.nit ? (emp.tipoDoc || 'NIT') + ' ' + emp.nit : '', emp.ciudad].filter(Boolean).join(' · ')) + '</div></div>' +
-          '<div class="hj-num"><small>N.º</small><b id="ofNumPrev">' + esc(this.editando ? o.numero : Consecutivo.vistaPrevia(o.fecha)) + '</b>' +
+          '<div class="hj-num"><small>N.º</small><b id="ofNumPrev">' + esc(Modelo.codigo(o, this.editando ? o.numero : Consecutivo.vistaPrevia(o.fecha))) + '</b>' +
             (this.editando ? '' : '<span class="hj-prov">se confirma al guardar</span>') +
             '<small><label for="ofFecha">Fecha</label></small><input class="inp" type="date" id="ofFecha" value="' + attr(o.fecha) + '"></div></div>' +
         fila('ofProv', 'Señor(es)', true, '<div class="hj-campo"><input class="inp" id="ofProv" autocomplete="off" placeholder="Escriba para buscar el proveedor…" value="' +
@@ -5843,7 +5908,31 @@ const VistaOrdenForm = {
     this.unir();
   },
   marcar() { Router.sucio = true; },
-  pintarAdjuntos() { $('#ofAdjLista', this.el).innerHTML = Adjuntos.html(this.o.adjuntos, true); },
+  pintarAdjuntos() {
+    $('#ofAdjLista', this.el).innerHTML = Adjuntos.html(this.o.adjuntos, true);
+    /* Junto al número de la factura, los archivos que ya tiene la orden */
+    const f = $('#ofFacAdjLista', this.el);
+    if (f) f.innerHTML = this.o.adjuntos.length ? this.o.adjuntos.map(a => '<button type="button" class="fac-chip" data-adj-ver="' + attr(a.id) + '" data-tip="Ver el archivo">' +
+      Icon(/pdf/.test(a.tipo || '') ? 'doc' : 'image', '', 12) + '<span>' + esc(a.nombre) + '</span></button>').join('') : '<span class="txt-3 fs12">Todavía sin archivos</span>';
+  },
+  /** El número de arriba, con las iniciales del tipo escogido */
+  pintarNumero() {
+    const b = $('#ofNumPrev', this.el), o = this.o;
+    if (!b) return;
+    if (this.editando) b.textContent = Modelo.codigo(o);
+    else if (Fecha.valida(o.fecha)) b.textContent = Modelo.codigo(o, Consecutivo.vistaPrevia(o.fecha));
+  },
+  /** El botón de guardar dice lo que va a pasar */
+  pintarBotones() {
+    const o = this.o;
+    const t = this.modoFactura ? (o.estado === 'ESPERANDO' ? 'Pasar a contabilidad' : 'Guardar la factura') : this.yaPagada ? 'Guardar como pagada' : 'Guardar orden';
+    $$('[data-acc="guardar"]', this.el).forEach(b => { b.innerHTML = Icon(this.modoFactura ? 'receipt' : this.yaPagada ? 'checkCircle' : 'save', '', 14) + t; });
+  },
+  /** «Ya se pagó» se ofrece en una de contado que no ha pasado de «esperando», a quien puede registrar pagos */
+  puedePagarYa() {
+    const o = this.o;
+    return !this.modoFactura && o.formaPago === 'CONTADO' && (!this.editando || o.estado === 'ESPERANDO') && Permiso.puede('pagar');
+  },
   /** Siempre queda la hoja mínima y una fila vacía al final para seguir escribiendo */
   completarFilas() {
     const o = this.o;
@@ -5856,20 +5945,30 @@ const VistaOrdenForm = {
     $('#ofVolver', el).onclick = volver;
     $$('[data-acc]', el).forEach(b => { b.onclick = () => (b.dataset.acc === 'cancelar' ? volver() : this.guardar()); });
     el.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); this.guardar(); } });
-    $('#ofFecha', el).addEventListener('change', e => {
-      o.fecha = e.target.value; this.marcar();
-      if (!this.editando && Fecha.valida(o.fecha)) $('#ofNumPrev', el).textContent = Consecutivo.vistaPrevia(o.fecha);
-    });
+    $('#ofFecha', el).addEventListener('change', e => { o.fecha = e.target.value; this.marcar(); this.pintarNumero(); });
     /* Si otra persona guarda una orden mientras se llena esta, el número de arriba se corre solo */
     if (!this.editando) {
       const quitar = Bus.on('ordenes:cambio', () => {
         const b = $('#ofNumPrev', el);
         if (!b || !b.isConnected) { quitar(); return; }
-        if (Fecha.valida(o.fecha)) b.textContent = Consecutivo.vistaPrevia(o.fecha);
+        this.pintarNumero();
       });
     }
-    $('#ofTipo', el).addEventListener('change', e => { o.tipo = e.target.value; this.marcar(); });
-    if (this.modoFactura) ['#ofFacNum', '#ofFacFecha'].forEach(s => $(s, el).addEventListener('input', () => this.marcar()));
+    $('#ofTipo', el).addEventListener('change', e => { o.tipo = e.target.value; this.marcar(); this.pintarNumero(); });
+    if (this.modoFactura) {
+      ['#ofFacNum', '#ofFacFecha'].forEach(s => $(s, el).addEventListener('input', () => this.marcar()));
+      /* La factura se adjunta al lado de su número, o soltándola encima del recuadro */
+      const fac = $('#ofFacCard', el);
+      $('#ofFacAdjBtn', el).onclick = () => $('#ofAdj input[type="file"]', el).click();
+      fac.addEventListener('dragover', e => { if ([...e.dataTransfer.types].includes('Files')) { e.preventDefault(); fac.classList.add('adj-sobre'); } });
+      fac.addEventListener('dragleave', e => { if (!fac.contains(e.relatedTarget)) fac.classList.remove('adj-sobre'); });
+      fac.addEventListener('drop', e => { if (!e.dataTransfer.files.length) return; e.preventDefault(); fac.classList.remove('adj-sobre'); this.adjuntando.tomar([...e.dataTransfer.files]); });
+      $('#ofFacAdjLista', el).addEventListener('click', e => {
+        const v = e.target.closest('[data-adj-ver]');
+        const m = v && o.adjuntos.find(x => x.id === v.dataset.adjVer);
+        if (m) Adjuntos.ver(m, this.adjNuevos);
+      });
+    }
     $('#ofConcepto', el).addEventListener('input', e => { o.concepto = e.target.value; this.marcar(); });
     $('#ofRef', el).addEventListener('input', e => { o.referencia = e.target.value; this.marcar(); });
     $('#ofNota', el).addEventListener('input', e => { o.notaProveedor = e.target.value; this.marcar(); });
@@ -6097,7 +6196,13 @@ const VistaOrdenForm = {
         Object.keys(FORMAS_PAGO).map(k => x('data-forma="' + k + '"', FORMAS_PAGO[k], o.formaPago === k)).join('') +
         (cred ? '<span class="hj-mini"><label for="ofPlazo">Plazo</label><input class="inp inp-num" id="ofPlazo" list="dlPlazos" value="' + attr(o.plazoDias || '') + '" inputmode="numeric" placeholder="0">días</span>' +
           '<span class="hj-mini"><label for="ofCuotas">Cuotas</label><input class="inp inp-num" id="ofCuotas" value="' + attr(o.cuotas || '') + '" inputmode="numeric" placeholder="—"></span>' +
-          '<datalist id="dlPlazos"><option value="15"><option value="30"><option value="45"><option value="60"><option value="90"></datalist>' : '') + '</div></div>' +
+          '<datalist id="dlPlazos"><option value="15"><option value="30"><option value="45"><option value="60"><option value="90"></datalist>' : '') +
+        (this.puedePagarYa() ? '<label class="hj-ya" data-tip="Para lo que se paga de contado en el momento: queda como pagada, con su recibo, sin esperar cotización ni factura">' +
+          '<input type="checkbox" id="ofYaPago"' + (this.yaPagada ? ' checked' : '') + '>Ya se pagó</label>' : '') + '</div></div>' +
+      (this.puedePagarYa() && this.yaPagada ? '<div class="hj-c hj-pagada"><div class="hj-cl">Pago</div><div class="hj-cv">' +
+        '<span class="hj-mini"><label for="ofPgNum">Recibo N.º</label><input class="inp" id="ofPgNum" value="' + attr(this.recibo.numero) + '" placeholder="Si tiene" autocomplete="off"></span>' +
+        '<span class="hj-mini"><label for="ofPgFecha">Pagada el</label><input class="inp" type="date" id="ofPgFecha" value="' + attr(this.recibo.fecha || o.fecha) + '"></span>' +
+        '<span class="fs11 txt-2">Adjunte abajo la foto del recibo. El total debe dar lo que se pagó: si el recibo no trae IVA, ponga el IVA en 0 %.</span></div></div>' : '') +
       '<div class="hj-c"><div class="hj-cl">Medio de pago</div><div class="hj-cv">' +
         Object.keys(MEDIOS_PAGO).map(k => x('data-medio="' + k + '"', MEDIOS_PAGO[k], o.medioPago === k)).join('') + '</div></div>' +
       '<div class="hj-c"><div class="hj-cl"><label for="ofLugar">Entregar en</label></div><div class="hj-cv hj-entrega">' +
@@ -6107,10 +6212,24 @@ const VistaOrdenForm = {
         '<span class="hj-mini"><label for="ofCedula">C.C.</label><input class="inp inp-mono" id="ofCedula" value="' + attr(o.entregaCedula) + '" placeholder="Opcional"></span></div></div>';
     cont.onclick = e => {
       const f = e.target.closest('[data-forma]');
-      if (f) { o.formaPago = f.dataset.forma; this.marcar(); this.pintarPago(); this.pintarResumen(); if (o.formaPago === 'CREDITO') $('#ofPlazo', el).focus(); return; }
+      if (f) {
+        o.formaPago = f.dataset.forma; this.marcar();
+        if (o.formaPago !== 'CONTADO') this.yaPagada = false;
+        this.pintarPago(); this.pintarResumen(); this.pintarBotones();
+        if (o.formaPago === 'CREDITO') $('#ofPlazo', el).focus();
+        return;
+      }
       const m = e.target.closest('[data-medio]');
       if (m) { o.medioPago = o.medioPago === m.dataset.medio ? '' : m.dataset.medio; this.marcar(); this.pintarPago(); }
     };
+    if ($('#ofYaPago', el)) $('#ofYaPago', el).onchange = e => {
+      this.yaPagada = e.target.checked; this.marcar(); this.pintarPago(); this.pintarBotones();
+      if (this.yaPagada) $('#ofPgNum', el).focus();
+    };
+    if ($('#ofPgNum', el)) {
+      $('#ofPgNum', el).addEventListener('input', e => { this.recibo.numero = e.target.value; this.marcar(); });
+      $('#ofPgFecha', el).addEventListener('change', e => { this.recibo.fecha = e.target.value; this.marcar(); });
+    }
     if (cred) {
       $('#ofPlazo', el).addEventListener('input', e => { o.plazoDias = Math.max(0, parseInt(e.target.value, 10) || 0); this.marcar(); });
       $('#ofCuotas', el).addEventListener('input', e => { o.cuotas = Math.max(0, parseInt(e.target.value, 10) || 0); this.marcar(); });
@@ -6185,7 +6304,7 @@ const VistaOrdenForm = {
     const cond = p.formaPago ? FORMAS_PAGO[p.formaPago] + (p.plazoDias ? ' a ' + p.plazoDias + ' días' : '') : '';
     cont.innerHTML = esc([p.categoria, cond, p.nit ? 'NIT ' + p.nit : ''].filter(Boolean).join(' · ')) +
       (falt.length ? ' <button type="button" class="link fs12" id="ofEditProv" data-tip="Le falta: ' + attr(falt.join(', ')) + '">Completar datos</button>' : '') +
-      (ult ? '<div class="hj-ult">Última orden: <a href="#/orden/' + attr(ult.id) + '" class="mono fw7">' + esc(ult.numero) + '</a>' + (ult.excel ? ' del Excel' : '') +
+      (ult ? '<div class="hj-ult">Última orden: <a href="#/orden/' + attr(ult.id) + '" class="mono fw7">' + esc(Modelo.codigo(ult)) + '</a>' + (ult.excel ? ' del Excel' : '') +
         ', ' + esc(Fecha.corta(ult.fecha)) + ' · <button type="button" class="link fs12" id="ofRepetir">Repetir sus artículos (' + ult.items.length + ')</button></div>' : '');
     const ed = $('#ofEditProv', cont);
     if (ed) ed.onclick = async () => { const np = await ProveedorForm.abrir(p); if (np) this.pintarProveedor(); };
@@ -6265,14 +6384,17 @@ const VistaOrdenForm = {
         this.version = db.version('ordenes', this.o.id);
       }
       const previsto = this.editando || !$('#ofNumPrev', el) ? '' : $('#ofNumPrev', el).textContent.trim();
+      const pagada = this.yaPagada && this.puedePagarYa();
       const g = this.modoFactura
         ? await OrdenService.guardarFactura(this.o, { numero: $('#ofFacNum', el).value, fecha: $('#ofFacFecha', el).value }, this.adjNuevos)
+        : pagada ? await OrdenService.guardarPagada(this.o, { numero: this.recibo.numero, fecha: this.recibo.fecha || this.o.fecha }, this.adjNuevos)
         : await OrdenService.guardar(this.o, this.adjNuevos);
       Router.sucio = false;
-      Toast.ok(this.modoFactura ? 'Factura <b>' + esc(g.factura.numero) + '</b> guardada: la orden ' + esc(g.numero) + ' está en contabilidad.'
-        : (this.editando ? 'Cambios guardados en la orden ' : 'Orden creada: ') + '<b class="mono">' + esc(g.numero) + '</b>.');
+      Toast.ok(this.modoFactura ? 'Factura <b>' + esc(g.factura.numero) + '</b> guardada: la orden ' + esc(Modelo.codigo(g)) + ' está en contabilidad.'
+        : pagada ? 'Orden <b class="mono">' + esc(Modelo.codigo(g)) + '</b> registrada como pagada de contado.'
+        : (this.editando ? 'Cambios guardados en la orden ' : 'Orden creada: ') + '<b class="mono">' + esc(Modelo.codigo(g)) + '</b>.');
       /* Otra persona guardó una orden con el número que se veía: esta tomó el siguiente */
-      if (previsto && g.numero !== previsto) Toast.info('El número <b class="mono">' + esc(previsto) + '</b> lo tomó otra orden guardada casi al mismo tiempo. Esta quedó con el <b class="mono">' + esc(g.numero) + '</b>.', { ms: 9000 });
+      if (previsto && Modelo.codigo(g) !== previsto) Toast.info('El número <b class="mono">' + esc(previsto) + '</b> lo tomó otra orden guardada casi al mismo tiempo. Esta quedó con el <b class="mono">' + esc(Modelo.codigo(g)) + '</b>.', { ms: 9000 });
       Shell.refrescar();
       Router.ir('/orden/' + g.id, { reemplazar: true });
     } catch (e) {
@@ -6283,6 +6405,7 @@ const VistaOrdenForm = {
         if (er.fecha) $('#ofFecha', el).classList.add('is-err');
         if (er.factura) $('#ofFacNum', el).classList.add('is-err');
         if (er.facturaFecha) $('#ofFacFecha', el).classList.add('is-err');
+        if (er.pagoFecha && $('#ofPgFecha', el)) $('#ofPgFecha', el).classList.add('is-err');
         if (er.valores) $$('#ofItems input[data-k="valorUnitario"]', el).forEach((x, i) => { if (Modelo.itemValido(this.o.items[i])) x.classList.add('is-err'); });
         Object.keys(er).forEach(k => {
           const m = /^(cant|val|desc)-(.+)$/.exec(k);
@@ -6577,7 +6700,7 @@ const VistaProveedor = {
         Comp.kpi({ l: 'Órdenes', icono: 'doc', v: String(k.n), k: 'var(--info-500)', m: (k.sinFactura + k.porPagar) + ' abiertas' }) +
         Comp.kpi({ l: 'Valor promedio', icono: 'chart', v: Money.redondo(k.ticket), k: 'var(--violet-500)', m: 'por orden con valor' }) +
         Comp.kpi({ l: 'Última orden', icono: 'calendar', v: ords[0] ? Fecha.corta(ords[0].fecha) : '—', k: 'var(--sun-500)',
-          m: ords[0] ? 'N.º ' + esc(ords[0].numero) : (pv.historico ? 'En el Excel: ' + esc(Fecha.mesLargo(pv.historico.hasta)) : 'Ninguna') }) + '</div>' +
+          m: ords[0] ? 'N.º ' + esc(Modelo.codigo(ords[0])) : (pv.historico ? 'En el Excel: ' + esc(Fecha.mesLargo(pv.historico.hasta)) : 'Ninguna') }) + '</div>' +
       '<div class="grid g-form"><div class="col">' +
         '<div class="card"><div class="card-h"><h3>Compras de los últimos 12 meses</h3></div><div class="card-b">' + Chart.barras(serie, { conteo: true, alto: 190 }) + '</div></div>' +
         '<div class="card"><div class="card-h"><h3>Órdenes</h3><span class="ch-sub">' + Txt.plural(ords.length, 'orden', 'órdenes') + ' en la plataforma</span>' +
@@ -7013,7 +7136,7 @@ const VistaRespaldos = {
         'y guárdelo en una carpeta de la empresa.</div></div>' +
       (local ? Migracion.html(local) : '') +
       '<div class="grid g4 mb16">' +
-        Comp.kpi({ l: 'Órdenes', icono: 'doc', v: String(Datos.ordenes.length), m: Consecutivo.maximo() ? 'Última: ' + esc(Modelo.numero(Consecutivo.maximo(), (Datos.ordenes.find(o => o.secuencia === Consecutivo.maximo()) || {}).fecha)) : 'Ninguna todavía' }) +
+        Comp.kpi({ l: 'Órdenes', icono: 'doc', v: String(Datos.ordenes.length), m: Consecutivo.maximo() ? 'Última: ' + esc(Modelo.codigo(Datos.ordenes.find(o => o.secuencia === Consecutivo.maximo()))) : 'Ninguna todavía' }) +
         Comp.kpi({ l: 'Proveedores', icono: 'building', v: String(Datos.proveedores.length), k: 'var(--info-500)', m: Datos.equipos.length + ' equipos · ' + Datos.plantillas.length + ' plantillas' }) +
         Comp.kpi({ l: 'Último respaldo', icono: 'database', v: r ? esc(Fecha.hace(r)) : 'Nunca', k: Respaldo.vencido() ? 'var(--warn-500)' : 'var(--ok-500)', m: r ? esc(Fecha.stamp(r)) : 'Descargue el primero' }) +
         Comp.kpi({ l: 'Archivos adjuntos', icono: 'clip', v: String(adj.length), k: 'var(--violet-500)',
@@ -7368,7 +7491,7 @@ const Documento = {
     const items = (o.items || []).filter(Modelo.itemValido);
     const filas = Math.max(+d.filasMinimas || 0, items.length);
     const eq = Datos.equipo(o.equipoId);
-    const num = o.numero || Consecutivo.vistaPrevia(o.fecha);
+    const num = Modelo.codigo(o, o.numero || Consecutivo.vistaPrevia(o.fecha));
     const saludo = { COMPRA: d.saludoCompra, PEDIDO: d.saludoCompra, SERVICIO: d.saludoServicio, COTIZACION: d.saludoCotizacion }[o.tipo] || '';
     const sol = o.solicitante;
     const solCfg = sol && cfg.solicitantes.find(s => s.id === sol.id);
@@ -7492,11 +7615,11 @@ const Documento = {
     try {
       if (!navigator.clipboard || !window.ClipboardItem) throw new Error('sin portapapeles');
       try { await escribir(imagen); } catch (e) { await escribir(await imagen); }
-      Toast.ok('Orden <b class="mono">' + esc(o.numero) + '</b> copiada como imagen. Péguela con <b>Ctrl + V</b> en WhatsApp o en el correo.');
+      Toast.ok('Orden <b class="mono">' + esc(Modelo.codigo(o)) + '</b> copiada como imagen. Péguela con <b>Ctrl + V</b> en WhatsApp o en el correo.');
     } catch (e) {
       try {
-        U.descargar(await imagen, ('Orden ' + o.numero + ' ' + Modelo.nombreProveedor(o)).replace(/[\\/:*?"<>|]/g, '').trim() + '.png');
-        Toast.info('El navegador no dejó copiarla: se descargó la imagen de la orden ' + esc(o.numero) + '.');
+        U.descargar(await imagen, ('Orden ' + Modelo.codigo(o) + ' ' + Modelo.nombreProveedor(o)).replace(/[\\/:*?"<>|]/g, '').trim() + '.png');
+        Toast.info('El navegador no dejó copiarla: se descargó la imagen de la orden ' + esc(Modelo.codigo(o)) + '.');
       } catch (x) { Toast.err('No se pudo hacer la imagen: ' + esc(x.message)); }
     }
   },
@@ -7506,7 +7629,7 @@ const Documento = {
     raiz.innerHTML = this.html(o);
     const titulo = document.title;
     /* El nombre que el navegador propone para el PDF */
-    document.title = TIPOS[o.tipo].c + ' ' + o.numero + ' - ' + Modelo.nombreProveedor(o).replace(/[\\/:*?"<>|]/g, '');
+    document.title = Modelo.codigo(o) + ' - ' + Modelo.nombreProveedor(o).replace(/[\\/:*?"<>|]/g, '');
     const fin = () => { document.title = titulo; raiz.innerHTML = ''; removeEventListener('afterprint', fin); };
     addEventListener('afterprint', fin);
     const imgs = $$('img', raiz).filter(i => !i.complete);
@@ -7686,7 +7809,7 @@ const Exportar = {
         { t: 'Factura N.º', ancho: 13 }, { t: 'Fecha factura', tipo: 'fecha', ancho: 12 }, { t: 'Pagada el', tipo: 'fecha', ancho: 12 }, { t: 'Forma de pago', ancho: 12 }, { t: 'Plazo (días)', tipo: 'numero', ancho: 10 },
         { t: 'Medio de pago', ancho: 13 }, { t: 'Entregar en', ancho: 34 }, { t: 'Recibe', ancho: 22 }, { t: 'Solicitante', ancho: 22 }, { t: 'Referencia', ancho: 18 },
         { t: 'Origen', ancho: 24 }],
-      filas: lista.map(o => [o.numero, o.fecha, TIPOS[o.tipo].c, Modelo.estadoTexto(o), Modelo.nombreProveedor(o), (o.proveedor && o.proveedor.nit) || '',
+      filas: lista.map(o => [Modelo.codigo(o), o.fecha, TIPOS[o.tipo].c, Modelo.estadoTexto(o), Modelo.nombreProveedor(o), (o.proveedor && o.proveedor.nit) || '',
         Modelo.concepto(o), Modelo.nombreEquipo(o), o.items.length, o.subtotal, o.retencion, o.reteIca || 0, o.iva, o.flete || 0, o.total, o.factura ? o.factura.valor : '',
         o.factura ? o.factura.numero : '', o.factura ? o.factura.fecha : '', o.pago ? o.pago.fecha : '', FORMAS_PAGO[o.formaPago] || '', o.formaPago === 'CREDITO' ? o.plazoDias : '',
         MEDIOS_PAGO[o.medioPago] || '', o.entregaLugar, o.entregaRecibe, o.solicitante ? o.solicitante.nombre : '', o.referencia,
@@ -7694,7 +7817,7 @@ const Exportar = {
   },
   hojaArticulos(lista) {
     const filas = [];
-    lista.forEach(o => o.items.forEach(it => filas.push([o.numero, o.fecha, Modelo.nombreProveedor(o), Modelo.nombreEquipo(o), it.descripcion, it.cantidad, it.unidad,
+    lista.forEach(o => o.items.forEach(it => filas.push([Modelo.codigo(o), o.fecha, Modelo.nombreProveedor(o), Modelo.nombreEquipo(o), it.descripcion, it.cantidad, it.unidad,
       it.valorUnitario || '', Modelo.descuento(it) || '', Modelo.totalItem(it) || '', it.observacion, Modelo.estadoTexto(o)])));
     return { nombre: 'Artículos', titulo: 'Artículos de las órdenes', nota: 'Una fila por artículo. ' + this.sello(),
       columnas: [{ t: 'N.º', ancho: 10 }, { t: 'Fecha', tipo: 'fecha', ancho: 11 }, { t: 'Proveedor', ancho: 32 }, { t: 'Equipo o destino', ancho: 24 }, { t: 'Descripción', ancho: 46 },
@@ -8619,6 +8742,69 @@ Pruebas.def('En la hoja, el descuento, la ReteICA y el flete cambian el total al
     Pruebas.igual([$('#ofTotV', div).textContent, VistaOrdenForm.o.flete], [Money.fmt(795482.02), 35000], 'y el flete se suma');
   } finally { Router.sucio = false; Combo.limpiar(); div.remove(); }
   return '$ 795.482,02 con $ 35.000 de flete';
+});
+Pruebas.def('Un solo consecutivo para todos los tipos, con sus iniciales delante', async ({ p1 }) => {
+  const oc = await OrdenService.guardar(Pruebas.orden(p1));
+  const os = await OrdenService.guardar(Pruebas.orden(p1, { tipo: 'SERVICIO' }));
+  Pruebas.igual([Modelo.codigo(oc), Modelo.codigo(os), os.secuencia - oc.secuencia], ['OC-' + oc.numero, 'OS-' + os.numero, 1], 'la de servicio toma el número que sigue, con OS');
+  Pruebas.igual([Modelo.codigo({ tipo: 'COTIZACION', numero: '001-26' }), Modelo.codigo({ tipo: 'PEDIDO', numero: '472-26' }), Modelo.codigo({ tipo: 'COMPRA', numero: '' })], ['SC-001-26', 'OP-472-26', '']);
+  const filtro = Prefs.get('filOrd', {});
+  try {
+    Prefs.set('filOrd', { q: 'OS-' + os.numero });
+    Pruebas.igual(VistaOrdenes.lista().map(o => o.id), [os.id], 'se encuentra buscando con las iniciales');
+  } finally { Prefs.set('filOrd', filtro); }
+  Pruebas.cierto(Documento.html(oc).includes('N.º OC-' + oc.numero), 'la impresa las lleva');
+  const otra = await OrdenService.guardar(Object.assign(U.clonar(os), { tipo: 'COMPRA' }));
+  Pruebas.igual([otra.numero, Modelo.codigo(otra)], [os.numero, 'OC-' + os.numero], 'si cambia de tipo, cambian sólo las iniciales');
+  return Modelo.codigo(oc) + ' · ' + Modelo.codigo(os);
+});
+Pruebas.def('Una compra de contado se registra ya pagada, con su recibo', async ({ p1 }) => {
+  const carpa = [Object.assign(Modelo.itemVacio(), { descripcion: 'Arreglo de la carpa del camión', cantidad: 1, unidad: 'SERV', valorUnitario: 300000 })];
+  const g = await OrdenService.guardarPagada(Pruebas.orden(p1, { tipo: 'SERVICIO', formaPago: 'CONTADO', medioPago: 'EFECTIVO', ivaPct: 0, items: carpa }), { numero: '', fecha: '2026-10-30' });
+  Pruebas.igual([g.estado, g.factura.numero, g.factura.valor, g.pago.fecha, g.pago.contado, g.historial.length, /pagada de contado/i.test(g.historial[0].nota)],
+    ['PAGADA', 'S/N', 300000, '2026-10-30', true, 1, true], 'queda pagada de una vez, aunque el recibo no tenga número');
+  Pruebas.igual(Analitica.kpis([g]).total, 300000, 'y suma en las estadísticas');
+  await Pruebas.falla(() => OrdenService.guardarPagada(Pruebas.orden(p1, { formaPago: 'CREDITO', plazoDias: 30 }), { fecha: '2026-10-30' }), ErrorValidacion, 'una a crédito no se registra ya pagada');
+  await Pruebas.falla(() => OrdenService.guardarPagada(Pruebas.orden(p1, { formaPago: 'CONTADO', items: [Object.assign(Modelo.itemVacio(), { descripcion: 'Sin precio', cantidad: 1, valorUnitario: 0 })] }),
+    { fecha: '2026-10-30' }), ErrorValidacion, 'ni sin lo que se pagó');
+  const esperando = await OrdenService.guardar(Pruebas.orden(p1, { formaPago: 'CONTADO' }));
+  const luego = await OrdenService.guardarPagada(esperando, { numero: 'R-12', fecha: '2026-10-31' });
+  Pruebas.igual([luego.numero, luego.estado, luego.factura.numero, luego.historial.length], [esperando.numero, 'PAGADA', 'R-12', 2], 'una de contado que esperaba también se puede registrar pagada');
+  const antes = Permiso.acceso;
+  try {
+    Permiso.acceso = { id: 'u3', rol: 'consulta', acciones: ['ver'], activo: true };
+    await Pruebas.falla(() => OrdenService.guardarPagada(Pruebas.orden(p1, { formaPago: 'CONTADO' }), { fecha: '2026-10-30' }), ErrorDominio, 'el Visualizador no registra pagos');
+  } finally { Permiso.acceso = antes; }
+  const credito = await OrdenService.guardar(Pruebas.orden(p1, { formaPago: 'CREDITO', plazoDias: 30 }));
+  const filtro = Prefs.get('filOrd', {});
+  try {
+    Prefs.set('filOrd', { pago: 'CREDITO' });
+    Pruebas.igual(VistaOrdenes.lista().map(o => o.id), [credito.id], 'el filtro «Pago» deja ver sólo las de crédito');
+  } finally { Prefs.set('filOrd', filtro); }
+  Pruebas.cierto(Comp.pago(g).includes('Contado · pagada') && Comp.pago(credito).includes('Crédito · 30 d'), 'y en la lista se distinguen a simple vista');
+  return Modelo.codigo(g) + ' · $ 300.000';
+});
+Pruebas.def('En la hoja: «Ya se pagó» en las de contado, y la factura se adjunta junto a su número', async ({ p1 }) => {
+  const div = document.createElement('div');
+  try {
+    VistaOrdenForm.render(div, {}, { proveedor: p1.id });
+    const forma = k => $('[data-forma="' + k + '"]', div).click();
+    forma('CREDITO');
+    Pruebas.cierto(!$('#ofYaPago', div), 'a crédito no se ofrece');
+    forma('CONTADO');
+    $('#ofYaPago', div).checked = true; $('#ofYaPago', div).dispatchEvent(new Event('change'));
+    Pruebas.igual([!!$('#ofPgNum', div), !!$('#ofPgFecha', div), $('[data-acc="guardar"]', div).textContent.trim()], [true, true, 'Guardar como pagada'], 'marcada, pide el recibo y el botón lo dice');
+    forma('CREDITO');
+    Pruebas.igual([VistaOrdenForm.yaPagada, $('[data-acc="guardar"]', div).textContent.trim()], [false, 'Guardar orden'], 'y si pasa a crédito, se desmarca');
+    Router.sucio = false;
+    const o = await OrdenService.guardar(Pruebas.orden(p1));
+    VistaOrdenForm.render(div, { id: o.id }, { factura: '1' });
+    Pruebas.cierto(!!$('#ofFacCard #ofFacAdjBtn', div) && $('#ofFacAdjLista', div).textContent.includes('Todavía sin archivos') && !$('#ofYaPago', div),
+      'en «Llegó la factura», el botón para adjuntarla está junto a su número');
+    VistaOrdenForm.o.adjuntos.push({ id: 'a1', nombre: 'factura FE-77.pdf', tipo: 'application/pdf', tamano: 1000 });
+    VistaOrdenForm.pintarAdjuntos();
+    Pruebas.cierto($('#ofFacAdjLista', div).textContent.includes('factura FE-77.pdf'), 'y ahí mismo se ve el archivo');
+  } finally { Router.sucio = false; Combo.limpiar(); }
 });
 Pruebas.def('La hoja de nueva orden crece al escribir y guarda sólo las filas llenas', async ({ p1 }) => {
   const div = document.createElement('div');
