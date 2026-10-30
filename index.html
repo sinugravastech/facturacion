@@ -143,22 +143,50 @@ html[data-theme="dark"] ::-webkit-scrollbar-thumb{background:#37454f}
 .sb-cons-mini{display:none}
 /* La empresa con la que se trabaja: su color en la barra lateral y arriba de la página */
 :root{--empresa:#1f5fbf}
+/* En otra empresa toda la plataforma toma su color: la escala de la marca sale
+   de --empresa, mezclada con blanco y con negro. SINUGRAVAS conserva la suya */
+html[data-empresa]:not([data-empresa="SINUGRAVAS"]){
+  --brand-50:color-mix(in srgb,var(--empresa) 8%,#fff); --brand-100:color-mix(in srgb,var(--empresa) 18%,#fff);
+  --brand-200:color-mix(in srgb,var(--empresa) 35%,#fff); --brand-300:color-mix(in srgb,var(--empresa) 55%,#fff);
+  --brand-400:color-mix(in srgb,var(--empresa) 78%,#fff); --brand-500:var(--empresa);
+  --brand-600:color-mix(in srgb,var(--empresa) 85%,#000); --brand-700:color-mix(in srgb,var(--empresa) 70%,#000);
+  --brand-800:color-mix(in srgb,var(--empresa) 55%,#000); --brand-900:color-mix(in srgb,var(--empresa) 38%,#000)}
+html[data-theme="dark"][data-empresa]:not([data-empresa="SINUGRAVAS"]){--accent-soft:color-mix(in srgb,var(--empresa) 18%,transparent)}
+html[data-theme="dark"][data-empresa]:not([data-empresa="SINUGRAVAS"]) .chart .bar-r.b2{fill:color-mix(in srgb,var(--empresa) 38%,#161d24)}
+html[data-empresa]:not([data-empresa="SINUGRAVAS"]) .sb-cu-av{background:color-mix(in srgb,var(--empresa) 22%,transparent);color:color-mix(in srgb,var(--empresa) 40%,#fff)}
 .sb-emp{padding:9px 12px 10px;border-bottom:1px solid rgba(255,255,255,.07)}
 .sb-emp label{display:block;font-size:9.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#5c6d79;margin-bottom:4px}
-.sb-emp-sel{position:relative;display:flex;align-items:center;gap:8px;height:30px;padding:0 9px;border-radius:6px;
-  background:color-mix(in srgb,var(--empresa) 26%,transparent);border:1px solid color-mix(in srgb,var(--empresa) 70%,transparent)}
+.sb-emp-sel{position:relative;display:flex;align-items:center;gap:8px;width:100%;height:30px;padding:0 8px 0 9px;border-radius:6px;
+  background:color-mix(in srgb,var(--empresa) 26%,transparent);border:1px solid color-mix(in srgb,var(--empresa) 70%,transparent);
+  color:#e6edf3;font:700 12px/1 var(--font);text-align:left;cursor:pointer;transition:background var(--t-fast)}
+.sb-emp-sel:hover,.sb-emp-sel[aria-expanded="true"]{background:color-mix(in srgb,var(--empresa) 40%,transparent)}
+.sb-emp-sel:focus-visible{outline:2px solid color-mix(in srgb,var(--empresa) 60%,#fff);outline-offset:1px}
 .sb-emp-sel i{width:9px;height:9px;border-radius:50%;background:var(--empresa);box-shadow:0 0 0 2px rgba(255,255,255,.25);flex:0 0 auto}
-.sb-emp-sel select{flex:1;min-width:0;height:100%;background:transparent;border:0;color:#e6edf3;font-size:12px;font-weight:700;cursor:pointer;outline:none}
-.sb-emp-sel select option{color:#14212b}
+.sb-emp-sel span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sb-emp-sel svg{flex:0 0 auto;color:#9fb0bd;transition:transform var(--t-fast)}
+.sb-emp-sel[aria-expanded="true"] svg{transform:rotate(180deg)}
 .sb-emp-mini{display:none}
+/* La lista para cambiar de empresa, hecha aquí y no la del navegador: oscura
+   como la barra lateral, cada empresa con su color */
+.emp-pop{position:fixed;z-index:280;display:flex;flex-direction:column;gap:2px;padding:5px;border-radius:9px;background:#16212a;
+  border:1px solid rgba(255,255,255,.1);box-shadow:0 12px 28px rgba(0,0,0,.38),0 2px 8px rgba(0,0,0,.25)}
+.emp-pop button{display:flex;align-items:center;gap:10px;width:100%;padding:7px 9px;border:0;border-radius:6px;background:none;
+  color:#dfe8ee;font:inherit;text-align:left;cursor:pointer}
+.emp-pop button:hover,.emp-pop button:focus-visible{background:rgba(255,255,255,.07);outline:none}
+.emp-pop button[aria-selected="true"]{background:color-mix(in srgb,var(--c) 26%,transparent)}
+.emp-pop i{flex:0 0 auto;width:10px;height:10px;border-radius:50%;background:var(--c);box-shadow:0 0 0 2px rgba(255,255,255,.2)}
+.emp-pop span{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}
+.emp-pop b{font-size:12.5px;font-weight:700}
+.emp-pop small{font-size:10.5px;color:#8fa1ae;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.emp-pop svg{flex:0 0 auto;color:#fff}
 .topbar{box-shadow:inset 0 3px 0 var(--empresa)}
 html[data-empresa="SINUGRAVAS"] .topbar{box-shadow:none}
 @media (min-width:861px){
   html.sb-mini .sb-emp{padding:6px 8px;border-bottom:1px solid rgba(255,255,255,.07)}
   html.sb-mini .sb-emp label,
   html.sb-mini .sb-emp-sel{display:none}
-  html.sb-mini .sb-emp-mini{display:grid;place-items:center;height:26px;border-radius:6px;background:var(--empresa);color:#fff;
-    font-size:10.5px;font-weight:800;letter-spacing:.04em}
+  html.sb-mini .sb-emp-mini{display:grid;place-items:center;width:100%;height:26px;border:0;border-radius:6px;background:var(--empresa);color:#fff;
+    font:800 10.5px/1 var(--font);letter-spacing:.04em;cursor:pointer}
   html.sb-mini{--sidebar-w:64px}
   html.sb-mini .sb-brand{padding:0 5px 0 8px;justify-content:space-between;gap:3px}
   html.sb-mini .sb-logo{width:28px;height:28px;flex:0 0 28px}
@@ -889,9 +917,13 @@ html[data-theme="dark"] .pr-ok{color:var(--ok-500)}
 .firma-th{width:120px;height:44px;border:1px dashed var(--border-strong);border-radius:6px;display:grid;place-items:center;
   background:#fff;overflow:hidden;color:var(--text-3);font-size:10.5px}
 .firma-th img{max-width:100%;max-height:100%;object-fit:contain}
-.logo-prev{border:1px solid var(--border);border-radius:var(--radius);background:#fff;display:grid;place-items:center;
-  height:120px;padding:12px;overflow:hidden}
-.logo-prev img{max-width:100%;max-height:100%;object-fit:contain}
+/* El logo en Configuración, en una casilla igual a la del encabezado de la orden
+   y con el tamaño que se le escoja */
+.logo-prev{border:1px solid var(--border);border-radius:var(--radius);background:var(--surface-2);display:grid;place-items:center;padding:12px}
+.logo-cel{width:190px;max-width:100%;min-height:140px;display:flex;align-items:center;justify-content:center;padding:10px 12px;
+  background:#fff;border:1.5px solid var(--border-strong);border-radius:4px}
+.logo-cel img{max-width:100%;max-height:62px;object-fit:contain}
+.rango{flex:1;min-width:0;accent-color:var(--accent);cursor:pointer}
 
 /* ==========================================================================
    §UI-3  DOCUMENTO IMPRIMIBLE (formato oficial de la orden de compra)
@@ -1732,7 +1764,7 @@ const APP = Object.freeze({
   nombre: 'Facturación',
   area: 'Órdenes de compra',
   empresa: 'SINUGRAVAS S.A.S.',
-  version: '2.8.1',
+  version: '2.9.0',
   /* 3: los datos viven en la nube y el número de cada orden sale de las órdenes */
   esquema: 3,
   /* La base del navegador de la versión local (1.x). Ya no se guarda en ella:
@@ -2408,6 +2440,62 @@ const Menu = {
   cerrar() {
     if (this.el) { this.el.remove(); this.el = null; }
     if (this._fuera) { document.removeEventListener('mousedown', this._fuera); this._fuera = null; }
+  }
+};
+
+/* La lista para cambiar de empresa desde la barra lateral: cada una con su
+   color, su nombre completo y la marca de la que está activa. Se maneja con el
+   mouse o con las flechas, Enter y Esc */
+const ListaEmpresas = {
+  el: null, boton: null,
+  abrir(boton) {
+    if (this.el) { const era = this.boton; this.cerrar(); if (era === boton) return; }
+    const m = document.createElement('div');
+    m.className = 'emp-pop';
+    m.setAttribute('role', 'listbox');
+    m.setAttribute('aria-label', 'Empresa con la que trabaja');
+    m.innerHTML = Empresa.lista().map(id => '<button type="button" role="option" data-emp="' + attr(id) + '" aria-selected="' + (id === Empresa.activa) + '" style="--c:' + attr(Empresa.info(id).color) + '">' +
+      '<i></i><span><b>' + esc(Empresa.info(id).corto) + '</b><small>' + esc(Empresa.nombre(id)) + '</small></span>' + (id === Empresa.activa ? Icon('check', '', 14) : '') + '</button>').join('');
+    document.body.appendChild(m);
+    /* Debajo del botón; en la barra angosta, a su derecha */
+    const r = boton.getBoundingClientRect(), angosta = boton.id === 'sbEmpMini';
+    m.style.minWidth = Math.max(angosta ? 230 : r.width, 200) + 'px';
+    let x = angosta ? r.right + 8 : r.left, y = angosta ? r.top : r.bottom + 4;
+    if (y + m.offsetHeight > innerHeight - 8) y = Math.max(8, r.top - m.offsetHeight - 4);
+    m.style.left = Math.max(8, Math.min(x, innerWidth - m.offsetWidth - 8)) + 'px';
+    m.style.top = y + 'px';
+    boton.setAttribute('aria-expanded', 'true');
+    this.el = m; this.boton = boton;
+    const ops = () => $$('[data-emp]', m);
+    (ops().find(b => b.getAttribute('aria-selected') === 'true') || ops()[0]).focus();
+    m.addEventListener('click', e => { const b = e.target.closest('[data-emp]'); if (b) this.elegir(b.dataset.emp); });
+    m.addEventListener('keydown', e => {
+      const o = ops(), i = o.indexOf(document.activeElement);
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); o[(i + (e.key === 'ArrowDown' ? 1 : o.length - 1)) % o.length].focus(); }
+      else if (e.key === 'Home' || e.key === 'End') { e.preventDefault(); o[e.key === 'Home' ? 0 : o.length - 1].focus(); }
+      else if (e.key === 'Escape' || e.key === 'Tab') { e.preventDefault(); this.cerrar(true); }
+    });
+    setTimeout(() => {
+      if (this.el !== m) return;
+      this._fuera = e => { if (!m.contains(e.target) && !boton.contains(e.target)) this.cerrar(); };
+      this._quieta = () => this.cerrar();
+      document.addEventListener('mousedown', this._fuera);
+      addEventListener('resize', this._quieta);
+    }, 0);
+  },
+  elegir(id) {
+    this.cerrar(true);
+    if (id !== Empresa.activa) Empresa.cambiar(id);
+  },
+  /** foco: devolverlo al botón, si todavía está */
+  cerrar(foco) {
+    if (!this.el) return;
+    this.el.remove(); this.el = null;
+    if (this._fuera) { document.removeEventListener('mousedown', this._fuera); this._fuera = null; }
+    if (this._quieta) { removeEventListener('resize', this._quieta); this._quieta = null; }
+    const b = this.boton;
+    this.boton = null;
+    if (b) { b.setAttribute('aria-expanded', 'false'); if (foco && b.isConnected) b.focus(); }
   }
 };
 
@@ -3347,7 +3435,9 @@ const Config = {
         cierre: 'Agradecemos su gestión y colaboración,',
         lugarEntrega: 'Centro Logístico San Jerónimo, Km 3 vía Montería – Planeta Rica, Bodega 69A',
         telefono: '',
-        filasMinimas: 12
+        filasMinimas: 12,
+        /* El tamaño del logo en la orden, en %: 100 es el de siempre */
+        tamLogo: 100
       },
       /* Quién firma lo pone la empresa en Configuración (queda en la nube) */
       solicitantes: [],
@@ -3387,7 +3477,11 @@ const Config = {
   solicitantes() { return (Datos.cfg.solicitantes || []).filter(s => s.activo); },
   solicitantePred() { const s = this.solicitantes(); return s.find(x => x.predeterminado) || s[0] || null; },
   /** El logo de la empresa; el de SINUGRAVAS, si no se ha puesto otro, es el de la marca */
-  logo(emp) { return (emp || Empresa.activa) === 'SINUGRAVAS' ? (Datos.cfg.logo || MARCA.logo) : (Empresa.cfg(emp).logo || ''); }
+  logo(emp) { return (emp || Empresa.activa) === 'SINUGRAVAS' ? (Datos.cfg.logo || MARCA.logo) : (Empresa.cfg(emp).logo || ''); },
+  /** Qué tan grande sale el logo en la orden (1 = el de siempre). Cada empresa lo
+     escoge en Configuración, entre la mitad y dos veces y media */
+  tamLogo(emp) { return this.escalaLogo(Empresa.cfg(emp || Empresa.activa).documento.tamLogo); },
+  escalaLogo(pct) { return Math.min(250, Math.max(50, +pct || 100)) / 100; }
 };
 
 const Datos = {
@@ -4800,7 +4894,13 @@ const Chart = {
     if (opts.conteo) s += '<div class="legend"><span><i style="background:var(--brand-500)"></i>Valor comprado</span><span><i style="background:var(--sun-500);height:3px;vertical-align:3px"></i>Número de órdenes</span></div>';
     return s;
   },
-  COLORES: ['var(--brand-500)', 'var(--sun-500)', 'var(--ok-500)', 'var(--violet-500)', 'var(--info-500)', 'var(--warn-500)', 'var(--dang-500)', 'var(--ink-400)'],
+  /* En otra empresa la marca ya es su color, que puede parecerse al verde de
+     «pagada»: ese verde se va al final, para que dos tajadas no se confundan */
+  get COLORES() {
+    const c = ['var(--brand-500)', 'var(--sun-500)', 'var(--ok-500)', 'var(--violet-500)', 'var(--info-500)', 'var(--warn-500)', 'var(--dang-500)', 'var(--ink-400)'];
+    if (Empresa.activa !== 'SINUGRAVAS') [c[2], c[7]] = [c[7], c[2]];
+    return c;
+  },
   /** partes: [{ etiqueta, valor }] */
   dona(partes, opts) {
     opts = opts || {};
@@ -4894,9 +4994,9 @@ const Shell = {
     $('#sbCons').onclick = e => { if (e.target.closest('[data-ir]')) Router.ir(e.target.closest('[data-ir]').dataset.ir); };
     $('#sbConsMini').onclick = () => Router.ir('/configuracion');
     $('#sbNav').addEventListener('click', () => this.cerrarMenuMovil());
-    $('#sbEmp').addEventListener('change', e => {
-      const s = e.target.closest('select');
-      if (s) Empresa.cambiar(s.value).then(ok => { if (!ok) s.value = Empresa.activa; });
+    $('#sbEmp').addEventListener('click', e => {
+      const b = e.target.closest('#sbEmpBtn, #sbEmpMini');
+      if (b) ListaEmpresas.abrir(b);
     });
     Buscador.iniciar($('#gsInput'), $('#gsPanel'));
     this.tema(document.documentElement.getAttribute('data-theme'), true);
@@ -4914,9 +5014,10 @@ const Shell = {
       : '<div class="sb-logo" id="sbLogo" style="background:var(--empresa)">' + esc(Empresa.info().siglas) + '</div>';
     const l = Empresa.lista();
     c.classList.toggle('hidden', l.length < 2);
-    c.innerHTML = l.length < 2 ? '' : '<label for="sbEmpSel">Empresa</label><div class="sb-emp-sel"><i></i><select id="sbEmpSel" aria-label="Empresa con la que trabaja">' +
-      l.map(id => '<option value="' + attr(id) + '"' + (id === Empresa.activa ? ' selected' : '') + ' title="' + attr(Empresa.nombre(id)) + '">' + esc(Empresa.info(id).corto) + '</option>').join('') + '</select></div>' +
-      '<div class="sb-emp-mini" data-tip="' + attr(Empresa.nombre()) + '">' + esc(Empresa.info().siglas) + '</div>';
+    c.innerHTML = l.length < 2 ? '' : '<label id="sbEmpLbl" for="sbEmpBtn">Empresa</label>' +
+      '<button type="button" class="sb-emp-sel" id="sbEmpBtn" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="sbEmpLbl sbEmpBtn" title="' + attr(Empresa.nombre()) + '">' +
+      '<i></i><span>' + esc(Empresa.info().corto) + '</span>' + Icon('chevD', '', 14) + '</button>' +
+      '<button type="button" class="sb-emp-mini" id="sbEmpMini" aria-haspopup="listbox" aria-expanded="false" aria-label="Cambiar de empresa" data-tip="' + attr(Empresa.nombre()) + '">' + esc(Empresa.info().siglas) + '</button>';
   },
   activo() {
     const a = Router.actual();
@@ -5678,7 +5779,7 @@ const VistaOrdenForm = {
           attr((o.factura && o.factura.fecha) || Fecha.hoy()) + '"></div></div>' +
         '<div class="fs12 txt-2">Si la factura trae algo más (flete, otro repuesto), agréguelo en una fila. El PDF de la factura se puede adjuntar al final.</div></div></div>' : '') +
       '<div class="hoja">' +
-        '<div class="hj-head"><div class="hj-logo">' + (Config.logo(Empresa.de(o)) ? '<img src="' + attr(Config.logo(Empresa.de(o))) + '" alt="' + attr(emp.nombre) + '">' : '<b>' + esc(emp.nombre) + '</b>') + '</div>' +
+        '<div class="hj-head"><div class="hj-logo">' + (Config.logo(Empresa.de(o)) ? '<img src="' + attr(Config.logo(Empresa.de(o))) + '" alt="' + attr(emp.nombre) + '" style="max-height:' + Math.round(62 * Config.tamLogo(Empresa.de(o))) + 'px">' : '<b>' + esc(emp.nombre) + '</b>') + '</div>' +
           '<div class="hj-tit"><label class="sr" for="ofTipo">Tipo de orden</label><select id="ofTipo" class="hj-tipo">' +
             Empresa.tipos(Empresa.de(o)).map(k => '<option value="' + k + '"' + (o.tipo === k ? ' selected' : '') + '>' + esc(TIPOS[k].asunto) + '</option>').join('') + '</select>' +
             '<div class="hj-emp">' + esc(emp.nombre) + '</div><div class="hj-meta">' + esc([emp.nit ? (emp.tipoDoc || 'NIT') + ' ' + emp.nit : '', emp.ciudad].filter(Boolean).join(' · ')) + '</div></div>' +
@@ -6993,8 +7094,12 @@ const VistaConfiguracion = {
         '<div class="fs11 txt-3">Si esta segunda firma tiene imagen, sale impresa en <b>todas</b> las órdenes. Úsela sólo si así se decidió.</div>' +
       '</div></div></div><div class="col sticky-col">' +
       '<div class="card"><div class="card-h"><h3>Logotipo</h3><span class="ch-sub">de la empresa</span></div><div class="card-b">' +
-        '<div class="logo-prev mb12"><img id="cfLogo" alt="Logo"></div><div class="flex g8 wrap"><button class="btn btn-sm" id="cfLogoCargar">' + Icon('upload', '', 12) + 'Cargar imagen</button>' +
+        '<div class="logo-prev mb12"><div class="logo-cel"><img id="cfLogo" alt="Logo"></div></div><div class="flex g8 wrap"><button class="btn btn-sm" id="cfLogoCargar">' + Icon('upload', '', 12) + 'Cargar imagen</button>' +
         '<button class="btn btn-sm" id="cfLogoQuitar">' + Icon('rotate', '', 12) + (comun ? 'Usar el de SINUGRAVAS' : 'Quitar el logo') + '</button></div>' +
+        '<div class="field mt12 mb0"><label for="cfTam">Tamaño en la orden <b class="mono" id="cfTamVal"></b></label><div class="flex aic g8">' +
+        '<input type="range" class="rango" id="cfTam" min="50" max="250" step="5" value="' + Math.round(Config.escalaLogo(d.tamLogo) * 100) + '">' +
+        '<button type="button" class="btn btn-sm" id="cfTamAjustar" data-tip="El tamaño con el que el logo llena su casilla">Ajustar</button></div>' +
+        '<div class="hint">El recuadro de arriba es la casilla del logo en la orden: así sale en la hoja y en la orden impresa.</div></div>' +
         '<div class="fs11 txt-3 mt8">PNG, JPG o WEBP. Sale en el encabezado de cada orden.</div><input type="file" id="cfLogoFile" accept="image/*" hidden></div></div>' +
       '<div class="card"><div class="card-h"><h3>Apariencia</h3></div><div class="card-b">' +
         '<div class="field"><label>Tema</label><div class="seg" id="cfTema"><button data-t="light">Claro</button><button data-t="dark">Oscuro</button></div></div>' +
@@ -7030,6 +7135,15 @@ const VistaConfiguracion = {
       Toast.info('Logo cargado. Recuerde «Guardar configuración».');
     };
     $('#cfLogoQuitar', el).onclick = () => { ce.logo = ''; this.pintarLogo(); Router.sucio = true; };
+    $('#cfTam', el).addEventListener('input', ev => { ce.documento.tamLogo = +ev.target.value; this.pintarLogo(); });
+    /* La casilla deja unos 166 × 120 px para el logo, y su alto de siempre es 62 px */
+    $('#cfTamAjustar', el).onclick = () => {
+      const i = $('#cfLogo', el);
+      if (!i.naturalWidth) return;
+      ce.documento.tamLogo = Math.round(Config.escalaLogo(Math.min(166 * i.naturalHeight / i.naturalWidth, 120) / 62 * 100) * 20) * 5;
+      $('#cfTam', el).value = ce.documento.tamLogo;
+      this.pintarLogo(); Router.sucio = true;
+    };
     const firmaAut = () => {
       $('#cfAutFirma', el).innerHTML = ce.autoriza.firma ? '<img src="' + attr(ce.autoriza.firma) + '" alt="Firma">' : 'Sin firma';
       $('#cfAutQuitar', el).disabled = !ce.autoriza.firma;
@@ -7046,7 +7160,11 @@ const VistaConfiguracion = {
   },
   pintarLogo() {
     const i = $('#cfLogo', this.el), l = this.ce.logo || (this.emp === 'SINUGRAVAS' ? MARCA.logo : '');
+    const z = Config.escalaLogo(this.ce.documento.tamLogo);
     i.src = l || ''; i.style.visibility = l ? '' : 'hidden';
+    i.style.maxHeight = Math.round(62 * z) + 'px';
+    $('#cfTamVal', this.el).textContent = Math.round(z * 100) + ' %';
+    $('#cfTam', this.el).disabled = $('#cfTamAjustar', this.el).disabled = !l;
     $('#cfLogoQuitar', this.el).disabled = !this.ce.logo;
   },
   pintarSol() {
@@ -7206,7 +7324,7 @@ const Documento = {
     const x = (txt, on) => '<span class="dp-x"><i>' + (on ? '✕' : '') + '</i>' + esc(txt) + '</span>';
     const cred = o.formaPago === 'CREDITO';
     const cont = o.formaPago === 'CONTADO' || (!cred && !o.excel);
-    let h = '<div class="dp-head"><div class="dp-logo">' + (logo ? '<img src="' + attr(logo) + '" alt="' + attr(emp.nombre) + '">' : '<b>' + esc(emp.nombre) + '</b>') + '</div>' +
+    let h = '<div class="dp-head"><div class="dp-logo">' + (logo ? '<img src="' + attr(logo) + '" alt="' + attr(emp.nombre) + '" style="max-height:' + (22 * Config.tamLogo(Empresa.de(o))).toFixed(1) + 'mm">' : '<b>' + esc(emp.nombre) + '</b>') + '</div>' +
       '<div class="dp-hc"><h1>' + esc(TIPOS[o.tipo].asunto) + '</h1><div class="dp-co">' + esc(emp.nombre) + '</div><div class="dp-meta">' +
       esc([emp.nit ? (emp.tipoDoc || 'NIT') + ' ' + emp.nit : '', emp.direccion, emp.ciudad, emp.telefono ? 'Tel. ' + emp.telefono : '', emp.correo].filter(Boolean).join(' · ')) + '</div></div>' +
       '<div class="dp-num"><div>N.º</div><b>' + esc(num) + '</b><div>Fecha</div><b class="dp-fecha">' + esc(o.excel && o.excel.sinDia ? Fecha.mesLargo(o.fecha.slice(0, 7)) : Fecha.larga(o.fecha)) + '</b></div></div>';
@@ -8354,6 +8472,27 @@ Pruebas.def('Dos empresas: cada una con sus órdenes, su consecutivo, sus equipo
     Pruebas.igual([HistoricoExcel.lista().map(o => o.id), HistoricoExcel.orden('EXCEL-2').empresa], [['JDPR-1'], 'SINUGRAVAS'], 'y JDPR el suyo');
   } finally { Empresa.poner('SINUGRAVAS'); HistoricoExcel.poner([]); }
   return 'SINUGRAVAS 290-26 · JDPR 472-26';
+});
+Pruebas.def('Cada empresa escoge el tamaño de su logo, y la plataforma toma su color', async ({ p1 }) => {
+  const marca = () => getComputedStyle(document.documentElement).getPropertyValue('--brand-500').trim().toLowerCase();
+  const boton = document.createElement('button');
+  try {
+    Pruebas.igual([Config.tamLogo('SINUGRAVAS'), Config.escalaLogo(999), Config.escalaLogo('')], [1, 2.5, 1], 'SINUGRAVAS sigue con el de siempre, y el tamaño tiene topes');
+    await Datos.guardarCfgEmpresa('JDPR', { logo: 'data:image/png;base64,iVBORw0KGgo=', documento: Object.assign({}, Empresa.cfg('JDPR').documento, { tamLogo: 200 }) });
+    const sg = Pruebas.orden(p1), jd = Object.assign(Pruebas.orden(p1), { empresa: 'JDPR' });
+    Pruebas.cierto(Documento.html(jd).includes('max-height:44.0mm') && Documento.html(sg).includes('max-height:22.0mm'), 'en la orden impresa, el logo de JDPR al doble y el de SINUGRAVAS igual');
+    Pruebas.igual(marca(), '#2a52ad', 'SINUGRAVAS conserva su azul');
+    Empresa.poner('JDPR');
+    Pruebas.igual([marca(), Chart.COLORES.indexOf('var(--ok-500)')], [Empresa.info('JDPR').color, 7], 'en JDPR la marca es su verde, y el de «pagada» se va al final de las gráficas');
+    document.body.appendChild(boton);
+    ListaEmpresas.abrir(boton);
+    const ops = $$('.emp-pop [role="option"]');
+    Pruebas.igual([ops.map(b => b.dataset.emp), ops.map(b => b.getAttribute('aria-selected')), document.activeElement.dataset.emp, boton.getAttribute('aria-expanded')],
+      [['SINUGRAVAS', 'JDPR'], ['false', 'true'], 'JDPR', 'true'], 'la lista propia muestra las dos y marca la activa');
+    ListaEmpresas.cerrar();
+    Pruebas.igual([$$('.emp-pop').length, boton.getAttribute('aria-expanded')], [0, 'false'], 'y se cierra');
+  } finally { ListaEmpresas.cerrar(); boton.remove(); Empresa.poner('SINUGRAVAS'); }
+  return 'JDPR al 200 %';
 });
 Pruebas.def('El menú «⋯» trae sólo lo que no tiene otro lugar, y la factura se corrige con el lápiz', async ({ p1 }) => {
   const antes = Permiso.acceso;
