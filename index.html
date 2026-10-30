@@ -1732,7 +1732,7 @@ const APP = Object.freeze({
   nombre: 'Facturación',
   area: 'Órdenes de compra',
   empresa: 'SINUGRAVAS S.A.S.',
-  version: '2.8.0',
+  version: '2.8.1',
   /* 3: los datos viven en la nube y el número de cada orden sale de las órdenes */
   esquema: 3,
   /* La base del navegador de la versión local (1.x). Ya no se guarda en ella:
@@ -4441,7 +4441,7 @@ const Buscador = {
       m: Money.fmt(o.total) + ' · ' + ESTADOS[o.estado].t, ir: '/orden/' + o.id })) });
     const hx = HistoricoExcel.lista().filter(o => [o.numero, o.excel.hoja, Modelo.nombreProveedor(o), o.excel.textoProveedor, Modelo.nombreEquipo(o),
       ...o.items.map(i => i.descripcion + ' ' + i.observacion)].some(x => Txt.norm(x).includes(nq)))
-      .sort((a, b) => b.fecha.localeCompare(a.fecha)).slice(0, 5);
+      .sort(HistoricoExcel.porNumero).slice(0, 5);
     if (hx.length) g.push({ t: 'Del Excel (histórico)', items: hx.map(o => ({ ic: 'archive', html: '<span class="mono fw7">' + esc(o.numero) + '</span> · ' + Txt.resaltar(Modelo.nombreProveedor(o), q),
       m: Fecha.corta(o.fecha), ir: '/orden/' + o.id })) });
     const prov = Datos.proveedores.filter(p => !p.fusionadoCon && ProveedorService.coincide(p, q)).slice(0, 6);
@@ -5337,7 +5337,7 @@ const VistaOrdenes = {
   lista() {
     const f = this.filtros();
     const nq = Txt.norm(f.q);
-    /* El histórico del Excel va detrás de las órdenes de la plataforma; no tiene estado */
+    /* El histórico del Excel va detrás de las órdenes de la plataforma, por su número; no tiene estado */
     const fuente = (f.origen === 'excel' ? [] : Datos.ordenes).concat(f.origen === 'plataforma' || f.estado ? [] : HistoricoExcel.lista());
     let l = fuente.filter(o =>
       (!f.estado || o.estado === f.estado) && (!f.tipo || o.tipo === f.tipo) && (!f.proveedorId || o.proveedorId === f.proveedorId) &&
@@ -5345,7 +5345,7 @@ const VistaOrdenes = {
       (!nq || [o.numero, Modelo.nombreProveedor(o), o.concepto, o.referencia, Modelo.nombreEquipo(o), o.factura && o.factura.numero, o.entregaRecibe,
         o.excel && o.excel.hoja, o.excel && o.excel.textoProveedor, ...o.items.map(i => i.descripcion + ' ' + i.observacion)].some(x => Txt.norm(x).includes(nq))));
     const { k, d } = this.orden || { k: 'secuencia', d: -1 };
-    const pos = o => o.excel ? '0' + o.fecha + String(o.excel.k).padStart(4, '0') : '1' + String(o.secuencia || 0).padStart(7, '0');
+    const pos = o => o.excel ? '0' + HistoricoExcel.clave(o) : '1' + String(o.secuencia || 0).padStart(7, '0');
     const val = {
       secuencia: pos, fecha: o => o.fecha + pos(o), proveedor: o => Modelo.nombreProveedor(o),
       total: o => Modelo.valor(o), estado: o => RUTA.indexOf(o.estado)
@@ -6028,7 +6028,7 @@ const VistaOrdenForm = {
     const p = Datos.prov(o.proveedorId);
     if (!p) { cont.innerHTML = '<span class="txt-3">Sus datos y condiciones se cargan solos. Si no aparece, créelo desde la misma lista.</span>'; return; }
     const falt = ProveedorService.faltantes(p);
-    const ult = OrdenService.ultimaDe(p.id, o.id) || HistoricoExcel.lista().filter(h => h.proveedorId === p.id).sort((a, b) => b.fecha.localeCompare(a.fecha))[0];
+    const ult = OrdenService.ultimaDe(p.id, o.id) || HistoricoExcel.lista().filter(h => h.proveedorId === p.id).sort(HistoricoExcel.porNumero)[0];
     const cond = p.formaPago ? FORMAS_PAGO[p.formaPago] + (p.plazoDias ? ' a ' + p.plazoDias + ' días' : '') : '';
     cont.innerHTML = esc([p.categoria, cond, p.nit ? 'NIT ' + p.nit : ''].filter(Boolean).join(' · ')) +
       (falt.length ? ' <button type="button" class="link fs12" id="ofEditProv" data-tip="Le falta: ' + attr(falt.join(', ')) + '">Completar datos</button>' : '') +
@@ -6401,7 +6401,7 @@ const VistaProveedor = {
       return;
     }
     const ords = Datos.ordenes.filter(o => o.proveedorId === pv.id).sort((a, b) => (b.secuencia || 0) - (a.secuencia || 0));
-    const hist = HistoricoExcel.lista().filter(o => o.proveedorId === pv.id).sort((a, b) => b.fecha.localeCompare(a.fecha));
+    const hist = HistoricoExcel.lista().filter(o => o.proveedorId === pv.id).sort(HistoricoExcel.porNumero);
     const k = Analitica.kpis(ords);
     const falt = ProveedorService.faltantes(pv);
     const hoy = Fecha.hoy();
@@ -7664,6 +7664,16 @@ const HistoricoExcel = {
     this._idx = new Map(this._todas.map(o => [o.id, o]));
     this._lista = null;
   },
+  /** Su lugar en el Excel lo da el número de la orden, no la fecha, que allá no
+     siempre se cuidó (lo pidió Juan el 30/10/2026). Primero el año del número y
+     después el número, porque SINUGRAVAS volvió a empezar desde 001 en 2017, 2022
+     y 2023. Dos hojas con el mismo número, por su lugar en el libro */
+  clave(o) {
+    const m = /^(\d+)-(\d{2})$/.exec(o.numero || '');
+    return (m ? m[2] + m[1].padStart(4, '0') : String(o.fecha || '').slice(2, 4).padStart(2, '0') + '0000') + String(o.excel.k || 0).padStart(4, '0');
+  },
+  /** Para ordenar de la más alta a la más baja */
+  porNumero(a, b) { return HistoricoExcel.clave(b).localeCompare(HistoricoExcel.clave(a)); },
   proveedor(nombre) {
     if (!nombre) return null;
     const k = Txt.clave(nombre);
@@ -8400,6 +8410,27 @@ Pruebas.def('El histórico del Excel se consulta pero no cuenta ni toca el conse
   try { l = VistaOrdenes.lista(); } finally { Prefs.set('filOrd', filtro); }
   Pruebas.igual([l.length, l[0].excel, !!l[1].excel], [h.length + 1, undefined, true], 'el listado debía mostrar primero lo nuevo y luego el Excel');
   Pruebas.igual(Analitica.kpis(l.filter(o => !o.excel)).total, Datos.ordenes[0].total, 'el Excel no debía sumar');
+});
+Pruebas.def('El histórico del Excel va por el número de la orden, no por la fecha', async () => {
+  const hoja = (k, n, f, em) => Object.assign({ k, n, f, t: 'PEDIDO', p: 'PROVEEDOR UNO', it: [['ARTÍCULO DE PRUEBA', 1, 'UND', 0, '']] }, em ? { em } : {});
+  const antes = VistaOrdenes.orden, filtro = Prefs.get('filOrd', {});
+  const numeros = () => VistaOrdenes.lista().map(o => o.numero);
+  try {
+    HistoricoExcel.poner([hoja(1, '005-15', '2015-01-27'), hoja(2, '050-16', '2016-12-01'), hoja(3, '005-23', '2023-03-01'),
+      hoja(4, '289-26', '2026-10-20'), hoja(5, '288-26', '2026-10-25'),
+      hoja(6, '463-26', '2026-10-23', 'JDPR'), hoja(7, '463-26', '2026-10-23', 'JDPR'), hoja(8, '470-26', '2026-10-29', 'JDPR'), hoja(9, '471-26', '2026-10-02', 'JDPR')]);
+    Prefs.set('filOrd', {});
+    VistaOrdenes.orden = { k: 'secuencia', d: -1 };
+    Pruebas.igual(numeros(), ['289-26', '288-26', '005-23', '050-16', '005-15'], 'SINUGRAVAS: por año y número, y la 005-23 lejos de la 005-15');
+    Pruebas.igual(Buscador.resultados('artículo de prueba').find(g => g.t === 'Del Excel (histórico)').items[0].ir, '/orden/EXCEL-4', 'el buscador también empieza por la 289-26');
+    VistaOrdenes.orden = { k: 'fecha', d: -1 };
+    Pruebas.igual(numeros()[0], '288-26', 'con el título «Fecha» sí va por fecha');
+    Empresa.poner('JDPR');
+    VistaOrdenes.orden = { k: 'secuencia', d: -1 };
+    Pruebas.igual(VistaOrdenes.lista().map(o => o.id), ['JDPR-9', 'JDPR-8', 'JDPR-7', 'JDPR-6'], 'JDPR: la 471 arriba aunque diga 2 de octubre, y las dos 463 por su lugar en el libro');
+    Pruebas.igual(HistoricoExcel.lista().slice().sort(HistoricoExcel.porNumero)[0].numero, '471-26', 'la página del proveedor y su última orden, igual');
+  } finally { Empresa.poner('SINUGRAVAS'); VistaOrdenes.orden = antes; Prefs.set('filOrd', filtro); HistoricoExcel.poner([]); }
+  return '289-26 y 471-26 arriba';
 });
 Pruebas.def('El histórico encuentra al proveedor aunque se renombre o se fusione', async () => {
   const lub = await ProveedorService.guardar(Object.assign(ProveedorService.vacio(), { nombre: 'PROVEEDOR UNO', claveExcel: 'PROVEEDOR UNO' }));
