@@ -1833,7 +1833,7 @@ const APP = Object.freeze({
   nombre: 'Facturación',
   area: 'Órdenes de compra',
   empresa: 'SINUGRAVAS S.A.S.',
-  version: '2.13.1',
+  version: '2.13.2',
   /* 3: los datos viven en la nube y el número de cada orden sale de las órdenes */
   esquema: 3,
   /* La base del navegador de la versión local (1.x). Ya no se guarda en ella:
@@ -4319,6 +4319,8 @@ const ProveedorService = {
         ((b.historico && b.historico.hasta) || '').localeCompare((a.historico && a.historico.hasta) || '') ||
         a.nombre.localeCompare(b.nombre, 'es'));
   },
+  /** ¿Lo escrito es este proveedor, tal cual? Su nombre u otro de sus nombres, sin contar S.A.S., Ltda. ni los puntos */
+  exacto(p, q) { const k = Txt.clave(q); return !!k && [p.nombre, ...(p.alias || [])].some(x => Txt.clave(x) === k); },
   coincide(p, q) {
     const nq = Txt.norm(q);
     if (!nq) return true;
@@ -4554,6 +4556,11 @@ const EquipoService = {
   coincide(q, txt) {
     const nq = Txt.norm(txt);
     return !nq || [q.nombre, q.placa, q.clase, q.detalle, TIPOS_EQUIPO[q.tipo], ...(q.alias || [])].some(x => Txt.norm(x).includes(nq));
+  },
+  /** ¿Lo escrito es este equipo, tal cual? Su nombre, su placa (sin espacios ni guiones) u otro de sus nombres */
+  exacto(q, txt) {
+    const n = Txt.norm(txt), p = this.placaNorm(txt);
+    return !!n && (Txt.norm(q.nombre) === n || (!!p && !!q.placa && this.placaNorm(q.placa) === p) || (q.alias || []).some(a => Txt.norm(a) === n));
   },
   ordenados(soloActivos) {
     const n = new Map();
@@ -5048,7 +5055,8 @@ const Comp = {
    recorte una tabla ni una ventana con desplazamiento. */
 const Combo = {
   vivos: new Set(),
-  /** opts: { fuente(q) → [{ t, s, tag, data }], alElegir(item), nuevo: { texto(q), accion(q) }, alAbrirVacio: bool } */
+  /** opts: { fuente(q) → [{ t, s, tag, data, exacto }], alElegir(item), nuevo: { texto(q), accion(q) }, alAbrirVacio: bool }.
+      exacto: ese es lo escrito, tal cual (entonces no se ofrece «nuevo») */
   unir(input, opts) {
     const portal = document.createElement('div');
     portal.className = 'combo-portal';
@@ -5067,7 +5075,8 @@ const Combo = {
     const pintar = () => {
       const q = input.value.trim();
       lista = opts.fuente(q) || [];
-      const nuevo = opts.nuevo && q ? opts.nuevo : null;
+      /* Lo escrito ya está en la lista, tal cual: no se ofrece crearlo otra vez (Juan, 31/10/2026) */
+      const nuevo = opts.nuevo && q && !lista.some(it => it.exacto) ? opts.nuevo : null;
       if (!lista.length && !nuevo) {
         if (q && opts.vacio) { portal.innerHTML = '<div class="combo-vacio">' + esc(opts.vacio) + '</div>'; } else { c.cerrar(); return; }
       } else {
@@ -6237,10 +6246,11 @@ const VistaOrdenForm = {
     const inpP = $('#ofProv', el);
     Combo.unir(inpP, {
       alAbrirVacio: true,
-      fuente: txt => ProveedorService.ordenados(true).filter(p => ProveedorService.coincide(p, txt)).slice(0, 12).map(p => {
+      fuente: txt => ProveedorService.ordenados(true).filter(p => ProveedorService.coincide(p, txt) || ProveedorService.exacto(p, txt))
+        .sort((a, b) => ProveedorService.exacto(b, txt) - ProveedorService.exacto(a, txt)).slice(0, 12).map(p => {
         const n = Datos.ordenes.filter(x => x.proveedorId === p.id).length;
         return { html: Txt.resaltar(p.nombre, txt), s: [p.categoria, p.nit ? 'NIT ' + p.nit : ''].filter(Boolean).join(' · '),
-          tag: n ? Txt.plural(n, 'orden', 'órdenes') : (p.historico ? 'Excel ' + p.historico.hasta.slice(0, 4) : 'nuevo'), data: p };
+          tag: n ? Txt.plural(n, 'orden', 'órdenes') : (p.historico ? 'Excel ' + p.historico.hasta.slice(0, 4) : 'nuevo'), data: p, exacto: ProveedorService.exacto(p, txt) };
       }),
       vacio: 'Ningún proveedor coincide.',
       alElegir: it => this.elegirProveedor(it.data),
@@ -6256,8 +6266,9 @@ const VistaOrdenForm = {
     const ponerEquipo = q => { o.equipoId = q ? q.id : null; inpE.value = q ? q.nombre : ''; inpE.classList.remove('is-err'); this.pintarEquipo(); this.marcar(); };
     Combo.unir(inpE, {
       alAbrirVacio: true,
-      fuente: txt => EquipoService.ordenados(true).concat(Flota.sinEquipo().map(u => Flota.virtual(u))).filter(x => EquipoService.coincide(x, txt)).slice(0, 12)
-        .map(x => ({ html: Txt.resaltar(x.nombre, txt), s: EquipoService.sub(x) + (Datos.equipo(x.id) ? '' : ' · nuevo, de Flota'), data: x })),
+      fuente: txt => EquipoService.ordenados(true).concat(Flota.sinEquipo().map(u => Flota.virtual(u))).filter(x => EquipoService.coincide(x, txt) || EquipoService.exacto(x, txt))
+        .sort((a, b) => EquipoService.exacto(b, txt) - EquipoService.exacto(a, txt)).slice(0, 12)
+        .map(x => ({ html: Txt.resaltar(x.nombre, txt), s: EquipoService.sub(x) + (Datos.equipo(x.id) ? '' : ' · nuevo, de Flota'), data: x, exacto: EquipoService.exacto(x, txt) })),
       vacio: 'Ningún equipo coincide.',
       alElegir: it => ponerEquipo(it.data),
       nuevo: { texto: t => 'Crear «' + t + '»', accion: async t => { const nq = await EquipoForm.abrir({ nombre: t }); if (nq) ponerEquipo(nq); } }
@@ -9224,6 +9235,24 @@ Pruebas.def('Flota: la foto se guarda por su versión y se espera si todavía se
     ok = false;
     Pruebas.igual(await Flota.foto({ id: 'u2', foto: 'mini/u2', foto_ts: viejo, foto_tam: null }), null, 'sin permiso para ver Flota: queda el ícono');
   } finally { Nube._archivo = antes; delete db.nube; Flota._fotos = new Map(); Flota._vistas = new Map(); }
+});
+Pruebas.def('La lista no ofrece crear lo que ya existe: ni el equipo ni el proveedor', async ({ p1 }) => {
+  const q = await EquipoService.guardar(Object.assign(EquipoService.vacio(), { nombre: 'S52019', tipo: 'remolque', placa: 'S52019', alias: ['TRÁILER S52019'] }));
+  Pruebas.cierto(EquipoService.exacto(q, 's52019') && EquipoService.exacto(q, 'S 52019') && EquipoService.exacto(q, 'trailer s52019'), 'el nombre, la placa y otro nombre, tal cual');
+  Pruebas.cierto(!EquipoService.exacto(q, 'S5201') && !EquipoService.exacto(q, ''), 'una parte no es el equipo');
+  Pruebas.cierto(ProveedorService.exacto(p1, 'proveedor de prueba sas') && ProveedorService.exacto(p1, 'Proveedor de prueba') && !ProveedorService.exacto(p1, 'proveedor de'),
+    'el proveedor, sin contar la forma societaria');
+  Pruebas.cierto(EquipoService.exacto(q, 'S-52019') && !EquipoService.coincide(q, 'S-52019'), 'la placa con guion la encuentra aunque la búsqueda normal no');
+  const inp = document.createElement('input');
+  document.body.appendChild(inp);
+  const c = Combo.unir(inp, { fuente: t => [{ t: 'S52019', exacto: EquipoService.exacto(q, t), data: q }], alElegir: () => {},
+    nuevo: { texto: t => 'Crear «' + t + '»', accion: () => {} } });
+  try {
+    inp.value = 'S52019'; c.abrir();
+    Pruebas.cierto(!$('[data-nuevo]', c.portal), 'con lo escrito ya en la lista no se ofrece crear');
+    inp.value = 'S5201'; c.abrir();
+    Pruebas.cierto(!!$('[data-nuevo]', c.portal), 'con algo que todavía no existe sí se ofrece crear');
+  } finally { c.cerrar(); c.portal.remove(); Combo.vivos.delete(c); inp.remove(); }
 });
 Pruebas.def('Flota: el equipo enlazado no deja cambiar aquí lo que trae Flota', async () => {
   const q = await EquipoService.guardar(Object.assign(EquipoService.vacio(), { nombre: 'TJZ931', tipo: 'carga', placa: 'TJZ931', flotaId: 'tjz931' }));
