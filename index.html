@@ -872,6 +872,24 @@ html[data-theme="dark"] .hj-fm img{background:#fff;border-radius:4px}
 .hj-eq .hj-campo .inp{height:38px;font-size:15px}
 .hj-eq .hj-info{font-size:13px;color:var(--text)}
 .hj-eq .hj-info svg{vertical-align:-2px;color:var(--accent)}
+/* La tarjeta del vehículo en la hoja (Juan, 31/10/2026): lo de Flota y lo comprado aquí */
+.eqt{display:flex;align-items:center;gap:8px 14px;flex-wrap:wrap;min-width:0}
+.eqt-foto{flex:0 0 auto;width:78px;height:54px;border-radius:8px;overflow:hidden;display:grid;place-items:center;background:var(--surface);border:1px solid var(--border)}
+.eqt-foto img{width:100%;height:100%;object-fit:cover;display:block}
+.eqt-foto.con-foto{cursor:zoom-in}
+.eqt-cuerpo{flex:1 1 230px;min-width:0;display:flex;flex-direction:column;gap:3px}
+.eqt-l1{display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px}
+.eqt-l1 b{font-size:14px;font-weight:750}
+.eqt-placa{font-family:var(--mono);font-size:13.5px;font-weight:800;letter-spacing:.06em;line-height:1.4;padding:0 8px;border:1.5px solid var(--text);border-radius:5px;background:var(--surface);color:var(--text)}
+.eqt-flota{display:inline-flex;align-items:center;gap:3px}
+.eqt-flota svg{color:inherit !important}
+.eqt-l2{font-size:12.5px;color:var(--text-2)}
+.eqt-l3{display:flex;flex-wrap:wrap;gap:2px 14px;font-size:12px;color:var(--text-2)}
+.hj-eq .hj-info .eqt-l3 svg{color:var(--text-3)}
+.eqt-gasto{flex:0 1 auto;display:flex;flex-direction:column;gap:2px;padding-left:14px;border-left:1px solid var(--border);font-size:12px;color:var(--text-2);min-width:160px}
+.eqt-gasto b{color:var(--text);font-weight:700}
+.eq-flota{margin-left:6px;vertical-align:1px}
+.eq-flota svg{vertical-align:-1px}
 /* Contado o crédito, debajo del tipo */
 .or-pago{display:flex;align-items:center;gap:3px;margin-top:3px;font-size:10.5px;font-weight:650;white-space:nowrap}
 .or-pago.contado{color:var(--ok-700)}
@@ -1815,7 +1833,7 @@ const APP = Object.freeze({
   nombre: 'Facturación',
   area: 'Órdenes de compra',
   empresa: 'SINUGRAVAS S.A.S.',
-  version: '2.12.1',
+  version: '2.13.0',
   /* 3: los datos viven en la nube y el número de cada orden sale de las órdenes */
   esquema: 3,
   /* La base del navegador de la versión local (1.x). Ya no se guarda en ella:
@@ -2280,7 +2298,9 @@ const Icon = (() => {
     lock: 'M5 11h14v10H5z M8 11V7a4 4 0 0 1 8 0v4',
     salir: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4 M16 17l5-5-5-5 M21 12H9',
     eyeOff: 'M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94 M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19 M14.12 14.12a3 3 0 1 1-4.24-4.24 M1 1l22 22',
-    cloud: 'M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z'
+    cloud: 'M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z',
+    link: 'M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71 M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71',
+    gauge: 'M12 14l4-4 M3.34 19a10 10 0 1 1 17.32 0'
   };
   return function Icon(n, cls, size) {
     const s = size || 16;
@@ -2846,8 +2866,8 @@ const Nube = {
   miAcceso() { return this.rpc('panel_mi_acceso', { p_modulo: NUBE.modulo }, { publico: true, leer: true }); },
 
   /* ---------------- El depósito de archivos ---------------- */
-  _url(ruta) { return NUBE.url + '/storage/v1/object/' + NUBE.deposito + '/' + String(ruta).split('/').map(encodeURIComponent).join('/'); },
-  async _archivo(metodo, ruta, blob) {
+  _url(ruta, deposito) { return NUBE.url + '/storage/v1/object/' + (deposito || NUBE.deposito) + '/' + String(ruta).split('/').map(encodeURIComponent).join('/'); },
+  async _archivo(metodo, ruta, blob, deposito) {
     let renovado = false;
     for (let intento = 1; ; intento++) {
       const tk = await this.token();
@@ -2855,7 +2875,7 @@ const Nube = {
       let r;
       try {
         /* Un archivo grande tarda en subir: se le dan hasta dos minutos */
-        r = await this._fetch(this._url(ruta), { method: metodo, body: blob,
+        r = await this._fetch(this._url(ruta, deposito), { method: metodo, body: blob,
           headers: Object.assign({ apikey: NUBE.llave, Authorization: 'Bearer ' + tk },
             blob ? { 'Content-Type': blob.type || 'application/octet-stream', 'x-upsert': 'true' } : {}) }, metodo === 'POST' ? 120000 : 60000);
       } catch (e) {
@@ -3420,7 +3440,7 @@ const Modelo = {
     return (w.length >= 4 ? [w[0], w[2]] : w.slice(0, 2)).join(' ');
   },
   nombreProveedor(o) { const p = Datos.prov(o.proveedorId); return p ? p.nombre : (o.proveedor && o.proveedor.nombre) || 'Sin proveedor'; },
-  nombreEquipo(o) { const e = o.equipoId ? Datos.equipo(o.equipoId) : null; return e ? e.nombre : ''; }
+  nombreEquipo(o) { const e = o.equipoId ? EquipoService.porId(o.equipoId) : null; return e ? e.nombre : ''; }
 };
 
 const Validar = {
@@ -3604,6 +3624,8 @@ const Datos = {
     this.indexar();
   },
   indexar(col) {
+    /* En los equipos enlazados con Flota mandan sus datos (SQL 209) */
+    if (!col || col === 'equipos') Flota.aplicar(this.crudo('equipos'));
     (col ? [col] : ['proveedores', 'equipos', 'ordenes', 'plantillas']).forEach(c => { this._idx[c] = new Map(this.crudo(c).map(d => [d.id, d])); });
     this._vista = {};
     if (!col || col === 'proveedores' || col === 'equipos') HistoricoExcel.invalidar();
@@ -4070,6 +4092,14 @@ const OrdenService = {
     const prov = Datos.prov(o.proveedorId);
     o.proveedor = Modelo.fotoProveedor(prov);
     const comunes = [];
+    /* Un vehículo de Flota que todavía no tiene su equipo aquí: se crea en el mismo guardado, ya enlazado */
+    const nq = !eqo && o.empresa === 'SINUGRAVAS' ? Flota.equipoNuevo(o.equipoId) : null;
+    if (nq) {
+      Validar.equipo(nq, Datos.crudo('equipos').filter(x => Empresa.de(x) === nq.empresa));
+      comunes.push({ col: 'equipos', tipo: 'put', doc: nq }, Datos.evento('crear', 'equipo', nq.id, nq.nombre + ' · traído de Flota'));
+    } else if (o.equipoId && !eqo && (!previo || previo.equipoId !== o.equipoId)) {
+      throw new ErrorValidacion({ equipo: 'Ese equipo o destino ya no está en la lista: escójalo otra vez.' });
+    }
     if (!previo) {
       o.id = o.id || ID();
       /* Es de quien la crea (la base pone lo mismo): sólo esa persona o el administrador la cambian */
@@ -4297,6 +4327,195 @@ const ProveedorService = {
   }
 };
 
+/* Los vehículos de Flota (Juan, 31/10/2026: «los que priman son los que van a
+   estar en flota»). Se leen con public.flota_equipos() —el SQL 021 de Flota—
+   con la sesión de quien entra, y se juntan con los equipos de aquí por el id
+   de la unidad (flotaId, SQL 209): en los enlazados mandan la placa, la clase
+   y la marca, línea y modelo de Flota. Una unidad que todavía no tiene equipo
+   aquí se ofrece igual, y su equipo se crea al guardar la primera orden.
+   Nunca se escribe en Flota. Sin el 021, sin permiso o sin conexión, todo
+   sigue con lo guardado aquí. */
+const Flota = {
+  unidades: new Map(),
+  disponible: false,
+  CADA: 5 * 60000,
+  _cuando: 0, _pidiendo: null, _firma: '',
+  /** Trae las unidades si pasaron cinco minutos (forzar: ya). true si algo cambió */
+  traer(forzar) {
+    if (!db || !db.nube) return Promise.resolve(false);
+    if (this._pidiendo) return this._pidiendo;
+    if (!forzar && Date.now() - this._cuando < this.CADA) return Promise.resolve(false);
+    return (this._pidiendo = (async () => {
+      try {
+        const filas = (await Nube.rpc('flota_equipos', {}, { publico: true, leer: true })) || [];
+        this.disponible = true;
+        const firma = JSON.stringify(filas);
+        if (firma === this._firma) return false;
+        this._firma = firma;
+        this.poner(filas);
+        return true;
+      } catch (e) {
+        if (!NubeAdapter.faltaFuncion(e)) console.warn('No se trajeron los vehículos de Flota:', e);
+        return false;
+      } finally { this._cuando = Date.now(); this._pidiendo = null; }
+    })());
+  },
+  /** Llegaron las unidades: sus datos pasan a los equipos enlazados y se avisa */
+  poner(filas) {
+    this.unidades = new Map((filas || []).filter(u => u && u.id).map(u => [String(u.id), u]));
+    Datos.indexar('equipos');
+    Bus.emit('equipos:cambio');
+    Bus.emit('datos:cambio');
+  },
+  /** La unidad de Flota de un equipo, si está enlazado */
+  de(q) { return q && q.flotaId ? this.unidades.get(q.flotaId) || null : null; },
+  /** Cómo queda en Facturación una unidad de Flota: lo mismo que hace el SQL 209 */
+  datos(u) {
+    const t = x => String(x == null ? '' : x).trim();
+    const tipo = ['carga', 'maquinaria', 'remolque', 'canoa', 'liviano', 'motor'].includes(u.tipo) ? u.tipo : 'otro';
+    const placa = Txt.mayus(t(u.placa));
+    const nombre = Txt.mayus(tipo === 'canoa' ? 'Canoa ' + (t(u.alias) || placa)
+      : tipo === 'maquinaria' ? [u.clase, u.marca, u.linea].map(t).filter(Boolean).join(' ') || placa : placa);
+    return { tipo, placa, nombre, clase: t(u.clase), detalle: [[u.marca, u.linea].map(t).filter(Boolean).join(' '), t(u.modelo)].filter(Boolean).join(' · ') };
+  },
+  /** En un equipo enlazado mandan los datos de Flota. Lo que en Flota está
+      vacío no borra lo de aquí. Si cambió la placa, la de antes (y el nombre,
+      si era la placa) quedan en «otros nombres», y si la placa nueva ya la
+      tiene otro equipo se deja la de antes. true si cambió algo */
+  ajustar(q, lista) {
+    const u = this.de(q);
+    if (!u) return false;
+    const d = this.datos(u), pn = EquipoService.placaNorm;
+    const antes = JSON.stringify([q.tipo, q.placa, q.clase, q.detalle, q.nombre, q.alias]);
+    q.tipo = d.tipo;
+    if (d.clase) q.clase = d.clase;
+    if (d.detalle) q.detalle = d.detalle;
+    if (pn(d.placa) && pn(d.placa) !== pn(q.placa) &&
+        !lista.some(x => x !== q && Empresa.de(x) === Empresa.de(q) && pn(x.placa) === pn(d.placa))) {
+      if (pn(q.placa)) {
+        const era = pn(q.nombre) === pn(q.placa);
+        q.alias = [...new Set((q.alias || []).concat([q.placa], era ? [q.nombre] : []).filter(x => String(x).trim()))];
+        if (era) q.nombre = d.tipo === 'maquinaria' ? d.nombre : d.placa;
+      }
+      q.placa = d.placa;
+    }
+    return JSON.stringify([q.tipo, q.placa, q.clase, q.detalle, q.nombre, q.alias]) !== antes;
+  },
+  aplicar(lista) { let c = false; lista.forEach(q => { if (this.ajustar(q, lista)) c = true; }); return c; },
+  /** Para comparar nombres de canoas: sin la palabra «canoa» ni tildes */
+  sinCanoa(x) { return Txt.norm(String(x || '').replace(/^\s*canoas?\s+/i, '')); },
+  /** Las unidades de Flota que todavía no tienen equipo aquí (sólo SINUGRAVAS
+      está en Flota). Las que ya están por su placa o, las canoas, por su
+      nombre no se ofrecen dos veces: a esas las enlaza el SQL 209 */
+  sinEquipo() {
+    if (Empresa.activa !== 'SINUGRAVAS' || !this.unidades.size) return [];
+    const eqs = Datos.crudo('equipos').filter(q => Empresa.de(q) === 'SINUGRAVAS');
+    const pn = EquipoService.placaNorm;
+    const enlazadas = new Set(eqs.map(q => q.flotaId).filter(Boolean));
+    const placas = new Set(eqs.map(q => pn(q.placa)).filter(Boolean));
+    const canoas = new Set(eqs.filter(q => q.tipo === 'canoa').flatMap(q => [q.nombre].concat(q.alias || [])).map(x => this.sinCanoa(x)).filter(Boolean));
+    return [...this.unidades.values()].filter(u => !enlazadas.has(u.id) && !placas.has(pn(u.placa)) &&
+      !(u.tipo === 'canoa' && this.sinCanoa(u.alias) && canoas.has(this.sinCanoa(u.alias))));
+  },
+  /** El equipo que tendría aquí una unidad de Flota, todavía sin guardar */
+  virtual(u) {
+    return Object.assign(EquipoService.vacio(), this.datos(u), { id: 'FLOTA-' + u.id, empresa: 'SINUGRAVAS', origen: 'FLOTA', flotaId: u.id });
+  },
+  /** El de una unidad sin equipo aquí, por su id «FLOTA-…»: se crea al guardar la orden */
+  equipoNuevo(id) {
+    if (!id || !String(id).startsWith('FLOTA-') || Datos.equipo(id)) return null;
+    const u = this.sinEquipo().find(x => 'FLOTA-' + x.id === id);
+    return u ? this.virtual(u) : null;
+  },
+  /* Las fotos, del depósito «flota» y con la sesión de quien mira: sin «ver»
+     en Flota el depósito no la entrega y queda el ícono. Quedan en memoria por
+     ruta y versión (foto_ts). Si la versión acaba de cambiar y el archivo no
+     pesa lo que dice Flota (foto_tam), o no llega, todavía se está subiendo:
+     no se guarda y se vuelve a pedir al rato (así lo pidió Flota). */
+  _fotos: new Map(),
+  _vistas: new Map(),
+  /** La URL de la foto, null si no hay o no se puede ver, undefined si hay que volver a intentar */
+  async foto(u, grande) {
+    if (!u || !u.foto || !db || !db.nube) return null;
+    const ruta = grande ? 'foto/' + u.id : u.foto, ts = String(u.foto_ts || '');
+    const clave = ruta + '|' + ts;
+    if (this._fotos.has(clave)) return this._fotos.get(clave);
+    const visto = this._vistas.get(u.id);
+    this._vistas.set(u.id, ts);
+    const reciente = (visto !== undefined && visto !== ts) || Math.abs(Date.now() - Number(ts)) < 10 * 60000;
+    let r;
+    try { r = await Nube._archivo('GET', ruta, null, 'flota'); } catch (e) { return undefined; }
+    const blob = r.ok ? await r.blob().catch(() => null) : null;
+    const pesa = grande || u.foto_tam == null ? null : +u.foto_tam;
+    if ((!blob || (pesa != null && blob.size !== pesa)) && reciente) return undefined;
+    const url = blob ? URL.createObjectURL(blob) : null;
+    this._fotos.set(clave, url);
+    return url;
+  }
+};
+
+/* La tarjeta del equipo en la hoja de la orden (Juan, 31/10/2026: «que salga
+   hasta la información… bien bonito… cuando se selecciona un vehículo»). De
+   Flota: la placa, la clase, marca, línea y modelo, el color, el conductor, la
+   última lectura y la foto (si quien mira puede ver Flota). De aquí: lo que se
+   le ha comprado este año y su última orden. */
+const TarjetaEquipo = {
+  html(q, o) {
+    const u = Flota.de(q);
+    const g = this.gasto(q, o);
+    const gasto = '<div class="eqt-gasto">' +
+      (g.n ? '<div>Este año: <b>' + Txt.plural(g.n, 'orden', 'órdenes') + ' · ' + Money.redondo(g.total) + '</b></div>' : '<div>Sin órdenes este año</div>') +
+      (g.ultima ? '<div>Última: <b>' + esc(Modelo.codigo(g.ultima)) + '</b> · ' + esc(Fecha.corta(g.ultima.fecha)) + '</div>' : '') + '</div>';
+    if (!u) {
+      return '<div class="eqt"><div class="eqt-cuerpo"><div>' + Icon(EquipoService.icono(q), '', 14) + ' ' + esc(EquipoService.sub(q) || TIPOS_EQUIPO[q.tipo] || '') +
+        '</div></div>' + gasto + '</div>';
+    }
+    const d = Flota.datos(u), nuevo = !Datos.equipo(q.id);
+    const lectura = u.lectura != null && u.lectura !== '' ? Icon('gauge', '', 13) + ' ' + esc(Num.fmt(u.lectura) + ' ' + (u.medida === 'h' ? 'horas' : 'km')) +
+      (u.lectura_fecha ? ' · ' + esc(Fecha.corta(u.lectura_fecha)) : '') : '';
+    return '<div class="eqt">' +
+      '<div class="eqt-foto" data-eqt-foto="' + attr(u.id) + '">' + Icon(EquipoService.icono(q), '', 24) + '</div>' +
+      '<div class="eqt-cuerpo">' +
+        '<div class="eqt-l1">' + (d.placa ? '<span class="eqt-placa">' + esc(d.placa) + '</span>' : '') + '<b>' + esc(d.clase || TIPOS_EQUIPO[d.tipo]) + '</b>' +
+          (u.alias ? '<span>«' + esc(u.alias) + '»</span>' : '') +
+          '<span class="pill p-green np eqt-flota" data-tip="' + attr(nuevo ? 'Viene de Flota: su equipo se crea aquí al guardar la orden' : 'Los datos los trae Flota') + '">' +
+          Icon('link', '', 11) + (nuevo ? 'De Flota · nuevo aquí' : 'De Flota') + '</span></div>' +
+        '<div class="eqt-l2">' + esc([d.detalle, u.color].filter(Boolean).join(' · ') || TIPOS_EQUIPO[d.tipo]) + '</div>' +
+        (u.conductor || lectura ? '<div class="eqt-l3">' + (u.conductor ? '<span>' + Icon('user', '', 13) + ' ' + esc(u.conductor) + '</span>' : '') +
+          (lectura ? '<span>' + lectura + '</span>' : '') + '</div>' : '') +
+      '</div>' + gasto + '</div>';
+  },
+  /** Lo comprado al equipo: este año, y su última orden (sin contar la que se está haciendo) */
+  gasto(q, o) {
+    const anio = new Date().getFullYear();
+    const l = Datos.ordenes.filter(x => x.equipoId === q.id && x.id !== (o && o.id) && Modelo.cuenta(x));
+    const este = l.filter(x => Fecha.anio(x.fecha) === anio);
+    return { n: este.length, total: U.sumar(este, Modelo.valor), ultima: l.reduce((m, x) => (!m || x.fecha > m.fecha ? x : m), null) };
+  },
+  /** La foto, cuando llegue */
+  unir(cont) { this.foto(cont, 0); },
+  async foto(cont, intento) {
+    const caja = cont && $('[data-eqt-foto]', cont);
+    const u = caja && Flota.unidades.get(caja.dataset.eqtFoto);
+    if (!u || !u.foto) return;
+    const url = await Flota.foto(u);
+    if (url === undefined) { if (intento < 3) setTimeout(() => this.foto(cont, intento + 1), 20000); return; }
+    if (!url || !caja.isConnected) return;
+    caja.innerHTML = '<img src="' + attr(url) + '" alt="' + attr('Foto de ' + (u.placa || u.alias || 'la unidad')) + '">';
+    caja.classList.add('con-foto');
+    caja.setAttribute('data-tip', 'Ver la foto en grande');
+    caja.onclick = () => this.verFoto(u);
+  },
+  async verFoto(u) {
+    let url;
+    Cargando.on();
+    try { url = await Flota.foto(u, true); } finally { Cargando.off(); }
+    if (!url) { Toast.err('No se pudo traer la foto grande de Flota. Intente otra vez en un momento.'); return; }
+    Modal.abrir({ titulo: esc([u.placa, u.clase, u.alias].filter(Boolean).join(' · ')), subtitulo: 'Foto de Flota', ancho: 'xwide',
+      cuerpo: '<div class="adj-img"><img src="' + attr(url) + '" alt=""></div>', pie: '<button class="btn btn-primary" data-cerrar>Cerrar</button>' });
+  }
+};
+
 const EquipoService = {
   vacio() { return { id: null, empresa: Empresa.activa, nombre: '', tipo: Empresa.activa === 'SINUGRAVAS' ? 'carga' : 'sede', placa: '', clase: '', detalle: '', alias: [], notas: '', activo: true, origen: 'MANUAL' }; },
   /** Placa o código para comparar: mayúsculas, sin espacios ni guiones */
@@ -4322,6 +4541,8 @@ const EquipoService = {
     return Datos.equipo(q.id);
   },
   usos(q) { return Datos.ordenes.filter(o => o.equipoId === q.id).length + Datos.plantillas.filter(p => p.equipoId === q.id).length; },
+  /** El equipo por su id; también el de una unidad de Flota que todavía no tiene equipo aquí («FLOTA-…») */
+  porId(id) { return Datos.equipo(id) || Flota.equipoNuevo(id); },
   /* El Editor también: sólo las órdenes son del administrador */
   async eliminar(q) {
     Permiso.exigir('editar');
@@ -6033,14 +6254,14 @@ const VistaOrdenForm = {
     const ponerEquipo = q => { o.equipoId = q ? q.id : null; inpE.value = q ? q.nombre : ''; inpE.classList.remove('is-err'); this.pintarEquipo(); this.marcar(); };
     Combo.unir(inpE, {
       alAbrirVacio: true,
-      fuente: txt => EquipoService.ordenados(true).filter(x => EquipoService.coincide(x, txt)).slice(0, 12)
-        .map(x => ({ html: Txt.resaltar(x.nombre, txt), s: EquipoService.sub(x), data: x })),
+      fuente: txt => EquipoService.ordenados(true).concat(Flota.sinEquipo().map(u => Flota.virtual(u))).filter(x => EquipoService.coincide(x, txt)).slice(0, 12)
+        .map(x => ({ html: Txt.resaltar(x.nombre, txt), s: EquipoService.sub(x) + (Datos.equipo(x.id) ? '' : ' · nuevo, de Flota'), data: x })),
       vacio: 'Ningún equipo coincide.',
       alElegir: it => ponerEquipo(it.data),
       nuevo: { texto: t => 'Crear «' + t + '»', accion: async t => { const nq = await EquipoForm.abrir({ nombre: t }); if (nq) ponerEquipo(nq); } }
     });
     inpE.addEventListener('input', () => {
-      const x = Datos.equipo(o.equipoId);
+      const x = EquipoService.porId(o.equipoId);
       if (!x || Txt.norm(x.nombre) !== Txt.norm(inpE.value)) { o.equipoId = null; this.pintarEquipo(); }
       this.marcar();
     });
@@ -6349,9 +6570,10 @@ const VistaOrdenForm = {
     if (rep) rep.onclick = () => this.agregarItems(ult.excel ? HistoricoExcel.paraCopiar(ult.id).items : ult.items, 'la orden ' + ult.numero + (ult.excel ? ' del Excel' : ''));
   },
   pintarEquipo() {
-    const q = Datos.equipo(this.o.equipoId);
-    $('#ofEqInfo', this.el).innerHTML = q ? Icon(EquipoService.icono(q), '', 14) + ' ' + esc(EquipoService.sub(q))
+    const q = EquipoService.porId(this.o.equipoId), cont = $('#ofEqInfo', this.el);
+    cont.innerHTML = q ? TarjetaEquipo.html(q, this.o)
       : '<span class="txt-3">El vehículo, la máquina o el destino (oficina, bodega, finca…) para el que se compra.</span>';
+    if (q) TarjetaEquipo.unir(cont);
   },
   /** Las firmas como salen impresas: el solicitante se escoge sobre su línea */
   pintarSolicitante() {
@@ -6898,22 +7120,30 @@ const VistaEquipos = {
       x.n++; x.total += Modelo.valor(o); if (o.fecha > x.ultima) x.ultima = o.fecha;
     });
     const orden = Object.keys(TIPOS_EQUIPO);
+    const deFlota = Flota.sinEquipo().map(u => Flota.virtual(u)).filter(x => (!f.tipo || x.tipo === f.tipo) && EquipoService.coincide(x, f.q));
     const l = Datos.equipos.filter(x => (!f.tipo || x.tipo === f.tipo) && EquipoService.coincide(x, f.q))
       .sort((a, b) => (b.activo - a.activo) || orden.indexOf(a.tipo) - orden.indexOf(b.tipo) || ((st.get(b.id) || {}).total || 0) - ((st.get(a.id) || {}).total || 0) || a.nombre.localeCompare(b.nombre, 'es'));
-    if (!l.length) { $('#eqTabla', el).innerHTML = Comp.vacio('truck', 'Nada coincide', 'Pruebe con otra búsqueda o cree uno nuevo.'); return; }
+    if (!l.length && !deFlota.length) { $('#eqTabla', el).innerHTML = Comp.vacio('truck', 'Nada coincide', 'Pruebe con otra búsqueda o cree uno nuevo.'); return; }
     const pillTipo = { carga: 'p-blue', maquinaria: 'p-sun', remolque: 'p-violet', canoa: 'p-green', liviano: 'p-brand', motor: 'p-amber', sede: 'p-gray', otro: 'p-gray' };
     $('#eqTabla', el).innerHTML = '<table class="tbl compacta"><thead><tr><th>Nombre</th><th>Tipo</th><th>Placa o código</th><th class="num">Órdenes</th><th class="num">Comprado</th><th>Última</th><th></th></tr></thead><tbody>' +
       l.map(x => {
         const s = st.get(x.id) || { n: 0, total: 0, ultima: '' };
         const sub = [x.clase, x.detalle].filter(Boolean).join(' · ');
-        return '<tr class="row-click" data-ir="/ordenes?equipo=' + attr(x.id) + '"' + (x.activo ? '' : ' style="opacity:.6"') + '><td><div class="fw6">' + esc(x.nombre) + (x.activo ? '' : ' <span class="pill p-red np">Inactivo</span>') + '</div>' +
+        return '<tr class="row-click" data-ir="/ordenes?equipo=' + attr(x.id) + '"' + (x.activo ? '' : ' style="opacity:.6"') + '><td><div class="fw6">' + esc(x.nombre) + (x.activo ? '' : ' <span class="pill p-red np">Inactivo</span>') +
+          (x.flotaId ? '<span class="pill p-green np eq-flota" data-tip="' + attr(Flota.de(x) ? 'Enlazado con Flota: los datos los trae Flota' : 'Enlazado con Flota') + '">' + Icon('link', '', 10) + 'Flota</span>' : '') + '</div>' +
           (sub ? '<div class="fs12 txt-2">' + esc(sub) + '</div>' : '') +
           (x.alias && x.alias.length ? '<div class="fs11 txt-3 trunc" style="max-width:340px">También: ' + esc(x.alias.join(' · ')) + '</div>' : '') + '</td>' +
           '<td><span class="pill np ' + (pillTipo[x.tipo] || 'p-gray') + '">' + esc(TIPOS_EQUIPO[x.tipo]) + '</span></td><td class="mono">' + esc(x.placa || '') + '</td>' +
           '<td class="num">' + (s.n || '<span class="txt-3">0</span>') + '</td><td class="num">' + (s.total ? Money.redondo(s.total) : '<span class="txt-3">—</span>') + '</td>' +
           '<td class="nowrap">' + (s.ultima ? Fecha.corta(s.ultima) : '<span class="txt-3">—</span>') + '</td>' +
           '<td class="tr">' + si('editar', '<button class="btn btn-ghost btn-icon btn-sm" data-eq-ed="' + attr(x.id) + '" data-tip="Editar" aria-label="Editar">' + Icon('edit', '', 13) + '</button>') + '</td></tr>';
-      }).join('') + '</tbody></table>';
+      }).join('') +
+      /* Lo de Flota que todavía no tiene equipo aquí: se crea al hacerle la primera orden */
+      deFlota.map(x => '<tr><td><div class="fw6">' + esc(x.nombre) + '<span class="pill p-green np eq-flota">' + Icon('link', '', 10) + 'Flota</span></div>' +
+        '<div class="fs12 txt-2">' + esc([x.clase, x.detalle].filter(Boolean).join(' · ')) + '</div><div class="fs11 txt-3">Nuevo en Flota: se agrega aquí con su primera orden</div></td>' +
+        '<td><span class="pill np ' + (pillTipo[x.tipo] || 'p-gray') + '">' + esc(TIPOS_EQUIPO[x.tipo]) + '</span></td><td class="mono">' + esc(x.placa || '') + '</td>' +
+        '<td class="num"><span class="txt-3">0</span></td><td class="num"><span class="txt-3">—</span></td><td class="nowrap"><span class="txt-3">—</span></td><td></td></tr>').join('') +
+      '</tbody></table>';
   }
 };
 
@@ -6923,16 +7153,19 @@ const EquipoForm = {
       const q = Object.assign(EquipoService.vacio(), U.clonar(base || {}));
       let hecho = null;
       const usos = q.id ? EquipoService.usos(q) : 0;
+      /* Enlazado con Flota: la placa, el tipo, la clase y la marca y modelo los trae Flota */
+      const fl = q.flotaId ? ' disabled data-tip="Lo trae Flota: si está mal, se corrige allá"' : '';
       const m = Modal.abrir({
         titulo: q.id ? 'Editar equipo o destino' : 'Nuevo equipo o destino', subtitulo: q.id ? esc(q.nombre) : 'Vehículo, máquina, remolque, canoa, camioneta o sede',
         cuerpo: '<div class="row"><div class="field" style="flex:2 1 240px"><label>Nombre<span class="req">*</span></label><input class="inp" id="eqNombre" value="' + attr(q.nombre) +
           '" placeholder="Ej.: CARGADOR, VOLQUETA, BODEGA…" autofocus><div class="err hidden" data-err="nombre"></div></div>' +
-          '<div class="field"><label>Tipo<span class="req">*</span></label><select class="inp" id="eqTipo">' +
+          '<div class="field"><label>Tipo<span class="req">*</span></label><select class="inp" id="eqTipo"' + fl + '>' +
           Object.keys(TIPOS_EQUIPO).map(k => '<option value="' + k + '"' + (q.tipo === k ? ' selected' : '') + '>' + TIPOS_EQUIPO[k] + '</option>').join('') + '</select></div></div>' +
-          '<div class="row"><div class="field"><label>Placa o código</label><input class="inp inp-mono" id="eqPlaca" value="' + attr(q.placa) + '" placeholder="Ej.: ABC123">' +
+          '<div class="row"><div class="field"><label>Placa o código</label><input class="inp inp-mono" id="eqPlaca" value="' + attr(q.placa) + '" placeholder="Ej.: ABC123"' + fl + '>' +
           '<div class="hint">Se guarda en mayúsculas y sin espacios, para que no se repita.</div><div class="err hidden" data-err="placa"></div></div>' +
-          '<div class="field"><label>Clase</label><input class="inp" id="eqClase" value="' + attr(q.clase) + '" placeholder="Ej.: Tractocamión"></div>' +
-          '<div class="field" style="flex:1.4 1 200px"><label>Marca, modelo y año</label><input class="inp" id="eqDetalle" value="' + attr(q.detalle) + '" placeholder="Ej.: Marca y modelo · 2015"></div></div>' +
+          '<div class="field"><label>Clase</label><input class="inp" id="eqClase" value="' + attr(q.clase) + '" placeholder="Ej.: Tractocamión"' + fl + '></div>' +
+          '<div class="field" style="flex:1.4 1 200px"><label>Marca, modelo y año</label><input class="inp" id="eqDetalle" value="' + attr(q.detalle) + '" placeholder="Ej.: Marca y modelo · 2015"' + fl + '></div></div>' +
+          (q.flotaId ? '<div class="alert a-info mb12">' + Icon('link') + '<div>Enlazado con Flota: la placa, el tipo, la clase y la marca y modelo los trae Flota. Si algo está mal, se corrige allá. Aquí se cambian el nombre, los otros nombres y las notas.</div></div>' : '') +
           '<div class="field"><label>Otros nombres</label><input class="inp" id="eqAlias" value="' + attr((q.alias || []).join(', ')) + '" placeholder="Separados por coma">' +
           '<div class="hint">Cómo más lo llaman (o el número del motor): sirve para encontrarlo al buscar.</div></div>' +
           '<div class="field"><label>Notas</label><input class="inp" id="eqNotas" value="' + attr(q.notas) + '" placeholder="Opcional"></div>' +
@@ -8118,6 +8351,7 @@ const Pruebas = {
   ],
   historico() { HistoricoExcel.poner(U.clonar(this.HISTORICO)); return HistoricoExcel.lista(); },
   async base() {
+    Flota.unidades = new Map();
     db = new MemoryAdapter();
     await db.init();
     await Datos.cargar();
@@ -8138,7 +8372,7 @@ const Pruebas = {
     /* Se guardan las de todas las empresas, no sólo las que se ven */
     const real = { db, cfg: Datos.cfg, cfgs: Datos.cfgs, proveedores: Datos.proveedores, equipos: Datos.crudo('equipos'), ordenes: Datos.crudo('ordenes'),
       plantillas: Datos.crudo('plantillas'), acceso: Permiso.acceso, historico: HistoricoExcel.crudo(), autores: Autores.mapa,
-      empresa: Empresa.activa, disponible: Empresa.disponible };
+      empresa: Empresa.activa, disponible: Empresa.disponible, flota: Flota.unidades };
     /* Las pruebas no ven los nombres de la nube, y empiezan en SINUGRAVAS con las dos empresas */
     Autores.mapa = new Map();
     Empresa.disponible = true;
@@ -8167,6 +8401,7 @@ const Pruebas = {
       Empresa.disponible = real.disponible;
       Empresa.poner(real.empresa);
       Permiso.acceso = real.acceso;
+      Flota.unidades = real.flota;
       Datos.indexar();
       HistoricoExcel.poner(real.historico);
       Autores.mapa = real.autores;
@@ -8912,6 +9147,84 @@ Pruebas.def('La orden impresa cabe en una hoja carta, sin hueco debajo de «Entr
     return alto.toFixed(1) + ' mm · ' + vacias + ' renglones vacíos';
   } finally { caja.remove(); }
 });
+/* Los vehículos de Flota (31/10/2026). Las pruebas no leen la Flota de verdad:
+   ponen sus propias unidades */
+Pruebas.def('Flota: en el equipo enlazado mandan los datos de Flota', async () => {
+  const q = await EquipoService.guardar(Object.assign(EquipoService.vacio(), { nombre: 'CLG835', tipo: 'maquinaria', placa: 'CLG835', clase: 'Cargador', detalle: 'LiuGong', flotaId: 'mc064182' }));
+  Flota.poner([{ id: 'mc064182', tipo: 'maquinaria', clase: 'Cargador', placa: 'MC064182', alias: '', marca: 'LiuGong', linea: 'CLG835', modelo: '2011', color: 'Amarillo', conductor: '', foto: null }]);
+  const x = Datos.equipo(q.id);
+  Pruebas.igual([x.placa, x.nombre, x.detalle, x.alias], ['MC064182', 'CARGADOR LIUGONG CLG835', 'LiuGong CLG835 · 2011', ['CLG835']]);
+  Pruebas.igual(Flota.sinEquipo().length, 0, 'la unidad ya tiene su equipo');
+  /* Lo que en Flota está vacío no borra lo de aquí */
+  Flota.poner([{ id: 'mc064182', tipo: 'maquinaria', clase: '', placa: 'MC064182', marca: '', linea: '', modelo: '' }]);
+  Pruebas.igual([Datos.equipo(q.id).clase, Datos.equipo(q.id).detalle], ['Cargador', 'LiuGong CLG835 · 2011']);
+});
+Pruebas.def('Flota: una unidad sin equipo aquí se ofrece y su equipo se crea con la primera orden', async ({ p1 }) => {
+  Flota.poner([{ id: 'ab123cd', tipo: 'carga', clase: 'Volqueta', placa: 'AB123CD', alias: '', marca: 'Kenworth', linea: 'T880', modelo: '2026', color: 'Blanco', conductor: 'Conductor uno', foto: null }]);
+  Pruebas.igual(Flota.sinEquipo().map(u => u.id), ['ab123cd']);
+  const v = EquipoService.porId('FLOTA-ab123cd');
+  Pruebas.igual([v.nombre, v.placa, v.clase, v.detalle, v.flotaId, v.empresa], ['AB123CD', 'AB123CD', 'Volqueta', 'Kenworth T880 · 2026', 'ab123cd', 'SINUGRAVAS']);
+  const div = document.createElement('div');
+  await VistaOrdenForm.render(div, {}, { equipo: 'FLOTA-ab123cd' });
+  Pruebas.cierto($('#ofEq', div).value === 'AB123CD' && div.innerHTML.includes('De Flota · nuevo aquí'), 'la hoja debía mostrar la tarjeta de la unidad nueva');
+  Router.sucio = false;
+  const o = await OrdenService.guardar(Pruebas.orden(p1, { equipoId: 'FLOTA-ab123cd' }));
+  const q = Datos.equipo('FLOTA-ab123cd');
+  Pruebas.cierto(q && q.flotaId === 'ab123cd' && q.origen === 'FLOTA' && q.nombre === 'AB123CD', 'el equipo debía crearse enlazado');
+  Pruebas.igual(o.equipoId, 'FLOTA-ab123cd');
+  Pruebas.igual(Flota.sinEquipo().length, 0, 'ya no se ofrece como nuevo');
+  await Pruebas.falla(() => OrdenService.guardar(Pruebas.orden(p1, { equipoId: 'FLOTA-noexiste' })), Error, 'una unidad que no está no se inventa');
+});
+Pruebas.def('Flota: lo que ya está aquí por placa o por nombre de canoa no se ofrece dos veces, y en JDPR no sale', async () => {
+  await EquipoService.guardar(Object.assign(EquipoService.vacio(), { nombre: 'THX523', tipo: 'carga', placa: 'THX 523' }));
+  await EquipoService.guardar(Object.assign(EquipoService.vacio(), { nombre: 'CANOA LA REINA', tipo: 'canoa' }));
+  Flota.poner([{ id: 'thx523', tipo: 'carga', placa: 'THX523', clase: 'Tractocamión' }, { id: 'canoa-10720601', tipo: 'canoa', placa: '10720601', alias: 'La Reina', clase: 'Motocanoa' },
+    { id: 'pwy995', tipo: 'carga', placa: 'PWY995', clase: 'Tractocamión' }]);
+  Pruebas.igual(Flota.sinEquipo().map(u => u.id), ['pwy995']);
+  Empresa.poner('JDPR');
+  try { Pruebas.igual(Flota.sinEquipo().length, 0, 'en JDPR no se ofrecen las unidades de Flota'); } finally { Empresa.poner('SINUGRAVAS'); }
+});
+Pruebas.def('Flota: la tarjeta del vehículo en la hoja de la orden', async ({ p1 }) => {
+  const q = await EquipoService.guardar(Object.assign(EquipoService.vacio(), { nombre: 'SNW865', tipo: 'carga', placa: 'SNW865', flotaId: 'snw865' }));
+  Flota.poner([{ id: 'snw865', tipo: 'carga', clase: 'Volqueta', placa: 'SNW865', alias: '', marca: 'Kenworth', linea: 'T370', modelo: '2015', color: 'Amarillo',
+    conductor: 'Conductor uno', foto: null, lectura: 198740.5, lectura_fecha: '2026-10-29', medida: 'km' }]);
+  await OrdenService.guardar(Pruebas.orden(p1, { equipoId: q.id, fecha: Fecha.hoy() }));
+  const h = TarjetaEquipo.html(Datos.equipo(q.id), OrdenService.nueva({}));
+  ['eqt-placa">SNW865<', '<b>Volqueta</b>', 'Kenworth T370 · 2015 · Amarillo', 'Conductor uno', esc(Num.fmt(198740.5)) + ' km', '>De Flota<', 'Este año: <b>1 orden']
+    .forEach(t => Pruebas.cierto(h.includes(t), 'falta «' + t + '» en la tarjeta'));
+  const sede = TarjetaEquipo.html(Object.assign(EquipoService.vacio(), { id: 'X', nombre: 'OFICINA', tipo: 'sede' }), null);
+  Pruebas.cierto(sede.includes('Sin órdenes este año') && !sede.includes('eqt-placa'), 'un destino que no es de Flota: su línea y lo comprado');
+});
+Pruebas.def('Flota: la foto se guarda por su versión y se espera si todavía se está subiendo', async () => {
+  const antes = Nube._archivo;
+  let pedidas = 0, tam = 10, ok = true;
+  Nube._archivo = async () => { pedidas++; return { ok, status: ok ? 200 : 400, blob: async () => new Blob([new Uint8Array(tam)]) }; };
+  Object.defineProperty(db, 'nube', { value: true, configurable: true });
+  Flota._fotos = new Map(); Flota._vistas = new Map();
+  try {
+    const viejo = String(Date.now() - 86400000);
+    const u = { id: 'u1', foto: 'mini/u1', foto_ts: viejo, foto_tam: 10 };
+    Pruebas.cierto(typeof await Flota.foto(u) === 'string', 'la foto que pesa lo que dice Flota se muestra');
+    await Flota.foto(u);
+    Pruebas.igual(pedidas, 1, 'la segunda vez sale de memoria');
+    tam = 7;
+    const nueva = Object.assign({}, u, { foto_ts: String(Date.now()) });
+    Pruebas.igual(await Flota.foto(nueva), undefined, 'versión nueva que todavía no pesa lo que dice: se espera');
+    tam = 10;
+    Pruebas.cierto(typeof await Flota.foto(nueva) === 'string', 'al rato llega completa');
+    Pruebas.igual(pedidas, 3);
+    ok = false;
+    Pruebas.igual(await Flota.foto({ id: 'u2', foto: 'mini/u2', foto_ts: viejo, foto_tam: null }), null, 'sin permiso para ver Flota: queda el ícono');
+  } finally { Nube._archivo = antes; delete db.nube; Flota._fotos = new Map(); Flota._vistas = new Map(); }
+});
+Pruebas.def('Flota: el equipo enlazado no deja cambiar aquí lo que trae Flota', async () => {
+  const q = await EquipoService.guardar(Object.assign(EquipoService.vacio(), { nombre: 'TJZ931', tipo: 'carga', placa: 'TJZ931', flotaId: 'tjz931' }));
+  EquipoForm.abrir(Datos.equipo(q.id));
+  try {
+    Pruebas.cierto(['#eqPlaca', '#eqTipo', '#eqClase', '#eqDetalle'].every(s => $(s) && $(s).disabled), 'placa, tipo, clase y marca debían quedar quietos');
+    Pruebas.cierto($('#eqNombre') && !$('#eqNombre').disabled, 'el nombre sí se cambia');
+  } finally { Modal.cerrarTodos(); }
+});
 Pruebas.def('La hoja de nueva orden crece al escribir y guarda sólo las filas llenas', async ({ p1, e1 }) => {
   const div = document.createElement('div');
   try {
@@ -9187,6 +9500,7 @@ const Sincro = {
       let hubo = false;
       try {
         hubo = await Datos.sincronizar();
+        if (await Flota.traer()) hubo = true;
         this.estado = 'ok';
         this.error = null;
         this.ultima = Date.now();
@@ -9352,7 +9666,7 @@ async function arrancar() {
     msg('Revisando la sesión…');
     await Sesion.iniciar();
     msg('Trayendo los datos de la nube…');
-    await Promise.all([Datos.cargar(), HistoricoExcel.cargar(), Autores.traer(true), Empresa.revisar()]);
+    await Promise.all([Datos.cargar(), HistoricoExcel.cargar(), Autores.traer(true), Empresa.revisar(), Flota.traer(true)]);
     Empresa.iniciar();
     /* Quien administra pone al día lo que llegue de una versión anterior */
     if (Permiso.puede('configurar') && await Semillas.aplicar()) msg('Poniendo al día los datos…');
