@@ -1833,7 +1833,7 @@ const APP = Object.freeze({
   nombre: 'Facturación',
   area: 'Órdenes de compra',
   empresa: 'SINUGRAVAS S.A.S.',
-  version: '2.13.0',
+  version: '2.13.1',
   /* 3: los datos viven en la nube y el número de cada orden sale de las órdenes */
   esquema: 3,
   /* La base del navegador de la versión local (1.x). Ya no se guarda en ella:
@@ -4449,7 +4449,9 @@ const Flota = {
     const pesa = grande || u.foto_tam == null ? null : +u.foto_tam;
     if ((!blob || (pesa != null && blob.size !== pesa)) && reciente) return undefined;
     const url = blob ? URL.createObjectURL(blob) : null;
-    this._fotos.set(clave, url);
+    /* La grande no trae su peso para revisarla: si su versión es reciente se
+       muestra sin guardarla, y el próximo clic la vuelve a pedir (Flota) */
+    if (!(grande && reciente)) this._fotos.set(clave, url);
     return url;
   }
 };
@@ -9213,6 +9215,12 @@ Pruebas.def('Flota: la foto se guarda por su versión y se espera si todavía se
     tam = 10;
     Pruebas.cierto(typeof await Flota.foto(nueva) === 'string', 'al rato llega completa');
     Pruebas.igual(pedidas, 3);
+    const g0 = pedidas;
+    await Flota.foto(nueva, true); await Flota.foto(nueva, true);
+    Pruebas.igual(pedidas - g0, 2, 'la grande de una versión reciente no se guarda: cada clic la vuelve a pedir');
+    const w = { id: 'u3', foto: 'mini/u3', foto_ts: viejo, foto_tam: 10 };
+    await Flota.foto(w, true); await Flota.foto(w, true);
+    Pruebas.igual(pedidas - g0, 3, 'la grande de una versión vieja sí se guarda');
     ok = false;
     Pruebas.igual(await Flota.foto({ id: 'u2', foto: 'mini/u2', foto_ts: viejo, foto_tam: null }), null, 'sin permiso para ver Flota: queda el ícono');
   } finally { Nube._archivo = antes; delete db.nube; Flota._fotos = new Map(); Flota._vistas = new Map(); }
