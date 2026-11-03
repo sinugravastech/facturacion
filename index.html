@@ -1863,7 +1863,7 @@ const APP = Object.freeze({
   nombre: 'Facturación',
   area: 'Órdenes de compra',
   empresa: 'SINUGRAVAS S.A.S.',
-  version: '2.14.0',
+  version: '2.14.1',
   /* 3: los datos viven en la nube y el número de cada orden sale de las órdenes */
   esquema: 3,
   /* La base del navegador de la versión local (1.x). Ya no se guarda en ella:
@@ -2112,7 +2112,27 @@ const Num = {
     const v = +n || 0;
     return new Intl.NumberFormat('es-CO', { maximumFractionDigits: 3 }).format(v);
   },
-  pct(n) { return new Intl.NumberFormat('es-CO', { maximumFractionDigits: 2 }).format(+n || 0) + ' %'; }
+  pct(n) { return new Intl.NumberFormat('es-CO', { maximumFractionDigits: 2 }).format(+n || 0) + ' %'; },
+  /* Una fracción escrita: «1/4», «1 1/2», «½» o «1½» (Juan, 03/11/2026) */
+  _fraccion(t) {
+    const s = String(t == null ? '' : t).replace(/¼/g, ' 1/4').replace(/½/g, ' 1/2').replace(/¾/g, ' 3/4').trim().replace(/\s+/g, ' ');
+    return { s, f: /^(?:(\d+) )?(\d+)\/(\d+)$/.exec(s) };
+  },
+  /** Una cantidad: además de 2,5 entiende fracciones. Antes «1/4» quedaba en 1 y «1 1/2» en 11 */
+  cantidad(t) {
+    if (typeof t === 'number') return isFinite(t) ? t : 0;
+    const { s, f } = this._fraccion(t);
+    if (f) return +f[3] ? (+f[1] || 0) + f[2] / f[3] : 0;
+    /* A medio escribir («1 1/»): mientras tanto vale el entero */
+    const a = /^(\d+) [\d/]*$/.exec(s);
+    return a ? +a[1] : this.parse(s);
+  },
+  /** La fracción tal como se escribió, en limpio («1 1/2»), o '' si no es una fracción */
+  fraccion(t) {
+    if (typeof t === 'number') return '';
+    const { f } = this._fraccion(t);
+    return f && +f[2] && +f[3] ? (+f[1] ? +f[1] + ' ' : '') + (+f[2]) + '/' + (+f[3]) : '';
+  }
 };
 
 const Fecha = (() => {
@@ -3550,9 +3570,25 @@ const Autores = {
 const Modelo = {
   itemVacio() { return { id: ID(), descripcion: '', cantidad: 1, unidad: 'UND', valorUnitario: 0, observacion: '' }; },
   itemValido(it) { return !!(it && String(it.descripcion || '').trim()); },
+  /** La fracción del artículo («1/4») si todavía es su cantidad; si no, '' */
+  fraccion(it) {
+    const f = Num.fraccion(it.fraccion) || Num.fraccion(it.cantidad);
+    return f && Num.cantidad(f) === Num.cantidad(it.cantidad) ? f : '';
+  },
+  /** Lo escrito en la cantidad: el número para las cuentas y, si fue una fracción, cómo se escribió */
+  ponerCantidad(it, texto) {
+    it.cantidad = Num.cantidad(texto);
+    const f = Num.fraccion(texto);
+    if (f) it.fraccion = f; else delete it.fraccion;
+  },
+  /** La cantidad como se escribió: «1/4» si se escribió en fracción; si no, el número («2,5») */
+  cantidadTexto(it) {
+    if (!it || it.cantidad === '' || it.cantidad == null) return '';
+    return Modelo.fraccion(it) || Num.fmt(Num.cantidad(it.cantidad));
+  },
   /** Cantidad × valor unitario, menos el descuento del renglón si lo tiene (como la «% Desc.» de las facturas) */
   totalItem(it) {
-    const bruto = Num.parse(it.cantidad) * Money.parse(it.valorUnitario);
+    const bruto = Num.cantidad(it.cantidad) * Money.parse(it.valorUnitario);
     return Money.cent(bruto * (1 - Modelo.descuento(it) / 100));
   },
   descuento(it) { return Math.min(100, Math.max(0, Num.parse(it.descuentoPct))); },
@@ -3641,7 +3677,7 @@ const Validar = {
     const its = (o.items || []).filter(Modelo.itemValido);
     if (!its.length) e.items = 'Agregue al menos un artículo con su descripción.';
     its.forEach((it, i) => {
-      if (!(Num.parse(it.cantidad) > 0)) e['cant-' + it.id] = 'La cantidad del artículo ' + (i + 1) + ' debe ser mayor que cero.';
+      if (!(Num.cantidad(it.cantidad) > 0)) e['cant-' + it.id] = 'La cantidad del artículo ' + (i + 1) + ' debe ser mayor que cero.';
       if (Money.parse(it.valorUnitario) < 0) e['val-' + it.id] = 'El valor del artículo ' + (i + 1) + ' no puede ser negativo.';
       const d = Num.parse(it.descuentoPct);
       if (!(d >= 0 && d <= 100)) e['desc-' + it.id] = 'El descuento del artículo ' + (i + 1) + ' debe estar entre 0 y 100 %.';
@@ -4201,11 +4237,11 @@ const OrdenService = {
     o.items = (o.items || []).filter(Modelo.itemValido).map(it => Object.assign({
       id: it.id || ID(),
       descripcion: String(it.descripcion).trim().replace(/\s+/g, ' '),
-      cantidad: Num.parse(it.cantidad),
+      cantidad: Num.cantidad(it.cantidad),
       unidad: Txt.mayus(String(it.unidad || '').trim()) || 'UND',
       valorUnitario: Money.parse(it.valorUnitario),
       observacion: String(it.observacion || '').trim()
-    }, Modelo.descuento(it) ? { descuentoPct: Modelo.descuento(it) } : {}));
+    }, Modelo.fraccion(it) ? { fraccion: Modelo.fraccion(it) } : {}, Modelo.descuento(it) ? { descuentoPct: Modelo.descuento(it) } : {}));
     o.ivaPct = +o.ivaPct || 0;
     if (o.ivaIncluido) o.ivaIncluido = true; else delete o.ivaIncluido;
     o.retencionPct = +o.retencionPct || 0;
@@ -4762,9 +4798,9 @@ const PlantillaService = {
     p.nombre = String(p.nombre || '').trim();
     p.empresa = p.empresa || Empresa.activa;
     Validar.plantilla(p);
-    p.items = p.items.filter(Modelo.itemValido).map(it => ({ id: it.id || ID(), descripcion: String(it.descripcion).trim(),
-      cantidad: Num.parse(it.cantidad) || 1, unidad: Txt.mayus(String(it.unidad || 'UND').trim()) || 'UND',
-      valorUnitario: Money.parse(it.valorUnitario), observacion: String(it.observacion || '').trim() }));
+    p.items = p.items.filter(Modelo.itemValido).map(it => Object.assign({ id: it.id || ID(), descripcion: String(it.descripcion).trim(),
+      cantidad: Num.cantidad(it.cantidad) || 1, unidad: Txt.mayus(String(it.unidad || 'UND').trim()) || 'UND',
+      valorUnitario: Money.parse(it.valorUnitario), observacion: String(it.observacion || '').trim() }, Modelo.fraccion(it) ? { fraccion: Modelo.fraccion(it) } : {}));
     const nueva = !p.id;
     p.id = p.id || ID();
     await Datos.lote([{ col: 'plantillas', tipo: 'put', doc: p }, Datos.evento(nueva ? 'crear' : 'editar', 'plantilla', p.id, p.nombre)]);
@@ -6534,7 +6570,7 @@ const VistaOrdenForm = {
     return '<tr data-fila="' + i + '"' + (vacia ? ' class="it-vacia"' : '') + '><td class="it-n">' + (i + 1) + '</td>' +
       '<td class="it-desc"><input class="inp" data-k="descripcion" data-i="' + i + '" autocomplete="off" value="' + attr(it.descripcion) + '"' +
         (i ? '' : ' placeholder="Escriba el artículo…"') + ' aria-label="Descripción del artículo ' + (i + 1) + '"></td>' +
-      '<td class="it-cant"><input class="inp inp-num" data-k="cantidad" data-i="' + i + '" inputmode="decimal" value="' + attr(vacia || it.cantidad === '' ? '' : Num.fmt(it.cantidad)) + '" placeholder="Cant." aria-label="Cantidad"></td>' +
+      '<td class="it-cant"><input class="inp inp-num" data-k="cantidad" data-i="' + i + '" value="' + attr(vacia || it.cantidad === '' ? '' : Modelo.cantidadTexto(it)) + '" placeholder="Cant." aria-label="Cantidad"></td>' +
       '<td class="it-uni"><input class="inp inp-lista" data-k="unidad" data-i="' + i + '" value="' + attr(vacia ? '' : it.unidad) + '" placeholder="Unidad" aria-label="Unidad"></td>' +
       '<td class="it-val"><input class="inp" data-k="valorUnitario" data-i="' + i + '" value="' + attr(it.valorUnitario ? Money.num(it.valorUnitario) : '') + '" placeholder="Valor" aria-label="Valor unitario"></td>' +
       '<td class="it-dto"><input class="inp inp-num" data-k="descuentoPct" data-i="' + i + '" inputmode="decimal" value="' + attr(Modelo.descuento(it) ? Num.fmt(Modelo.descuento(it)) : '') + '" placeholder="% Desc." aria-label="Descuento en %"></td>' +
@@ -6560,7 +6596,7 @@ const VistaOrdenForm = {
         if (!Money.parse(item.valorUnitario) && it.data.valor) item.valorUnitario = it.data.valor;
         inp.value = item.descripcion;
         tr.classList.remove('it-vacia');
-        $('[data-k="cantidad"]', tr).value = Num.parse(item.cantidad) > 0 ? Num.fmt(item.cantidad) : '';
+        $('[data-k="cantidad"]', tr).value = Num.cantidad(item.cantidad) > 0 ? Modelo.cantidadTexto(item) : '';
         $('[data-k="unidad"]', tr).value = item.unidad;
         $('[data-k="valorUnitario"]', tr).value = item.valorUnitario ? Money.num(item.valorUnitario) : '';
         if (i === o.items.length - 1) this.agregarFila();
@@ -6581,14 +6617,15 @@ const VistaOrdenForm = {
         const inp = e.target.closest('input[data-k]'); if (!inp) return;
         const i = +inp.dataset.i, k = inp.dataset.k, it = o.items[i];
         if (!it) return;
-        it[k] = k === 'valorUnitario' ? Money.parse(inp.value) : inp.value;
+        if (k === 'cantidad') Modelo.ponerCantidad(it, inp.value);
+        else it[k] = k === 'valorUnitario' ? Money.parse(inp.value) : inp.value;
         if (k === 'cantidad' || k === 'valorUnitario' || k === 'descuentoPct') { this.totalFila(i); this.pintarResumen(); }
         if (k === 'descripcion') {
           /* Al empezar una fila se ven la cantidad y la unidad que trae, y aparece otra vacía debajo */
           const tr = inp.closest('tr'), c = $('[data-k="cantidad"]', tr), u = $('[data-k="unidad"]', tr);
           tr.classList.toggle('it-vacia', !inp.value.trim());
           if (inp.value.trim()) {
-            if (!c.value && Num.parse(it.cantidad) > 0) c.value = Num.fmt(it.cantidad);
+            if (!c.value && Num.cantidad(it.cantidad) > 0) c.value = Modelo.cantidadTexto(it);
             if (!u.value && it.unidad) u.value = it.unidad;
             if (i === o.items.length - 1) this.agregarFila();
           }
@@ -6600,7 +6637,12 @@ const VistaOrdenForm = {
         const inp = e.target.closest('input[data-k="unidad"]');
         if (inp) { inp.value = Txt.mayus(inp.value.trim()); o.items[+inp.dataset.i].unidad = inp.value; }
         const c = e.target.closest('input[data-k="cantidad"]');
-        if (c) { const v = Num.parse(c.value); c.value = c.value.trim() ? Num.fmt(v) : ''; o.items[+c.dataset.i].cantidad = v; this.totalFila(+c.dataset.i); this.pintarResumen(); }
+        if (c) {
+          const it = o.items[+c.dataset.i];
+          Modelo.ponerCantidad(it, c.value);
+          c.value = c.value.trim() ? Modelo.cantidadTexto(it) : '';
+          this.totalFila(+c.dataset.i); this.pintarResumen();
+        }
         const dp = e.target.closest('input[data-k="descuentoPct"]');
         if (dp) { const v = Num.parse(dp.value); dp.value = v ? Num.fmt(v) : ''; o.items[+dp.dataset.i].descuentoPct = v; this.totalFila(+dp.dataset.i); this.pintarResumen(); }
       });
@@ -6663,7 +6705,7 @@ const VistaOrdenForm = {
     const nuevos = filas.map(c => {
       const it = Modelo.itemVacio();
       it.descripcion = c[0] || '';
-      if (c[1] && Num.parse(c[1]) > 0) it.cantidad = Num.parse(c[1]);
+      if (c[1] && Num.cantidad(c[1]) > 0) Modelo.ponerCantidad(it, c[1]);
       if (c[2]) it.unidad = Txt.mayus(c[2]);
       if (c[3] && Money.parse(c[3]) > 0) it.valorUnitario = Money.parse(c[3]);
       if (c[4]) it.observacion = c[4];
@@ -6936,7 +6978,7 @@ const EditorItems = {
   },
   fila(it, i) {
     return '<tr><td class="it-n">' + (i + 1) + '</td><td class="it-desc"><input class="inp" data-c="descripcion" value="' + attr(it.descripcion) + '"></td>' +
-      '<td class="it-cant"><input class="inp inp-num" data-c="cantidad" value="' + attr(Num.fmt(it.cantidad || 1)) + '" inputmode="decimal"></td>' +
+      '<td class="it-cant"><input class="inp inp-num" data-c="cantidad" value="' + attr(it.cantidad ? Modelo.cantidadTexto(it) : '1') + '" aria-label="Cantidad"></td>' +
       '<td class="it-uni"><input class="inp inp-lista" data-c="unidad" value="' + attr(it.unidad || 'UND') + '" aria-label="Unidad"></td>' +
       '<td class="it-val"><input class="inp" data-c="valorUnitario" value="' + attr(it.valorUnitario ? Money.num(it.valorUnitario) : '') + '" placeholder="Opcional"></td>' +
       '<td class="it-acc"><button type="button" class="btn btn-ghost btn-icon btn-sm" data-ed-quitar aria-label="Quitar">' + Icon('x', '', 13) + '</button></td></tr>';
@@ -6961,7 +7003,7 @@ const EditorItems = {
     });
   },
   leer(cont) {
-    return $$('[data-ed] tr', cont).map(tr => ({ id: ID(), descripcion: $('[data-c="descripcion"]', tr).value.trim(), cantidad: Num.parse($('[data-c="cantidad"]', tr).value) || 1,
+    return $$('[data-ed] tr', cont).map(tr => ({ id: ID(), descripcion: $('[data-c="descripcion"]', tr).value.trim(), cantidad: $('[data-c="cantidad"]', tr).value.trim() || 1,
       unidad: Txt.mayus($('[data-c="unidad"]', tr).value.trim()) || 'UND', valorUnitario: Money.parse($('[data-c="valorUnitario"]', tr).value), observacion: '' })).filter(Modelo.itemValido);
   }
 };
@@ -6984,7 +7026,7 @@ const VistaPlantillas = {
       return '<div class="card pl-card"><div class="card-h"><h3 class="f1" style="min-width:0"><span class="trunc">' + esc(p.nombre) + '</span></h3>' + Comp.pillTipo(p.tipo) + '</div>' +
         '<div class="card-b">' + Comp.provCelda(pv) +
         (eq ? '<div class="fs12 txt-2 mt8">' + Icon('truck', '', 12) + ' ' + esc(eq.nombre) + '</div>' : '') +
-        '<ul class="pl-items">' + p.items.slice(0, 6).map(it => '<li><span title="' + attr(it.descripcion) + '">' + esc(it.descripcion) + '</span><span>' + esc(Num.fmt(it.cantidad)) + ' ' + esc(it.unidad) + '</span></li>').join('') +
+        '<ul class="pl-items">' + p.items.slice(0, 6).map(it => '<li><span title="' + attr(it.descripcion) + '">' + esc(it.descripcion) + '</span><span>' + esc(Modelo.cantidadTexto(it)) + ' ' + esc(it.unidad) + '</span></li>').join('') +
         (p.items.length > 6 ? '<li class="txt-3">y ' + (p.items.length - 6) + ' más…</li>' : '') + '</ul>' +
         (p.notas ? '<div class="fs11 txt-3 mt8">' + esc(p.notas) + '</div>' : '') + '</div>' +
         '<div class="card-f flex aic g8"><span class="f1">' + (p.usos ? 'Usada ' + Txt.plural(p.usos, 'vez', 'veces') : 'Sin usar') + (tot ? ' · ' + Money.fmt(tot) : '') + '</span>' +
@@ -8202,7 +8244,7 @@ const Documento = {
       const it = items[i];
       if (it) {
         const tot = Modelo.totalItem(it), dto = Modelo.descuento(it);
-        h += '<tr><td class="c">' + (i + 1) + '</td><td>' + esc(it.descripcion) + '</td><td class="c">' + esc(it.cantidad === '' || it.cantidad == null ? '' : Num.fmt(it.cantidad)) + '</td><td class="c">' + esc(it.unidad) + '</td>' +
+        h += '<tr><td class="c">' + (i + 1) + '</td><td>' + esc(it.descripcion) + '</td><td class="c">' + esc(Modelo.cantidadTexto(it)) + '</td><td class="c">' + esc(it.unidad) + '</td>' +
           '<td class="n">' + (it.valorUnitario ? Money.fmt(it.valorUnitario) : '') + '</td>' + (conDto ? '<td class="c">' + (dto ? esc(Num.pct(dto)) : '') + '</td>' : '') +
           '<td class="n">' + (tot ? Money.fmt(tot) : '') + '</td><td class="obs">' + esc(it.observacion || '') + '</td></tr>';
       } else h += '<tr class="vacia"><td class="c">' + (i + 1) + '</td><td></td><td></td><td></td><td></td>' + (conDto ? '<td></td>' : '') + '<td></td><td></td></tr>';
@@ -9269,6 +9311,32 @@ Pruebas.def('Guardar la Configuración no deshace lo que se cambió en Catálogo
     Pruebas.igual([Listas.valores('unidades').includes('LATA'), Datos.cfg.solicitantes.length], [true, 1], 'la unidad nueva sigue');
   } finally { Router.resolver = resolver; Router.sucio = false; Combo.limpiar(); div.remove(); }
   return 'LATA sigue';
+});
+Pruebas.def('Cantidades en fracción: 1/4 vale 0,25 y sale como se escribió', async ({ p1 }) => {
+  Pruebas.igual([Num.cantidad('1/4'), Num.cantidad('1 1/2'), Num.cantidad('3/4'), Num.cantidad('½'), Num.cantidad('2,5'), Num.cantidad('1/0'), Num.cantidad('1 1/')],
+    [0.25, 1.5, 0.75, 0.5, 2.5, 0, 1], 'antes 1/4 quedaba en 1 y 1 1/2 en 11');
+  Pruebas.igual([Num.fraccion(' 1  1/2 '), Num.fraccion('1½'), Num.fraccion('2,5'), Num.fraccion('0/4'), Num.fraccion(0.25)], ['1 1/2', '1 1/2', '', '', '']);
+  const it = (cantidad, extra) => Object.assign(Modelo.itemVacio(), { descripcion: 'Pintura', cantidad, unidad: 'GLN', valorUnitario: 80000 }, extra || {});
+  const g = await OrdenService.guardar(Pruebas.orden(p1, { items: [it(0.25, { fraccion: '1/4' }), it('1 1/2'), it(2, { fraccion: '1/4' })] }));
+  Pruebas.igual([g.items.map(x => x.cantidad), g.items.map(x => x.fraccion || ''), g.subtotal], [[0.25, 1.5, 2], ['1/4', '1 1/2', ''], 300000],
+    'las cuentas van con el número; la fracción que ya no es la cantidad se quita');
+  const h = Documento.html(g);
+  Pruebas.cierto(h.includes('>1/4<') && h.includes('>1 1/2<'), 'la orden impresa dice 1/4 y 1 1/2');
+  const pl = await PlantillaService.guardar(Object.assign(PlantillaService.vacia(), { nombre: 'Pintura', items: [it('1/2')] }));
+  Pruebas.igual([pl.items[0].cantidad, Modelo.cantidadTexto(pl.items[0])], [0.5, '1/2'], 'y la plantilla también');
+  const div = document.createElement('div');
+  div.style.cssText = 'position:fixed;left:-9999px;top:0;width:1100px';
+  document.body.appendChild(div);
+  try {
+    VistaOrdenForm.render(div, {}, { proveedor: p1.id });
+    const poner = (inp, v) => { inp.value = v; inp.dispatchEvent(new Event('input', { bubbles: true })); inp.dispatchEvent(new Event('change', { bubbles: true })); };
+    const celda = k => $('#ofItems input[data-i="0"][data-k="' + k + '"]', div);
+    poner(celda('descripcion'), 'Pintura de tráfico'); poner(celda('cantidad'), '1/4'); poner(celda('valorUnitario'), '80000');
+    Pruebas.igual([celda('cantidad').value, VistaOrdenForm.o.items[0].cantidad, $('[data-tot="0"]', div).textContent], ['1/4', 0.25, Money.fmt(20000)], 'en la hoja se ve 1/4 y el total es la cuarta parte');
+    poner(celda('cantidad'), '2');
+    Pruebas.igual([celda('cantidad').value, 'fraccion' in VistaOrdenForm.o.items[0]], ['2', false]);
+  } finally { Router.sucio = false; Combo.limpiar(); div.remove(); }
+  return '1/4, 1 1/2 y ½';
 });
 Pruebas.def('Cada Editor cambia y elimina sólo sus órdenes; el administrador, todas', async ({ p1 }) => {
   const antes = Permiso.acceso;
