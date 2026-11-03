@@ -474,6 +474,32 @@ input[type=checkbox],input[type=radio]{width:15px;height:15px;accent-color:var(-
 .combo-opt .co-tag{margin-left:auto;font-size:10px;color:var(--text-3);font-weight:600;letter-spacing:.04em;white-space:nowrap}
 .combo-new{border-top:1px solid var(--border);margin-top:4px;padding-top:7px;color:var(--accent);font-weight:600}
 .combo-vacio{padding:10px;font-size:12px;color:var(--text-3)}
+/* Un campo con su lista (Desplegable): la flecha avisa que tiene lista, pero se puede escribir */
+:root{--flecha-lista:url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7c8c' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")}
+.inp.inp-lista{background-image:var(--flecha-lista);background-repeat:no-repeat;background-position:right 8px center;padding-right:26px}
+
+/* Catálogos: las listas a la izquierda y la escogida a la derecha */
+.ct-grid{display:grid;grid-template-columns:250px minmax(0,1fr);gap:14px;align-items:start}
+@media(max-width:900px){.ct-grid{grid-template-columns:minmax(0,1fr)}}
+.ct-nav{padding:6px}
+.ct-grupo{padding:10px 10px 4px;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3)}
+.ct-lista{display:flex;align-items:center;gap:9px;width:100%;padding:8px 10px;border:0;border-radius:var(--radius-sm);background:none;
+  color:var(--text);font:inherit;font-size:13px;text-align:left;cursor:pointer}
+.ct-lista:hover{background:var(--surface-3)}
+.ct-lista.on{background:var(--accent-soft);color:var(--accent);font-weight:650}
+.ct-lista svg{color:var(--text-3);flex:0 0 auto}
+.ct-lista.on svg{color:var(--accent)}
+.ct-n{font-size:11.5px;color:var(--text-3);font-variant-numeric:tabular-nums}
+.ct-add{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border)}
+.ct-add>.inp{flex:1 1 220px;width:auto}
+.ct-num{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--text-2)}
+.ct-num .inp{width:90px}
+.ct-err{flex-basis:100%;font-size:11px;color:var(--dang-500);font-weight:500}
+.ct-fuera{border-top:1px solid var(--border);padding:12px 16px}
+.ct-fuera-h{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12.5px;margin-bottom:6px}
+.ct-fuera-h .btn{margin-left:auto}
+.ct-f{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);font-size:12.5px}
+.ct-f:last-child{border-bottom:0}
 
 .modal-bd{position:fixed;inset:0;background:rgba(13,19,25,.5);backdrop-filter:blur(2px);z-index:200;
   display:flex;align-items:flex-start;justify-content:center;padding:40px 20px;overflow-y:auto;
@@ -745,6 +771,9 @@ table.hj-tbl .inp{border-color:transparent;background:transparent;box-shadow:non
 table.hj-tbl .inp:hover{border-color:var(--border)}
 table.hj-tbl .inp:focus{border-color:var(--accent);background:var(--surface);box-shadow:0 0 0 3px var(--accent-soft)}
 table.hj-tbl .inp.is-err{border-color:var(--dang-500)}
+/* En la tabla la flecha de la unidad sale al pasar o al entrar, como en una hoja */
+table.items-ed .inp.inp-lista{padding-right:22px;background-position:right 6px center}
+table.hj-tbl .inp.inp-lista:hover,table.hj-tbl .inp.inp-lista:focus{background-image:var(--flecha-lista);background-repeat:no-repeat;background-position:right 6px center}
 table.hj-tbl td:not(.it-desc) .inp::placeholder{color:transparent}
 table.hj-tbl .it-acc .btn{opacity:.3}
 table.hj-tbl tr:hover .it-acc .btn,table.hj-tbl .it-acc .btn:focus{opacity:1}
@@ -781,6 +810,7 @@ table.hj-tbl tr:hover .it-acc .btn,table.hj-tbl .it-acc .btn:focus{opacity:1}
 .hj-tot .ht-l .inp{width:auto;min-width:0;max-width:100%;height:26px;padding:0 22px 0 6px;background-position:right 6px center;
   font-size:11.5px;font-weight:500;text-transform:none;letter-spacing:0}
 .hj-tot .ht-l .inp.ht-in{width:78px;padding:0 6px;text-align:right;background-image:none}
+.hj-tot .ht-l .inp.ht-in.inp-lista{width:64px;padding-right:20px;background-image:var(--flecha-lista);background-repeat:no-repeat;background-position:right 5px center}
 .hj-tot .ht-pm{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;letter-spacing:0}
 .hj-tot .ht-v{display:flex;align-items:center;justify-content:flex-end;font-size:12.5px;font-weight:650;font-variant-numeric:tabular-nums;white-space:nowrap}
 .hj-tot .ht-g{border-bottom:none;background:var(--accent-soft)}
@@ -1833,7 +1863,7 @@ const APP = Object.freeze({
   nombre: 'Facturación',
   area: 'Órdenes de compra',
   empresa: 'SINUGRAVAS S.A.S.',
-  version: '2.13.2',
+  version: '2.14.0',
   /* 3: los datos viven en la nube y el número de cada orden sale de las órdenes */
   esquema: 3,
   /* La base del navegador de la versión local (1.x). Ya no se guarda en ella:
@@ -3323,13 +3353,166 @@ const TIPOS_EQUIPO = Object.freeze({
   carga: 'Vehículo de carga', maquinaria: 'Maquinaria', remolque: 'Remolque', canoa: 'Canoa',
   liviano: 'Camioneta', motor: 'Motor', sede: 'Sede o destino', otro: 'Otro'
 });
-const UNIDADES = ['UND', 'GLN', 'GARRAFA', 'CANECA', 'LT', 'MT', 'KG', 'LB', 'CAJA', 'PAQUETE', 'ROLLO', 'PAR',
-  'JUEGO', 'KIT', 'BULTO', 'BOLSA', 'RESMA', 'M²', 'M³', 'SERVICIO', 'GLOBAL'];
-const PCT_IVA = [0, 5, 19];
-const PCT_RETENCION = [
-  { v: 0, t: 'Sin retención' }, { v: 1, t: '1 %' }, { v: 2.5, t: '2,5 % · compras' }, { v: 3.5, t: '3,5 %' },
-  { v: 4, t: '4 % · servicios' }, { v: 6, t: '6 %' }, { v: 10, t: '10 % · honorarios' }, { v: 11, t: '11 %' }
-];
+/* Las listas para escoger, que el administrador cambia en Catálogos (Juan,
+   03/11/2026, con la misma idea de Gestión Humana). Cada una arranca con lo de
+   siempre; desde que se cambia, queda en la configuración común («catalogos»,
+   en «extra» de la fila «general»: sin SQL) y sale igual en las dos empresas.
+   Sólo sugieren: en las órdenes y los proveedores se puede escribir otra cosa,
+   y eso no se agrega solo a la lista. Lo ya guardado no cambia. «usa» recorre
+   dónde aparece cada valor, para contar cuánto se usa. */
+const LISTAS = Object.freeze({
+  unidades: { t: 'Unidades', grupo: 'En las órdenes', ic: 'box', uno: 'la unidad', ej: 'LATA', mayus: true, largo: 20,
+    donde: 'La unidad de cada artículo, en las órdenes y en las plantillas.',
+    defecto: ['UND', 'GLN', 'GARRAFA', 'CANECA', 'LT', 'MT', 'KG', 'LB', 'CAJA', 'PAQUETE', 'ROLLO', 'PAR',
+      'JUEGO', 'KIT', 'BULTO', 'BOLSA', 'RESMA', 'M²', 'M³', 'SERVICIO', 'GLOBAL'],
+    usa(s) {
+      Datos.crudo('ordenes').forEach(o => new Set((o.items || []).map(it => it.unidad)).forEach(u => s(u, 'o')));
+      Datos.crudo('plantillas').forEach(p => new Set((p.items || []).map(it => it.unidad)).forEach(u => s(u, 'pl')));
+    } },
+  lugares: { t: 'Lugares de entrega', grupo: 'En las órdenes', ic: 'truck', uno: 'el lugar', ej: 'Bodega de Montería', largo: 160, defecto: [],
+    donde: '«Entregar en» de cada orden.',
+    usa(s) { Datos.crudo('ordenes').forEach(o => s(o.entregaLugar, 'o')); } },
+  plazos: { t: 'Plazos de crédito', grupo: 'En las órdenes', ic: 'calendar', uno: 'el plazo', ej: '120', numero: 'días', entero: true, min: 1, max: 365,
+    donde: 'Los días de plazo de las órdenes a crédito y de cada proveedor.',
+    defecto: [15, 30, 45, 60, 90],
+    usa(s) {
+      Datos.crudo('ordenes').forEach(o => { if (o.formaPago === 'CREDITO' && +o.plazoDias > 0) s(+o.plazoDias, 'o'); });
+      Datos.crudo('proveedores').forEach(p => { if (!p.fusionadoCon && p.formaPago === 'CREDITO' && +p.plazoDias > 0) s(+p.plazoDias, 'p'); });
+    } },
+  retencion: { t: 'Retención en la fuente', grupo: 'En las órdenes', ic: 'percent', uno: 'el porcentaje', ej: '0,1', numero: '%', min: 0, max: 100,
+    donde: 'La retención que se descuenta del total de cada orden.',
+    defecto: [[0, 'sin retención'], [1, ''], [2.5, 'compras'], [3.5, ''], [4, 'servicios'], [6, ''], [10, 'honorarios'], [11, '']],
+    usa(s) { Datos.crudo('ordenes').forEach(o => s(+o.retencionPct || 0, 'o')); } },
+  iva: { t: 'IVA', grupo: 'En las órdenes', ic: 'percent', uno: 'el porcentaje', ej: '8', numero: '%', min: 0, max: 100,
+    donde: 'El IVA de cada orden y el IVA por defecto de Configuración.',
+    defecto: [0, 5, 19],
+    usa(s) { Datos.crudo('ordenes').forEach(o => s(+o.ivaPct || 0, 'o')); } },
+  suministra: { t: 'Qué suministran', grupo: 'En los proveedores', ic: 'tag', uno: 'lo que suministra', ej: 'Filtros y lubricantes', largo: 120, defecto: [],
+    donde: '«Qué suministra» de cada proveedor.',
+    usa(s) { Datos.crudo('proveedores').forEach(p => { if (!p.fusionadoCon) s(p.categoria, 'p'); }); } },
+  ciudades: { t: 'Ciudades', grupo: 'En los proveedores', ic: 'pin', uno: 'la ciudad', ej: 'Arboletes', largo: 60,
+    donde: 'La ciudad de cada proveedor.',
+    defecto: ['Montería', 'Cereté', 'Lorica', 'Planeta Rica', 'Sahagún', 'Montelíbano', 'Tierralta', 'Ciénaga de Oro', 'San Pelayo', 'Sincelejo',
+      'Cartagena', 'Barranquilla', 'Medellín', 'Bogotá', 'Caucasia'],
+    usa(s) { Datos.crudo('proveedores').forEach(p => { if (!p.fusionadoCon) s(p.ciudad, 'p'); }); } }
+});
+
+const Listas = {
+  /** Lo que tiene ahora: lo de Catálogos o, si nunca se cambió, lo de siempre.
+      Las de texto, en su orden; las de número, de menor a mayor y cada una
+      { v, nota } */
+  valores(clave) {
+    const d = LISTAS[clave], g = ((Datos.cfg || {}).catalogos || {})[clave];
+    const l = Array.isArray(g) ? g : d.defecto;
+    if (!d.numero) return l.map(x => String(x == null ? '' : x).replace(/\s+/g, ' ').trim()).filter(Boolean);
+    return l.map(x => Array.isArray(x) ? { v: +x[0], nota: String(x[1] || '') } : x && typeof x === 'object' ? { v: +x.v, nota: String(x.nota || '') } : { v: +x, nota: '' })
+      .filter(x => isFinite(x.v)).sort((a, b) => a.v - b.v);
+  },
+  /** Cómo se lee: «30 días», «2,5 % · compras» */
+  etiqueta(clave, x) {
+    const d = LISTAS[clave];
+    if (!d.numero) return String(x);
+    return (d.numero === '%' ? Num.pct(x.v) : Num.fmt(x.v) + ' ' + d.numero) + (x.nota ? ' · ' + x.nota : '');
+  },
+  /** Para la lista de un campo: v es lo que queda escrito y t cómo se lee */
+  opciones(clave) {
+    const d = LISTAS[clave];
+    return this.valores(clave).map(x => d.numero ? { v: Num.fmt(x.v), n: x.v, t: this.etiqueta(clave, x) } : { v: x, t: x });
+  },
+  /** Para comparar: sin tildes ni mayúsculas, o el número */
+  llave(clave, v) {
+    if (!LISTAS[clave].numero) return Txt.norm(v);
+    const n = v && typeof v === 'object' ? +v.v : Num.parse(v);
+    return isFinite(n) ? String(n) : '';
+  },
+  /** Lo escrito, como queda en la lista. Si no sirve, ErrorValidacion con el
+      porqué. sin: la posición que se está cambiando; contra: con qué se compara */
+  leer(clave, texto, nota, sin, contra) {
+    const d = LISTAS[clave], t = String(texto == null ? '' : texto).replace(/\s+/g, ' ').trim();
+    if (!t) throw new ErrorValidacion({ valor: 'Escriba ' + d.uno + '.' });
+    let x;
+    if (!d.numero) {
+      x = d.mayus ? Txt.mayus(t) : t;
+      if (x.length > d.largo) throw new ErrorValidacion({ valor: 'Es muy largo: máximo ' + d.largo + ' letras.' });
+    } else {
+      const n = Num.parse(t);
+      if (!/^\d+([.,]\d+)?$/.test(t) || n < d.min || n > d.max || (d.entero && !Number.isInteger(n))) {
+        throw new ErrorValidacion({ valor: d.entero ? 'Escriba los días: un número entero de ' + d.min + ' a ' + d.max + '.'
+          : 'Escriba el porcentaje: un número de ' + d.min + ' a ' + d.max + ', como 2,5.' });
+      }
+      const nt = String(nota == null ? '' : nota).replace(/\s+/g, ' ').trim();
+      if (nt.length > 40) throw new ErrorValidacion({ nota: 'La nota es muy larga: máximo 40 letras.' });
+      x = { v: Math.round(n * 100) / 100, nota: nt };
+    }
+    const lista = contra || this.valores(clave), k = this.llave(clave, x);
+    const i = lista.findIndex((y, j) => j !== sin && this.llave(clave, y) === k);
+    if (i >= 0) throw new ErrorValidacion({ valor: 'Ya está en la lista: «' + this.etiqueta(clave, lista[i]) + '».' });
+    return x;
+  },
+  /** La lista entera va a la configuración común, y el cambio a la actividad */
+  async guardar(clave, lista, accion, detalle) {
+    Permiso.exigir('configurar');
+    const d = LISTAS[clave];
+    const nueva = d.numero ? lista.map(x => ({ v: x.v, nota: x.nota || '' })).sort((a, b) => a.v - b.v) : lista.slice();
+    const catalogos = Object.assign({}, Datos.cfg.catalogos || {}, { [clave]: nueva });
+    await Datos.lote([{ col: 'configuracion', tipo: 'put', doc: Object.assign(U.clonar(Datos.cfg), { id: 'general', catalogos }) },
+      Datos.evento(accion, 'catálogo', clave, (d.t + ': ' + detalle).slice(0, 300))]);
+  },
+  async agregar(clave, texto, nota) {
+    const x = this.leer(clave, texto, nota);
+    await this.guardar(clave, this.valores(clave).concat([x]), 'agregar', this.etiqueta(clave, x));
+    return x;
+  },
+  /** Varias de una vez (lo que se escribió sin estar): lo repetido o lo que no sirve se salta */
+  async agregarVarias(clave, textos) {
+    const l = this.valores(clave), nuevas = [];
+    textos.forEach(t => {
+      try { const x = this.leer(clave, t, '', -1, l); l.push(x); nuevas.push(x); } catch (e) { if (!(e instanceof ErrorValidacion)) throw e; }
+    });
+    if (nuevas.length) await this.guardar(clave, l, 'agregar', nuevas.map(x => this.etiqueta(clave, x)).join(', '));
+    return nuevas;
+  },
+  /** Dónde está un valor en la lista de ahora (-1 si ya no está) */
+  posicion(clave, x) { const k = this.llave(clave, x); return this.valores(clave).findIndex(y => this.llave(clave, y) === k); },
+  async cambiar(clave, antes, texto, nota) {
+    const l = this.valores(clave), i = this.posicion(clave, antes);
+    if (i < 0) throw new ErrorDominio('«' + this.etiqueta(clave, antes) + '» ya no está en la lista: otra persona la cambió.');
+    const x = this.leer(clave, texto, nota, i);
+    if (this.etiqueta(clave, x) === this.etiqueta(clave, l[i])) return x;
+    l[i] = x;
+    await this.guardar(clave, l, 'cambiar', this.etiqueta(clave, antes) + ' → ' + this.etiqueta(clave, x));
+    return x;
+  },
+  async quitar(clave, x) {
+    const l = this.valores(clave), i = this.posicion(clave, x);
+    if (i < 0) return;
+    l.splice(i, 1);
+    await this.guardar(clave, l, 'quitar', this.etiqueta(clave, x));
+  },
+  /** Cuánto se usa cada valor, en las dos empresas: llave → { muestra, o, p, pl }
+      (órdenes, proveedores y plantillas) */
+  usos(clave) {
+    const m = new Map();
+    LISTAS[clave].usa((v, en) => {
+      const k = v == null || v === '' ? '' : this.llave(clave, v);
+      if (!k) return;
+      let x = m.get(k);
+      if (!x) m.set(k, x = { muestra: typeof v === 'string' ? v.replace(/\s+/g, ' ').trim() : v, o: 0, p: 0, pl: 0 });
+      x[en]++;
+    });
+    return m;
+  },
+  /** Lo que se escribió sin estar en la lista, lo más usado primero */
+  fuera(clave) {
+    const hay = new Set(this.valores(clave).map(x => this.llave(clave, x)));
+    return [...this.usos(clave)].filter(([k]) => !hay.has(k)).map(([, x]) => x).sort((a, b) => (b.o + b.p + b.pl) - (a.o + a.p + a.pl));
+  },
+  /** «12 órdenes · 3 proveedores» */
+  textoUsos(x) {
+    return x ? [x.o ? Txt.plural(x.o, 'orden', 'órdenes') : '', x.p ? Txt.plural(x.p, 'proveedor', 'proveedores') : '', x.pl ? Txt.plural(x.pl, 'plantilla') : '']
+      .filter(Boolean).join(' · ') : '';
+  }
+};
 
 /* Quién hizo cada orden, con el nombre de hoy de su cuenta en el Panel de
    control (SQL 206): la base sabe con qué cuenta se creó cada una. Se trae al
@@ -4885,6 +5068,7 @@ const Buscador = {
       { k: 'nueva orden compra crear', ic: 'plus', t: 'Nueva orden de compra', ir: '/orden-nueva' },
       { k: 'nuevo proveedor crear', ic: 'building', t: 'Nuevo proveedor', ir: '/proveedores?nuevo=1' },
       { k: 'estadisticas graficas reportes', ic: 'chart', t: 'Estadísticas', ir: '/estadisticas' },
+      { k: 'catalogos listas unidades lugares entrega plazos retencion iva suministra ciudades', ic: 'list', t: 'Catálogos', ir: '/catalogos' },
       { k: 'respaldo copia seguridad backup', ic: 'database', t: 'Copias de seguridad', ir: '/respaldos' },
       { k: 'configuracion consecutivo empresa firma logo', ic: 'cog', t: 'Configuración', ir: '/configuracion' }
     ].filter(a => a.k.split(' ').some(w => w.startsWith(nq)) || Txt.norm(a.t).includes(nq));
@@ -5055,7 +5239,8 @@ const Comp = {
    recorte una tabla ni una ventana con desplazamiento. */
 const Combo = {
   vivos: new Set(),
-  /** opts: { fuente(q) → [{ t, s, tag, data, exacto }], alElegir(item), nuevo: { texto(q), accion(q) }, alAbrirVacio: bool }.
+  /** opts: { fuente(q) → [{ t, s, tag, data, exacto }], alElegir(item), nuevo: { texto(q), accion(q) }, alAbrirVacio: bool,
+      inicial(lista, q) → la que sale marcada (-1: ninguna) }.
       exacto: ese es lo escrito, tal cual (entonces no se ofrece «nuevo») */
   unir(input, opts) {
     const portal = document.createElement('div');
@@ -5085,7 +5270,7 @@ const Combo = {
           (it.tag ? '<span class="co-tag">' + esc(it.tag) + '</span>' : '') + '</div>').join('') +
           (nuevo ? '<div class="combo-opt combo-new" data-nuevo="1">' + Icon('plus', '', 13) + esc(nuevo.texto(q)) + '</div>' : '');
       }
-      hl = lista.length ? 0 : (nuevo ? lista.length : -1);
+      hl = lista.length ? (opts.inicial ? opts.inicial(lista, q) : 0) : (nuevo ? lista.length : -1);
       marcar();
       portal.classList.add('open');
       abierto = true;
@@ -5103,20 +5288,22 @@ const Combo = {
       if (el.dataset.nuevo) { c.cerrar(); opts.nuevo.accion(input.value.trim()); return; }
       const it = lista[+el.dataset.i];
       c.cerrar();
-      opts.alElegir(it);
+      /* Lo que avise alElegir (un «input») no vuelve a abrir la lista */
+      c.eligiendo = true;
+      try { opts.alElegir(it); } finally { c.eligiendo = false; }
     };
     c.cerrar = () => { portal.classList.remove('open'); abierto = false; };
     c.abrir = pintar;
     input.setAttribute('autocomplete', 'off');
-    input.addEventListener('input', pintar);
+    input.addEventListener('input', () => { if (!c.eligiendo) pintar(); });
     input.addEventListener('focus', () => { if (opts.alAbrirVacio || input.value.trim()) pintar(); });
     input.addEventListener('click', () => { if (!abierto && (opts.alAbrirVacio || input.value.trim())) pintar(); });
     input.addEventListener('keydown', e => {
       if (!abierto) { if (e.key === 'ArrowDown') { e.preventDefault(); pintar(); } return; }
       const n = $$('.combo-opt', portal).length;
       if (e.key === 'ArrowDown') { e.preventDefault(); hl = (hl + 1) % n; marcar(); }
-      else if (e.key === 'ArrowUp') { e.preventDefault(); hl = (hl - 1 + n) % n; marcar(); }
-      else if (e.key === 'Enter') { if (hl >= 0) { e.preventDefault(); elegir(hl); } }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); hl = hl <= 0 ? n - 1 : hl - 1; marcar(); }
+      else if (e.key === 'Enter') { if (hl >= 0) { e.preventDefault(); elegir(hl); } else c.cerrar(); }
       else if (e.key === 'Escape') { e.stopPropagation(); c.cerrar(); }
       else if (e.key === 'Tab') { c.cerrar(); }
     });
@@ -5135,6 +5322,40 @@ const Combo = {
   /** Quita los menús de los campos que ya no están en la página */
   limpiar() {
     this.vivos.forEach(c => { if (!document.body.contains(c.input)) { c.portal.remove(); this.vivos.delete(c); } });
+  }
+};
+
+/* Las listas para escoger, dentro de la plataforma y no la del navegador
+   (Juan, 03/11/2026): al entrar sale la lista entera, con lo escrito marcado, y
+   al escribir se filtra. Sólo sugiere: se puede escribir otra cosa, y eso no se
+   agrega solo a la lista (eso se decide en Catálogos). Al escoger, el campo
+   avisa «input» y «change», como si se hubiera escrito.
+   opciones: el nombre de una lista de Catálogos, o () => [{ v, t, n }] */
+const Desplegable = {
+  unir(input, opciones) {
+    /* Los campos que se vuelven a pintar (el pie de la hoja) no dejan listas sueltas */
+    Combo.limpiar();
+    const fuente = typeof opciones === 'string' ? () => Listas.opciones(opciones) : opciones;
+    const igual = (o, q) => o.n != null ? q !== '' && /^\d+([.,]\d+)?$/.test(q) && Num.parse(q) === o.n : Txt.norm(o.v) === Txt.norm(q);
+    input.removeAttribute('list');
+    /* La flecha sólo si hay algo que escoger (las listas nuevas empiezan vacías) */
+    input.classList.toggle('inp-lista', fuente().length > 0);
+    return Combo.unir(input, {
+      alAbrirVacio: true,
+      fuente: q => {
+        const todas = fuente(), nq = Txt.norm(q);
+        const hay = !!nq && todas.some(o => igual(o, q));
+        const donde = o => { const a = Txt.norm(o.t), b = Txt.norm(o.v); return a.startsWith(nq) || b.startsWith(nq) ? 0 : a.includes(nq) || b.includes(nq) ? 1 : 2; };
+        const l = !nq || hay ? todas : todas.filter(o => donde(o) < 2).sort((a, b) => donde(a) - donde(b));
+        return l.map(o => ({ html: hay || !nq ? esc(o.t) : Txt.resaltar(o.t, q), exacto: igual(o, q), data: o }));
+      },
+      inicial: (l, q) => { const i = l.findIndex(it => it.exacto); return i >= 0 ? i : q ? 0 : -1; },
+      alElegir: it => {
+        input.value = it.data.v;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    });
   }
 };
 
@@ -5288,6 +5509,7 @@ const Shell = {
     { sec: 'Maestros' },
     { id: 'proveedores', ruta: '/proveedores', t: 'Proveedores', ic: 'building', badge: () => Datos.proveedores.filter(p => p.activo).length || '' },
     { id: 'equipos', ruta: '/equipos', t: 'Equipos y destinos', ic: 'truck' },
+    { id: 'catalogos', ruta: '/catalogos', t: 'Catálogos', ic: 'list', accion: 'configurar' },
     { sec: 'Sistema' },
     { id: 'respaldos', ruta: '/respaldos', t: 'Copias de seguridad', ic: 'database', accion: 'configurar', badge: () => Respaldo.vencido() ? '!' : '', badgeClase: 'warn',
       tipBadge: 'Hace más de una semana que no se descarga un respaldo' },
@@ -6156,7 +6378,6 @@ const VistaOrdenForm = {
         '<div class="hj-itpie"><button type="button" class="btn btn-sm" id="ofAdd">' + Icon('plus', '', 12) + 'Otra fila</button>' +
           '<button type="button" class="btn btn-sm" id="ofPlantilla">' + Icon('layers', '', 12) + 'Usar plantilla</button><span class="fs12 txt-2" id="ofItSub"></span>' +
           '<span class="ip-nota">Enter baja a la fila siguiente. Puede pegar varias líneas copiadas de Excel o WhatsApp.</span></div>' +
-        '<datalist id="dlUnidades">' + UNIDADES.map(u => '<option value="' + u + '">').join('') + '</datalist>' +
         '<div class="hj-bajo"><div class="hj-cond" id="ofPago"></div><div class="hj-tot" id="ofResumen"></div></div>' +
         '<div class="hj-obs"><label for="ofNota">Observaciones para el proveedor</label><textarea class="inp" id="ofNota" rows="2" placeholder="Opcional: sale impresa en la orden">' +
           esc(o.notaProveedor) + '</textarea></div>' +
@@ -6314,7 +6535,7 @@ const VistaOrdenForm = {
       '<td class="it-desc"><input class="inp" data-k="descripcion" data-i="' + i + '" autocomplete="off" value="' + attr(it.descripcion) + '"' +
         (i ? '' : ' placeholder="Escriba el artículo…"') + ' aria-label="Descripción del artículo ' + (i + 1) + '"></td>' +
       '<td class="it-cant"><input class="inp inp-num" data-k="cantidad" data-i="' + i + '" inputmode="decimal" value="' + attr(vacia || it.cantidad === '' ? '' : Num.fmt(it.cantidad)) + '" placeholder="Cant." aria-label="Cantidad"></td>' +
-      '<td class="it-uni"><input class="inp" data-k="unidad" data-i="' + i + '" list="dlUnidades" value="' + attr(vacia ? '' : it.unidad) + '" placeholder="Unidad" aria-label="Unidad"></td>' +
+      '<td class="it-uni"><input class="inp inp-lista" data-k="unidad" data-i="' + i + '" value="' + attr(vacia ? '' : it.unidad) + '" placeholder="Unidad" aria-label="Unidad"></td>' +
       '<td class="it-val"><input class="inp" data-k="valorUnitario" data-i="' + i + '" value="' + attr(it.valorUnitario ? Money.num(it.valorUnitario) : '') + '" placeholder="Valor" aria-label="Valor unitario"></td>' +
       '<td class="it-dto"><input class="inp inp-num" data-k="descuentoPct" data-i="' + i + '" inputmode="decimal" value="' + attr(Modelo.descuento(it) ? Num.fmt(Modelo.descuento(it)) : '') + '" placeholder="% Desc." aria-label="Descuento en %"></td>' +
       '<td class="it-tot" data-tot="' + i + '"></td>' +
@@ -6326,6 +6547,7 @@ const VistaOrdenForm = {
   unirFila(tr, i) {
     const o = this.o;
     MoneyInput.unir($('[data-k="valorUnitario"]', tr));
+    Desplegable.unir($('[data-k="unidad"]', tr), 'unidades');
     const inp = $('[data-k="descripcion"]', tr);
     Combo.unir(inp, {
       fuente: txt => Catalogo.buscar(txt, o.proveedorId, 8).map(a => ({ html: Txt.resaltar(a.descripcion, txt),
@@ -6395,7 +6617,6 @@ const VistaOrdenForm = {
         const inp = e.target.closest('input[data-k]');
         if (!inp || e.ctrlKey || e.metaKey || e.altKey || !['Enter', 'ArrowDown', 'ArrowUp'].includes(e.key)) return;
         if ([...Combo.vivos].some(c => c.input === inp && c.portal.classList.contains('open'))) return;
-        if (e.key !== 'Enter' && inp.hasAttribute('list')) return;
         e.preventDefault();
         const i = +inp.dataset.i;
         if (e.key === 'ArrowUp') { if (i > 0) this.enfocar(i - 1, inp.dataset.k); return; }
@@ -6460,14 +6681,12 @@ const VistaOrdenForm = {
     const cont = $('#ofPago', el);
     const cred = o.formaPago === 'CREDITO';
     const x = (dato, txt, on) => '<button type="button" class="hj-x' + (on ? ' on' : '') + '" ' + dato + ' aria-pressed="' + on + '"><i>' + (on ? '✕' : '') + '</i>' + esc(txt) + '</button>';
-    const lugares = [...new Set([Datos.cfg.documento.lugarEntrega, ...Datos.ordenes.map(z => z.entregaLugar)].filter(Boolean))].slice(0, 12);
     const reciben = U.agrupar(Datos.ordenes.filter(z => z.entregaRecibe), z => Txt.norm(z.entregaRecibe));
     cont.innerHTML =
       '<div class="hj-c"><div class="hj-cl">Forma de pago</div><div class="hj-cv">' +
         Object.keys(FORMAS_PAGO).map(k => x('data-forma="' + k + '"', FORMAS_PAGO[k], o.formaPago === k)).join('') +
-        (cred ? '<span class="hj-mini"><label for="ofPlazo">Plazo</label><input class="inp inp-num" id="ofPlazo" list="dlPlazos" value="' + attr(o.plazoDias || '') + '" inputmode="numeric" placeholder="0">días</span>' +
-          '<span class="hj-mini"><label for="ofCuotas">Cuotas</label><input class="inp inp-num" id="ofCuotas" value="' + attr(o.cuotas || '') + '" inputmode="numeric" placeholder="—"></span>' +
-          '<datalist id="dlPlazos"><option value="15"><option value="30"><option value="45"><option value="60"><option value="90"></datalist>' : '') +
+        (cred ? '<span class="hj-mini"><label for="ofPlazo">Plazo</label><input class="inp inp-num inp-lista" id="ofPlazo" value="' + attr(o.plazoDias || '') + '" inputmode="numeric" placeholder="0">días</span>' +
+          '<span class="hj-mini"><label for="ofCuotas">Cuotas</label><input class="inp inp-num" id="ofCuotas" value="' + attr(o.cuotas || '') + '" inputmode="numeric" placeholder="—"></span>' : '') +
         (this.puedePagarYa() ? '<label class="hj-ya" data-tip="Para lo que se paga de contado en el momento: queda como pagada, con su recibo, sin esperar cotización ni factura">' +
           '<input type="checkbox" id="ofYaPago"' + (this.yaPagada ? ' checked' : '') + '>Ya se pagó</label>' : '') + '</div></div>' +
       (this.puedePagarYa() && this.yaPagada ? '<div class="hj-c hj-pagada"><div class="hj-cl">Pago</div><div class="hj-cv">' +
@@ -6477,8 +6696,7 @@ const VistaOrdenForm = {
       '<div class="hj-c"><div class="hj-cl">Medio de pago</div><div class="hj-cv">' +
         Object.keys(MEDIOS_PAGO).map(k => x('data-medio="' + k + '"', MEDIOS_PAGO[k], o.medioPago === k)).join('') + '</div></div>' +
       '<div class="hj-c"><div class="hj-cl"><label for="ofLugar">Entregar en</label></div><div class="hj-cv hj-entrega">' +
-        '<input class="inp" id="ofLugar" list="dlLugares" value="' + attr(o.entregaLugar) + '" placeholder="Lugar de entrega">' +
-        '<datalist id="dlLugares">' + lugares.map(l => '<option value="' + attr(l) + '">').join('') + '</datalist>' +
+        '<input class="inp inp-lista" id="ofLugar" value="' + attr(o.entregaLugar) + '" placeholder="Lugar de entrega">' +
         '<span class="hj-mini"><label for="ofRecibe">Recibe</label><input class="inp" id="ofRecibe" value="' + attr(o.entregaRecibe) + '" placeholder="Nombre"></span>' +
         '<span class="hj-mini"><label for="ofCedula">C.C.</label><input class="inp inp-mono" id="ofCedula" value="' + attr(o.entregaCedula) + '" placeholder="Opcional"></span></div></div>';
     cont.onclick = e => {
@@ -6504,8 +6722,10 @@ const VistaOrdenForm = {
     if (cred) {
       $('#ofPlazo', el).addEventListener('input', e => { o.plazoDias = Math.max(0, parseInt(e.target.value, 10) || 0); this.marcar(); });
       $('#ofCuotas', el).addEventListener('input', e => { o.cuotas = Math.max(0, parseInt(e.target.value, 10) || 0); this.marcar(); });
+      Desplegable.unir($('#ofPlazo', el), 'plazos');
     }
     $('#ofLugar', el).addEventListener('input', e => { o.entregaLugar = e.target.value; this.marcar(); });
+    Desplegable.unir($('#ofLugar', el), 'lugares');
     $('#ofCedula', el).addEventListener('input', e => { o.entregaCedula = e.target.value; this.marcar(); });
     const inpR = $('#ofRecibe', el);
     inpR.addEventListener('input', e => { o.entregaRecibe = e.target.value; this.marcar(); });
@@ -6520,16 +6740,14 @@ const VistaOrdenForm = {
     const o = this.o;
     const cont = $('#ofResumen', this.el);
     cont.innerHTML = '<div class="ht"><div class="ht-l" id="ofSubL"></div><div class="ht-v" id="ofSubV"></div>' +
-      '<div class="ht-l"><label for="ofRet">Retención</label><select class="inp" id="ofRet">' +
-        PCT_RETENCION.map(r => '<option value="' + r.v + '"' + (+o.retencionPct === r.v ? ' selected' : '') + '>' + esc(r.t) + '</option>').join('') +
-        (PCT_RETENCION.some(r => r.v === +o.retencionPct) ? '' : '<option value="' + o.retencionPct + '" selected>' + Num.pct(o.retencionPct) + '</option>') + '</select></div>' +
+      '<div class="ht-l"><label for="ofRet">Retención</label><span class="ht-pm"><input class="inp ht-in inp-lista" id="ofRet" inputmode="decimal" value="' +
+        attr(Num.fmt(o.retencionPct)) + '" placeholder="0" data-tip="Escoja de la lista o escriba el porcentaje">%</span></div>' +
         '<div class="ht-v" id="ofRetV"></div>' +
       '<div class="ht-l"><label for="ofIca">ReteICA</label><span class="ht-pm"><input class="inp ht-in" id="ofIca" inputmode="decimal" value="' +
         attr(Num.parse(o.reteIcaPorMil) ? Num.fmt(o.reteIcaPorMil) : '') + '" placeholder="0" data-tip="Por mil, como dice la factura: 6 × 1.000 se escribe 6">× 1.000</span></div>' +
         '<div class="ht-v" id="ofIcaV"></div>' +
-      '<div class="ht-l"><label for="ofIva">IVA</label><select class="inp" id="ofIva">' +
-        PCT_IVA.map(v => '<option value="' + v + '"' + (+o.ivaPct === v ? ' selected' : '') + '>' + v + ' %</option>').join('') +
-        (PCT_IVA.includes(+o.ivaPct) ? '' : '<option value="' + o.ivaPct + '" selected>' + Num.pct(o.ivaPct) + '</option>') + '</select>' +
+      '<div class="ht-l"><label for="ofIva">IVA</label><span class="ht-pm"><input class="inp ht-in inp-lista" id="ofIva" inputmode="decimal" value="' +
+        attr(Num.fmt(o.ivaPct)) + '" placeholder="0" data-tip="Escoja de la lista o escriba el porcentaje">%</span>' +
         '<label class="ht-chk" data-tip="Márquela si la cotización trae los precios con el IVA: así no se suma otra vez">' +
           '<input type="checkbox" id="ofIvaInc"' + (o.ivaIncluido ? ' checked' : '') + '>ya incluido en los precios</label></div>' +
         '<div class="ht-v" id="ofIvaV"></div>' +
@@ -6538,8 +6756,14 @@ const VistaOrdenForm = {
         '<div class="ht-v" id="ofFleV"></div>' +
       '<div class="ht-l ht-g">Total</div><div class="ht-v ht-g" id="ofTotV"></div></div>' +
       '<div class="hj-nota" id="ofTotNota"></div>';
-    $('#ofRet', cont).addEventListener('change', e => { o.retencionPct = +e.target.value; this.marcar(); this.pintarCifras(); });
-    $('#ofIva', cont).addEventListener('change', e => { o.ivaPct = +e.target.value; this.marcar(); this.pintarCifras(); });
+    /* La retención y el IVA: de la lista o escritos, de 0 a 100 % */
+    [['#ofRet', 'retencionPct', 'retencion'], ['#ofIva', 'ivaPct', 'iva']].forEach(([id, k, lista]) => {
+      const inp = $(id, cont);
+      const leer = () => { o[k] = Math.min(100, Math.max(0, Num.parse(inp.value))); this.marcar(); this.pintarCifras(); };
+      inp.addEventListener('input', leer);
+      inp.addEventListener('change', () => { leer(); inp.value = Num.fmt(o[k]); });
+      Desplegable.unir(inp, lista);
+    });
     $('#ofIvaInc', cont).addEventListener('change', e => { o.ivaIncluido = e.target.checked; this.marcar(); this.pintarCifras(); });
     const ica = $('#ofIca', cont), flete = $('#ofFlete', cont);
     ica.addEventListener('input', () => { o.reteIcaPorMil = Num.parse(ica.value); this.marcar(); this.pintarCifras(); });
@@ -6713,19 +6937,20 @@ const EditorItems = {
   fila(it, i) {
     return '<tr><td class="it-n">' + (i + 1) + '</td><td class="it-desc"><input class="inp" data-c="descripcion" value="' + attr(it.descripcion) + '"></td>' +
       '<td class="it-cant"><input class="inp inp-num" data-c="cantidad" value="' + attr(Num.fmt(it.cantidad || 1)) + '" inputmode="decimal"></td>' +
-      '<td class="it-uni"><input class="inp" data-c="unidad" list="dlUnidadesPl" value="' + attr(it.unidad || 'UND') + '"></td>' +
+      '<td class="it-uni"><input class="inp inp-lista" data-c="unidad" value="' + attr(it.unidad || 'UND') + '" aria-label="Unidad"></td>' +
       '<td class="it-val"><input class="inp" data-c="valorUnitario" value="' + attr(it.valorUnitario ? Money.num(it.valorUnitario) : '') + '" placeholder="Opcional"></td>' +
       '<td class="it-acc"><button type="button" class="btn btn-ghost btn-icon btn-sm" data-ed-quitar aria-label="Quitar">' + Icon('x', '', 13) + '</button></td></tr>';
   },
   unir(cont) {
     const tb = $('[data-ed]', cont);
-    if (!$('#dlUnidadesPl')) { const dl = document.createElement('datalist'); dl.id = 'dlUnidadesPl'; dl.innerHTML = UNIDADES.map(u => '<option value="' + u + '">').join(''); document.body.appendChild(dl); }
     const renumerar = () => $$('tr', tb).forEach((tr, i) => { $('.it-n', tr).textContent = i + 1; });
     $$('[data-c="valorUnitario"]', tb).forEach(i => MoneyInput.unir(i));
+    $$('[data-c="unidad"]', tb).forEach(i => Desplegable.unir(i, 'unidades'));
     $('[data-ed-add]', cont).onclick = () => {
       tb.insertAdjacentHTML('beforeend', this.fila(Modelo.itemVacio(), $$('tr', tb).length));
       const tr = tb.lastElementChild;
       MoneyInput.unir($('[data-c="valorUnitario"]', tr));
+      Desplegable.unir($('[data-c="unidad"]', tr), 'unidades');
       $('[data-c="descripcion"]', tr).focus();
     };
     tb.addEventListener('click', e => {
@@ -7036,18 +7261,14 @@ const VistaProveedor = {
   }
 };
 
-const CIUDADES = ['Montería', 'Cereté', 'Lorica', 'Planeta Rica', 'Sahagún', 'Montelíbano', 'Tierralta', 'Ciénaga de Oro', 'San Pelayo', 'Sincelejo',
-  'Cartagena', 'Barranquilla', 'Medellín', 'Bogotá', 'Caucasia'];
-
 const ProveedorForm = {
   abrir(base) {
     return new Promise(res => {
       const p = Object.assign(ProveedorService.vacio(), U.clonar(base || {}));
       let hecho = null;
-      const cats = [...new Set(Datos.proveedores.map(x => x.categoria).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
       const campo = (id, label, valor, extra) => '<div class="field' + (extra && extra.cls ? ' ' + extra.cls : '') + '"' + (extra && extra.flex ? ' style="flex:' + extra.flex + '"' : '') + '><label>' + label +
         (extra && extra.req ? '<span class="req">*</span>' : '') + '</label><input class="inp' + (extra && extra.mono ? ' inp-mono' : '') + '" id="' + id + '" value="' + attr(valor || '') + '"' +
-        (extra && extra.ph ? ' placeholder="' + attr(extra.ph) + '"' : '') + (extra && extra.list ? ' list="' + extra.list + '"' : '') + (extra && extra.af ? ' autofocus' : '') + '>' +
+        (extra && extra.ph ? ' placeholder="' + attr(extra.ph) + '"' : '') + (extra && extra.af ? ' autofocus' : '') + '>' +
         (extra && extra.hint ? '<div class="hint">' + extra.hint + '</div>' : '') + '<div class="err hidden" data-err="' + id + '"></div></div>';
       const m = Modal.abrir({
         titulo: p.id ? 'Editar proveedor' : 'Nuevo proveedor', subtitulo: p.id ? esc(p.nombre) : 'Sus datos salen solos en cada orden', ancho: 'wide',
@@ -7055,25 +7276,26 @@ const ProveedorForm = {
             campo('prNit', 'NIT', p.nit, { mono: 1, ph: '900.123.456-7', hint: 'Con el dígito de verificación.' }) +
             '<div class="field" style="flex:0 1 150px"><label>Persona</label><select class="inp" id="prTipo"><option value="JURIDICA"' + (p.tipoPersona !== 'NATURAL' ? ' selected' : '') +
             '>Jurídica</option><option value="NATURAL"' + (p.tipoPersona === 'NATURAL' ? ' selected' : '') + '>Natural</option></select></div></div>' +
-          '<div class="row">' + campo('prCat', 'Qué suministra', p.categoria, { ph: 'Ej.: Filtros, lubricantes y llantas', list: 'dlCats', flex: '2 1 280px' }) +
-            campo('prCiudad', 'Ciudad', p.ciudad, { list: 'dlCiudades' }) + '</div>' +
+          '<div class="row">' + campo('prCat', 'Qué suministra', p.categoria, { ph: 'Ej.: Filtros, lubricantes y llantas', flex: '2 1 280px' }) +
+            campo('prCiudad', 'Ciudad', p.ciudad) + '</div>' +
           '<div class="row">' + campo('prDir', 'Dirección', p.direccion, { flex: '2 1 280px' }) + campo('prCorreo', 'Correo', p.correo, { ph: 'facturacion@proveedor.com' }) + '</div>' +
           '<div class="row">' + campo('prTel', 'Teléfono', p.telefono) + campo('prCel', 'Celular', p.celular) + campo('prCont', 'Persona de contacto', p.contacto) +
             campo('prCargo', 'Cargo del contacto', p.cargoContacto) + '</div>' +
           '<div class="divider"></div><div class="fs12 fw7 txt-2 mb8">Condiciones habituales <span class="txt-3 fw6">· se proponen al hacerle una orden</span></div>' +
           '<div class="row"><div class="field"><label>Forma de pago</label><select class="inp" id="prForma"><option value="">Sin definir</option>' +
             Object.keys(FORMAS_PAGO).map(k => '<option value="' + k + '"' + (p.formaPago === k ? ' selected' : '') + '>' + FORMAS_PAGO[k] + '</option>').join('') + '</select></div>' +
-            '<div class="field"><label>Plazo (días)</label><input class="inp inp-num" id="prPlazo" list="dlPlazosP" value="' + attr(p.plazoDias || '') + '" inputmode="numeric" placeholder="0">' +
-            '<datalist id="dlPlazosP"><option value="15"><option value="30"><option value="45"><option value="60"><option value="90"></datalist><div class="err hidden" data-err="prPlazo"></div></div>' +
+            '<div class="field"><label>Plazo (días)</label><input class="inp inp-num" id="prPlazo" value="' + attr(p.plazoDias || '') + '" inputmode="numeric" placeholder="0">' +
+            '<div class="err hidden" data-err="prPlazo"></div></div>' +
             '<div class="field"><label>Medio de pago</label><select class="inp" id="prMedio"><option value="">Sin definir</option>' +
             Object.keys(MEDIOS_PAGO).map(k => '<option value="' + k + '"' + (p.medioPago === k ? ' selected' : '') + '>' + MEDIOS_PAGO[k] + '</option>').join('') + '</select></div></div>' +
           '<div class="field"><label>Notas</label><textarea class="inp" id="prNotas" rows="2" placeholder="Horarios, cuenta bancaria para pagos, observaciones…">' + esc(p.notas) + '</textarea></div>' +
-          '<label class="inline-lbl"><input type="checkbox" id="prActivo"' + (p.activo ? ' checked' : '') + '> Activo: aparece al escoger proveedor en una orden</label>' +
-          '<datalist id="dlCats">' + cats.map(c => '<option value="' + attr(c) + '">').join('') + '</datalist>' +
-          '<datalist id="dlCiudades">' + CIUDADES.map(c => '<option value="' + attr(c) + '">').join('') + '</datalist>',
+          '<label class="inline-lbl"><input type="checkbox" id="prActivo"' + (p.activo ? ' checked' : '') + '> Activo: aparece al escoger proveedor en una orden</label>',
         pie: '<button class="btn" data-cerrar>Cancelar</button><button class="btn btn-primary" id="prOk">' + Icon('save', '', 14) + 'Guardar proveedor</button>',
         alCerrar: () => res(hecho)
       });
+      Desplegable.unir($('#prCat', m), 'suministra');
+      Desplegable.unir($('#prCiudad', m), 'ciudades');
+      Desplegable.unir($('#prPlazo', m), 'plazos');
       const v = id => $('#' + id, m).value;
       $('#prOk', m).onclick = async () => {
         $$('.err', m).forEach(e => e.classList.add('hidden'));
@@ -7206,6 +7428,149 @@ const EquipoForm = {
         try { await EquipoService.eliminar(q); hecho = true; Modal.cerrar(m, true); Toast.ok('Eliminado.'); } catch (e) { Toast.err(esc(e.message)); }
       };
     });
+  }
+};
+
+/* ---------- Catálogos ---------- */
+/* Como Catálogos de Gestión Humana: a la izquierda las listas y a la derecha la
+   escogida, con cuánto se usa cada valor y lo que se escribió sin estar en la
+   lista, para agregarlo con un clic. Entra sólo el administrador, como en RH */
+const VistaCatalogos = {
+  titulo() { return ['Catálogos', 'Las listas para escoger en las órdenes y en los proveedores']; },
+  render(el, p, q) {
+    this.el = el;
+    const k = (q && q.lista) || Prefs.get('catLista', 'unidades');
+    this.clave = LISTAS[k] ? k : 'unidades';
+    el.innerHTML = '<div class="page-head"><div><h1>Catálogos</h1><div class="ph-sub">Lo que sale en las listas para escoger. Sólo sugieren: en las órdenes y los proveedores se puede escribir ' +
+      'otra cosa, y eso no se agrega solo. Lo que cambie aquí sale enseguida en las dos empresas.</div></div></div>' +
+      '<div class="ct-grid"><nav class="card ct-nav" id="ctNav" aria-label="Listas"></nav><div class="card" id="ctPanel"></div></div>';
+    el.addEventListener('click', e => this.clic(e));
+    el.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.closest('.ct-add input')) { e.preventDefault(); this.agregar(); } });
+    el.addEventListener('input', e => {
+      if (!e.target.closest('.ct-add')) return;
+      $('#ctErr', el).classList.add('hidden');
+      $$('.ct-add .is-err', el).forEach(i => i.classList.remove('is-err'));
+    });
+    this.pintar();
+  },
+  pintar() {
+    let grupo = '';
+    $('#ctNav', this.el).innerHTML = Object.keys(LISTAS).map(k => {
+      const d = LISTAS[k], on = k === this.clave;
+      const cab = d.grupo !== grupo ? '<div class="ct-grupo">' + esc(grupo = d.grupo) + '</div>' : '';
+      return cab + '<button type="button" class="ct-lista' + (on ? ' on' : '') + '" data-ct-lista="' + k + '"' + (on ? ' aria-current="true"' : '') + '>' +
+        Icon(d.ic, '', 15) + '<span class="f1">' + esc(d.t) + '</span><span class="ct-n">' + Listas.valores(k).length + '</span></button>';
+    }).join('');
+    this.pintarLista();
+  },
+  pintarLista() {
+    const k = this.clave, d = LISTAS[k], usos = Listas.usos(k);
+    /* Lo que se ve es lo que se cambia, aunque mientras tanto llegue otra cosa de la nube */
+    const valores = this._valores = Listas.valores(k), fuera = this._fuera = Listas.fuera(k);
+    const muestra = x => d.numero ? Listas.etiqueta(k, { v: Num.parse(x.muestra), nota: '' }) : x.muestra;
+    const filas = valores.map((x, i) => {
+      const u = usos.get(Listas.llave(k, x)), t = Listas.etiqueta(k, x);
+      return '<tr><td class="fw6">' + esc(t) + '</td><td>' + (u ? esc(Listas.textoUsos(u)) : '<span class="txt-3">Sin usar</span>') + '</td>' +
+        '<td class="tr nowrap">' + si('configurar', '<button type="button" class="btn btn-ghost btn-icon btn-sm" data-ct-ed="' + i + '" data-tip="Cambiar" aria-label="Cambiar ' + attr(t) + '">' + Icon('edit', '', 13) + '</button>' +
+          '<button type="button" class="btn btn-ghost btn-icon btn-sm" data-ct-quitar="' + i + '" data-tip="Quitar de la lista" aria-label="Quitar ' + attr(t) + '">' + Icon('trash', '', 13) + '</button>') + '</td></tr>';
+    }).join('');
+    $('#ctPanel', this.el).innerHTML =
+      '<div class="card-h"><h3>' + Icon(d.ic, '', 15) + esc(d.t) + '</h3><span class="ch-sub">' + esc(d.donde) + '</span></div>' +
+      si('configurar', '<div class="ct-add">' + (d.numero
+          ? '<span class="ct-num"><input class="inp inp-num" id="ctValor" inputmode="decimal" autocomplete="off" placeholder="' + attr(d.ej) + '" aria-label="' + attr('Nuevo: ' + d.uno) + '">' + esc(d.numero) + '</span>' +
+            '<input class="inp" id="ctNota" maxlength="40" autocomplete="off" placeholder="Nota, si quiere: por ejemplo, combustibles" aria-label="Nota">'
+          : '<input class="inp" id="ctValor" maxlength="' + d.largo + '" autocomplete="off" placeholder="' + attr('Por ejemplo: ' + d.ej) + '" aria-label="' + attr('Nuevo: ' + d.uno) + '">') +
+        '<button type="button" class="btn btn-primary" id="ctAgregar">' + Icon('plus', '', 14) + 'Agregar</button><div class="ct-err hidden" id="ctErr"></div></div>') +
+      (valores.length ? '<div class="tbl-wrap"><table class="tbl compacta"><thead><tr><th>' + (d.numero === '%' ? 'Porcentaje' : d.numero ? 'Plazo' : 'Nombre') +
+          '</th><th>Se usa en</th><th></th></tr></thead><tbody>' + filas + '</tbody></table></div>'
+        : Comp.vacio(d.ic, 'Todavía no hay nada en esta lista', 'Agregue ' + esc(d.uno) + ' arriba' + (fuera.length ? ', o escoja abajo de lo que ya se escribió.' : '.'), '', true)) +
+      (fuera.length ? '<div class="ct-fuera"><div class="ct-fuera-h"><b>Se escribió sin estar en la lista</b><span class="txt-3">· lo más usado primero</span>' +
+          (fuera.length > 1 ? si('configurar', '<button type="button" class="btn btn-sm" id="ctTodas">' + Icon('plus', '', 12) + 'Agregar todo (' + fuera.length + ')</button>') : '') + '</div>' +
+          fuera.map((x, i) => '<div class="ct-f"><span class="f1 trunc" title="' + attr(muestra(x)) + '">' + esc(muestra(x)) + '</span><span class="fs12 txt-3 nowrap">' + esc(Listas.textoUsos(x)) + '</span>' +
+            si('configurar', '<button type="button" class="btn btn-sm" data-ct-sumar="' + i + '">' + Icon('plus', '', 12) + 'Agregar</button>') + '</div>').join('') + '</div>' : '') +
+      '<div class="card-f">Quitar o cambiar algo aquí no cambia las órdenes ni los proveedores que ya lo tienen.</div>';
+  },
+  clic(e) {
+    const l = e.target.closest('[data-ct-lista]');
+    if (l) {
+      this.clave = l.dataset.ctLista; Prefs.set('catLista', this.clave); this.pintar();
+      /* En el celular la lista queda debajo: se baja hasta ella */
+      if (innerWidth <= 900) $('#ctPanel', this.el).scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+    if (e.target.closest('#ctAgregar')) { this.agregar(); return; }
+    const ed = e.target.closest('[data-ct-ed]');
+    if (ed) { this.editar(this._valores[+ed.dataset.ctEd]); return; }
+    const qu = e.target.closest('[data-ct-quitar]');
+    if (qu) { this.quitar(this._valores[+qu.dataset.ctQuitar]); return; }
+    const su = e.target.closest('[data-ct-sumar]');
+    if (su) { this.sumar([this._fuera[+su.dataset.ctSumar]]); return; }
+    if (e.target.closest('#ctTodas')) this.sumar(this._fuera);
+  },
+  async agregar() {
+    const k = this.clave, inp = $('#ctValor', this.el), nota = $('#ctNota', this.el), err = $('#ctErr', this.el);
+    if (!inp) return;
+    try {
+      const x = await Listas.agregar(k, inp.value, nota ? nota.value : '');
+      Toast.ok('Agregado a «' + esc(LISTAS[k].t) + '»: <b>' + esc(Listas.etiqueta(k, x)) + '</b>.');
+      this.pintar();
+      $('#ctValor', this.el).focus();
+    } catch (e) {
+      if (!(e instanceof ErrorValidacion)) { Toast.err(esc(e.message)); return; }
+      const malo = e.errores.nota && nota ? nota : inp;
+      err.textContent = e.message; err.classList.remove('hidden');
+      malo.classList.add('is-err'); malo.focus();
+    }
+  },
+  /** Lo que se escribió sin estar en la lista, a la lista */
+  async sumar(lista) {
+    const k = this.clave, d = LISTAS[k];
+    const textos = lista.filter(Boolean).map(x => d.numero ? Num.fmt(Num.parse(x.muestra)) : x.muestra);
+    try {
+      const n = textos.length === 1 ? [await Listas.agregar(k, textos[0])] : await Listas.agregarVarias(k, textos);
+      if (n.length) Toast.ok('Agregado a «' + esc(d.t) + '»: <b>' + esc(n.map(x => Listas.etiqueta(k, x)).join(', ')) + '</b>.');
+      this.pintar();
+    } catch (e) { Toast.err(esc(e.message)); }
+  },
+  editar(x) {
+    if (x === undefined) return;
+    const k = this.clave, d = LISTAS[k], u = Listas.usos(k).get(Listas.llave(k, x));
+    const m = Modal.abrir({
+      titulo: 'Cambiar en «' + esc(d.t) + '»', subtitulo: esc(Listas.etiqueta(k, x)), ancho: 'narrow',
+      cuerpo: (d.numero
+        ? '<div class="row"><div class="field" style="flex:0 1 130px"><label for="ceValor">' + (d.numero === '%' ? 'Porcentaje' : 'Días') + '</label><input class="inp inp-num" id="ceValor" inputmode="decimal" value="' +
+            attr(Num.fmt(x.v)) + '" autofocus><div class="err hidden" data-err="valor"></div></div>' +
+          '<div class="field" style="flex:1 1 180px"><label for="ceNota">Nota</label><input class="inp" id="ceNota" maxlength="40" value="' + attr(x.nota) + '" placeholder="Opcional">' +
+            '<div class="err hidden" data-err="nota"></div></div></div>'
+        : '<div class="field"><label for="ceValor">Nombre</label><input class="inp" id="ceValor" maxlength="' + d.largo + '" value="' + attr(x) + '" autofocus><div class="err hidden" data-err="valor"></div></div>') +
+        (u ? '<div class="alert a-info mb0">' + Icon('info') + '<div>Se usa en ' + esc(Listas.textoUsos(u)) + '. Esas siguen como están; desde ahora la lista ofrece lo nuevo.</div></div>' : ''),
+      pie: '<button class="btn" data-cerrar>Cancelar</button><button class="btn btn-primary" id="ceOk">' + Icon('save', '', 14) + 'Guardar</button>'
+    });
+    const guardar = async () => {
+      $$('.err', m).forEach(er => er.classList.add('hidden'));
+      try {
+        const n = await Listas.cambiar(k, x, $('#ceValor', m).value, $('#ceNota', m) ? $('#ceNota', m).value : '');
+        Modal.cerrar(m);
+        Toast.ok('Cambiado en «' + esc(d.t) + '»: <b>' + esc(Listas.etiqueta(k, n)) + '</b>.');
+        this.pintar();
+      } catch (e) {
+        if (!(e instanceof ErrorValidacion)) { Toast.err(esc(e.message)); return; }
+        Object.entries(e.errores).forEach(([c, t]) => { const er = $('[data-err="' + c + '"]', m); if (er) { er.textContent = t; er.classList.remove('hidden'); } });
+      }
+    };
+    $('#ceOk', m).onclick = guardar;
+    m.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('input')) { e.preventDefault(); guardar(); } });
+  },
+  async quitar(x) {
+    if (x === undefined) return;
+    const k = this.clave, d = LISTAS[k], u = Listas.usos(k).get(Listas.llave(k, x)), t = Listas.etiqueta(k, x);
+    if (!await Modal.confirmar({ titulo: 'Quitar de «' + esc(d.t) + '»', ok: 'Quitar', peligro: true,
+      mensaje: '¿Quitar <b>' + esc(t) + '</b> de la lista?' + (u ? ' Se usa en ' + esc(Listas.textoUsos(u)) + ': esas siguen como están.' : '') })) return;
+    try {
+      await Listas.quitar(k, x);
+      Toast.ok('Quitado de «' + esc(d.t) + '»: <b>' + esc(t) + '</b>.');
+      this.pintar();
+    } catch (e) { Toast.err(esc(e.message)); }
   }
 };
 
@@ -7545,7 +7910,7 @@ const VistaConfiguracion = {
         campo('cfIntro', 'Frase de la solicitud', d.intro, { area: 1 }) +
         '<div class="row">' + campo('cfCitar', 'Nota fija en observaciones', d.citar, { flex: '2 1 260px' }) + campo('cfCierre', 'Despedida', d.cierre) + '</div>' +
         '<div class="row">' + campo('cfLugar', 'Lugar de entrega por defecto', d.lugarEntrega, { flex: '2 1 300px' }) + campo('cfTelDoc', 'Teléfono al pie (TEL N.º)', d.telefono) + '</div>' +
-        '<div class="row"><div class="field"><label>IVA por defecto</label><select class="inp" id="cfIva">' + PCT_IVA.map(v => '<option value="' + v + '"' + (+c.ivaPct === v ? ' selected' : '') + '>' + v + ' %</option>').join('') + '</select></div>' +
+        '<div class="row"><div class="field"><label for="cfIva">IVA por defecto (%)</label><input class="inp inp-num inp-lista" id="cfIva" inputmode="decimal" value="' + attr(Num.fmt(c.ivaPct)) + '"></div>' +
         '<div class="field"><label>Renglones mínimos de la tabla</label><input class="inp inp-num" id="cfFilas" value="' + attr(d.filasMinimas) + '" inputmode="numeric"><div class="hint">Para que la hoja se vea como el formato, aunque la orden tenga pocos artículos.</div></div></div>' +
         '<div class="divider"></div><div class="fs12 fw7 txt-2 mb8">Segunda firma (opcional) <span class="txt-3 fw6">· por ejemplo, quien autoriza</span></div>' +
         '<div class="row">' + campo('cfAutN', 'Nombre', ce.autoriza.nombre, { ph: 'Vacío = no sale' }) + campo('cfAutC', 'Cargo', ce.autoriza.cargo) +
@@ -7579,6 +7944,7 @@ const VistaConfiguracion = {
       $('#cfSigPrev', el).textContent = 'N.º ' + Modelo.numero(s, Fecha.hoy()) + (n > 0 && s !== n ? '  (sigue a la última)' : ''); };
     sig();
     $('#cfSig', el).addEventListener('input', sig);
+    Desplegable.unir($('#cfIva', el), 'iva');
     el.addEventListener('input', () => { Router.sucio = true; });
     el.addEventListener('change', () => { Router.sucio = true; });
     if ($('#cfGuardar', el)) $('#cfGuardar', el).onclick = () => this.guardar();
@@ -7679,7 +8045,7 @@ const VistaConfiguracion = {
     ce.empresa = Object.assign({}, ce.empresa, { nombre: Txt.mayus(v('cfNom')), tipoDoc: $('#cfTipoDoc', el).value, nit: v('cfNit'), direccion: v('cfDir'), ciudad: v('cfCiu'),
       telefono: v('cfTel'), correo: v('cfCor').toLowerCase() });
     ce.consecutivo = { siguiente: parseInt(v('cfSig'), 10) };
-    c.ivaPct = +$('#cfIva', el).value;
+    c.ivaPct = Math.min(100, Math.max(0, Num.parse($('#cfIva', el).value)));
     ce.documento = Object.assign({}, ce.documento, { saludoCompra: v('cfSalC'), saludoServicio: v('cfSalS'), saludoCotizacion: v('cfSalQ'), intro: v('cfIntro'),
       citar: v('cfCitar'), cierre: v('cfCierre'), lugarEntrega: v('cfLugar'), telefono: v('cfTelDoc'), filasMinimas: parseInt(v('cfFilas'), 10) });
     ce.autoriza = { nombre: Txt.mayus(v('cfAutN')), cargo: Txt.mayus(v('cfAutC')), firma: (ce.autoriza && ce.autoriza.firma) || '' };
@@ -7705,6 +8071,8 @@ const VistaConfiguracion = {
     const act = c.solicitantes.filter(s => s.activo);
     c.solicitantes.forEach(s => { if (!s.activo) s.predeterminado = false; });
     if (!act.some(s => s.predeterminado)) act[0].predeterminado = true;
+    /* Los catálogos se cambian en Catálogos: van como están ahora, aunque esta pantalla se abriera antes */
+    if (Datos.cfg.catalogos) c.catalogos = U.clonar(Datos.cfg.catalogos); else delete c.catalogos;
     try {
       /* Lo común en su fila; lo de otra empresa, en la suya */
       const ops = [{ col: 'configuracion', tipo: 'put', doc: c }];
@@ -8753,19 +9121,20 @@ Pruebas.def('Solo consulta: todas las pantallas abren y no dejan escribir', asyn
   Permiso.puede = accion => accion === 'ver';
   try {
     const vistas = [[VistaDashboard, {}], [VistaOrdenes, {}], [VistaOrden, { id: o.id }], [VistaOrdenForm, {}], [VistaPlantillas, {}], [VistaProveedores, {}],
-      [VistaProveedor, { id: p1.id }], [VistaEquipos, {}], [VistaEstadisticas, {}], [VistaRespaldos, {}], [VistaConfiguracion, {}]];
+      [VistaProveedor, { id: p1.id }], [VistaEquipos, {}], [VistaEstadisticas, {}], [VistaRespaldos, {}], [VistaConfiguracion, {}], [VistaCatalogos, {}]];
     const html = [];
     for (const [v, p] of vistas) { const div = document.createElement('div'); await v.render(div, p, {}); html.push(div.innerHTML); }
     const todo = html.join('');
-    ['href="#/orden-editar', 'data-paso=', 'id="pvNuevo"', 'id="eqNuevo"', 'id="cfGuardar"', 'id="rsDz"', 'data-estado='].forEach(x =>
+    ['href="#/orden-editar', 'data-paso=', 'id="pvNuevo"', 'id="eqNuevo"', 'id="cfGuardar"', 'id="rsDz"', 'data-estado=', 'id="ctAgregar"', 'data-ct-ed=', 'data-ct-quitar='].forEach(x =>
       Pruebas.cierto(!todo.includes(x), 'no debía ofrecer ' + x));
     Pruebas.cierto(html[3].includes('Sin permiso'), 'el formulario debía avisar que no hay permiso');
     await Pruebas.falla(() => OrdenService.guardar(Pruebas.orden(p1)), ErrorDominio, 'debía rechazar una orden nueva');
     await Pruebas.falla(() => ProveedorService.guardar(Object.assign(ProveedorService.vacio(), { nombre: 'Otro' })), ErrorDominio, 'debía rechazar un proveedor');
     await Pruebas.falla(() => Respaldo.borrarOrdenes(), ErrorDominio, 'debía rechazar borrar las órdenes');
+    await Pruebas.falla(() => Listas.agregar('unidades', 'LATA'), ErrorDominio, 'debía rechazar cambiar un catálogo');
     Pruebas.igual(Datos.ordenes.length, 1, 'no debía escribir nada');
   } finally { Permiso.puede = antes; Router.sucio = false; }
-  return '11 pantallas';
+  return '12 pantallas';
 });
 Pruebas.def('Los roles del Panel: cada uno ve su menú y hace sólo lo suyo', async ({ p1, p2, e1 }) => {
   const o = await OrdenService.guardar(Object.assign(Pruebas.orden(p1), { equipoId: e1.id }));
@@ -8776,10 +9145,10 @@ Pruebas.def('Los roles del Panel: cada uno ve su menú y hace sólo lo suyo', as
   const ve = r => !Router.accion(r) || Permiso.puede(Router.accion(r));
   try {
     Permiso.acceso = { rol: 'admin', acciones: ['ver', 'editar', 'eliminar', 'configurar', 'pagar'], activo: true };
-    Pruebas.igual(Shell.menu().filter(n => n.id).length, 10, 'el administrador ve todo el menú');
+    Pruebas.igual(Shell.menu().filter(n => n.id).length, 11, 'el administrador ve todo el menú');
     Permiso.acceso = { rol: 'editor', acciones: ['ver', 'editar', 'pagar'], activo: true };
     Pruebas.igual(menu(), 'Operación dashboard Órdenes de compra ordenes orden-nueva plantillas Análisis estadisticas Maestros proveedores equipos');
-    Pruebas.igual(['/plantillas', '/orden-nueva', '/respaldos', '/configuracion', '/pruebas'].map(ve), [true, true, false, false, false]);
+    Pruebas.igual(['/plantillas', '/orden-nueva', '/respaldos', '/configuracion', '/pruebas', '/catalogos'].map(ve), [true, true, false, false, false, false]);
     Pruebas.igual(Permiso.rolTexto(), 'Editor');
     await Pruebas.falla(() => OrdenService.eliminar(o), ErrorDominio, 'el Editor no elimina órdenes de otros');
     await EquipoService.eliminar(suelto);
@@ -8789,7 +9158,7 @@ Pruebas.def('Los roles del Panel: cada uno ve su menú y hace sólo lo suyo', as
     Permiso.acceso = { rol: 'consulta', acciones: ['ver'], activo: true };
     Pruebas.igual(menu(), 'Operación dashboard Órdenes de compra ordenes Análisis estadisticas Maestros proveedores equipos');
     Pruebas.igual(['/', '/ordenes', '/orden/x', '/estadisticas', '/proveedores', '/proveedor/x', '/equipos'].every(ve), true, 'Consulta entra a lo suyo');
-    Pruebas.igual(['/orden-nueva', '/orden-editar/x', '/plantillas', '/respaldos', '/configuracion', '/pruebas'].some(ve), false, 'Consulta no entra a lo demás');
+    Pruebas.igual(['/orden-nueva', '/orden-editar/x', '/plantillas', '/respaldos', '/configuracion', '/pruebas', '/catalogos'].some(ve), false, 'Consulta no entra a lo demás');
     const div = document.createElement('div'); VistaSinPermiso.render(div);
     Pruebas.cierto(div.textContent.includes('no es de su rol') && div.textContent.includes('Visualizador'), 'debía decir que la sección no es de su rol');
     await Pruebas.falla(() => EquipoService.eliminar(e1), ErrorDominio, 'el Visualizador no elimina equipos');
@@ -8797,6 +9166,109 @@ Pruebas.def('Los roles del Panel: cada uno ve su menú y hace sólo lo suyo', as
     Pruebas.igual(Datos.orden(o.id).estado, 'ESPERANDO', 'la orden debía quedar igual');
   } finally { Permiso.acceso = antes; }
   return 'Administrador · Editor · Visualizador';
+});
+Pruebas.def('Catálogos: cada lista arranca como siempre y lo que cambia el administrador queda en la fila común', async () => {
+  Pruebas.igual([Listas.valores('unidades').length, Listas.valores('unidades')[0], Listas.valores('lugares').length, Listas.valores('suministra').length],
+    [21, 'UND', 0, 0], 'las de siempre, y lugares y qué suministran empiezan vacías');
+  Pruebas.igual(Listas.opciones('retencion').slice(0, 3).map(o => o.t), ['0 % · sin retención', '1 %', '2,5 % · compras']);
+  Pruebas.igual(Listas.opciones('iva').map(o => o.v), ['0', '5', '19']);
+  const x = await Listas.agregar('unidades', '  lata ');
+  Pruebas.igual([x, Listas.valores('unidades').length, Listas.valores('unidades')[21]], ['LATA', 22, 'LATA'], 'en mayúsculas y al final');
+  const fila = (await db.getAll('configuracion')).find(c => c.id === 'general');
+  Pruebas.igual(fila.catalogos.unidades.length, 22, 'queda en la configuración común');
+  await Pruebas.falla(() => Listas.agregar('unidades', 'Láta'), ErrorValidacion, 'no se repite, aunque cambien las tildes');
+  await Pruebas.falla(() => Listas.agregar('plazos', '20,5'), ErrorValidacion, 'los días son enteros');
+  await Pruebas.falla(() => Listas.agregar('retencion', '150'), ErrorValidacion, 'un porcentaje va de 0 a 100');
+  await Pruebas.falla(() => Listas.agregar('retencion', '2,5'), ErrorValidacion, 'el 2,5 ya está');
+  await Listas.agregar('retencion', '0.1', 'combustibles');
+  Pruebas.igual(Listas.opciones('retencion').slice(0, 2).map(o => o.t), ['0 % · sin retención', '0,1 % · combustibles'], 'los números van de menor a mayor');
+  await Listas.cambiar('unidades', 'GLN', 'galón');
+  await Listas.quitar('unidades', 'CANECA');
+  Pruebas.igual([Listas.valores('unidades')[1], Listas.valores('unidades').includes('CANECA')], ['GALÓN', false]);
+  const ev = (await db.getAll('auditoria')).filter(a => a.entidad === 'catálogo').map(a => a.accion + ' ' + a.detalle).sort();
+  Pruebas.igual(ev, ['agregar Retención en la fuente: 0,1 % · combustibles', 'agregar Unidades: LATA', 'cambiar Unidades: GLN → GALÓN', 'quitar Unidades: CANECA'],
+    'cada cambio queda en la actividad');
+  const antes = Permiso.acceso;
+  try {
+    Permiso.acceso = { rol: 'editor', acciones: ['ver', 'editar', 'pagar'], activo: true };
+    await Pruebas.falla(() => Listas.agregar('unidades', 'BALDE'), ErrorDominio, 'el Editor no cambia los catálogos');
+  } finally { Permiso.acceso = antes; }
+  return '7 listas · LATA, 0,1 % y GALÓN';
+});
+Pruebas.def('Catálogos: cuánto se usa cada valor y lo que se escribió sin estar en la lista', async ({ p1 }) => {
+  const it = (descripcion, unidad) => Object.assign(Modelo.itemVacio(), { descripcion, cantidad: 1, unidad, valorUnitario: 1000 });
+  await OrdenService.guardar(Pruebas.orden(p1, { items: [it('Pintura', 'LATA'), it('Thinner', 'GLN')], entregaLugar: 'Finca La Esperanza', retencionPct: 0.1 }));
+  await OrdenService.guardar(Pruebas.orden(p1, { items: [it('Filtro', 'UND')], entregaLugar: 'finca la esperanza' }));
+  const u = Listas.usos('unidades');
+  Pruebas.igual([Listas.textoUsos(u.get('lata')), Listas.textoUsos(u.get('und')), u.has('caneca')], ['1 orden', '1 orden', false]);
+  Pruebas.igual(Listas.fuera('unidades').map(x => x.muestra), ['LATA'], 'LATA se escribió sin estar en la lista');
+  Pruebas.igual(Listas.fuera('lugares').map(x => [x.muestra, x.o]), [['Finca La Esperanza', 2]], 'el mismo lugar con otras mayúsculas cuenta una vez');
+  Pruebas.igual(Listas.fuera('retencion').map(x => x.muestra), [0.1]);
+  Pruebas.igual(Listas.textoUsos(Listas.usos('ciudades').get('monteria')), '1 proveedor', 'la ciudad del proveedor');
+  Pruebas.cierto(Listas.textoUsos(Listas.usos('plazos').get('90')).includes('1 proveedor'), 'el plazo del proveedor a crédito');
+  Pruebas.igual(Listas.valores('lugares').length, 0, 'lo escrito no se agrega solo');
+  const n = await Listas.agregarVarias('lugares', ['Finca La Esperanza', 'finca la esperanza', '']);
+  Pruebas.igual([n.length, Listas.valores('lugares'), Listas.fuera('lugares').length], [1, ['Finca La Esperanza'], 0], 'agregar todo salta lo repetido');
+  return 'LATA, la finca y 0,1 %';
+});
+Pruebas.def('Las listas son de la plataforma: salen todas al entrar y se puede escribir otra cosa', async ({ p1 }) => {
+  const div = document.createElement('div');
+  div.style.cssText = 'position:fixed;left:-9999px;top:0;width:1100px';
+  document.body.appendChild(div);
+  try {
+    VistaOrdenForm.render(div, {}, { proveedor: p1.id });
+    Pruebas.cierto(!$('datalist', div) && !$('[list]', div), 'ya no usa la lista del navegador');
+    const uni = $('#ofItems input[data-i="0"][data-k="unidad"]', div);
+    const combo = [...Combo.vivos].find(c => c.input === uni), opc = () => $$('.combo-opt', combo.portal);
+    uni.value = 'UND'; combo.abrir();
+    Pruebas.igual([opc().length, opc().findIndex(o => o.classList.contains('hl'))], [21, 0], 'con UND escrita salen todas, y UND marcada');
+    uni.value = 'gar'; combo.abrir();
+    Pruebas.igual(opc().map(o => o.textContent), ['GARRAFA'], 'al escribir se filtra');
+    opc()[0].dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    Pruebas.igual([uni.value, VistaOrdenForm.o.items[0].unidad, combo.portal.classList.contains('open')], ['GARRAFA', 'GARRAFA', false], 'al escoger queda escrita y la lista se cierra');
+    uni.value = 'lata'; uni.dispatchEvent(new Event('input', { bubbles: true })); uni.dispatchEvent(new Event('change', { bubbles: true }));
+    Pruebas.igual([VistaOrdenForm.o.items[0].unidad, Listas.valores('unidades').includes('LATA')], ['LATA', false], 'se puede escribir otra, y no se agrega sola');
+    const ret = $('#ofRet', div), cr = [...Combo.vivos].find(c => c.input === ret);
+    cr.abrir();
+    $$('.combo-opt', cr.portal).find(o => o.textContent.startsWith('4 %')).dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    Pruebas.igual([ret.value, VistaOrdenForm.o.retencionPct], ['4', 4], 'la retención se escoge de la lista');
+    ret.value = '0,1'; ret.dispatchEvent(new Event('input', { bubbles: true }));
+    Pruebas.igual(VistaOrdenForm.o.retencionPct, 0.1, 'o se escribe');
+  } finally { Router.sucio = false; Combo.limpiar(); div.remove(); }
+  return 'la unidad y la retención';
+});
+Pruebas.def('La pantalla de Catálogos: agregar, avisar lo repetido y traer lo que se escribió', async ({ p1 }) => {
+  await OrdenService.guardar(Pruebas.orden(p1, { entregaLugar: 'Finca La Esperanza' }));
+  const div = document.createElement('div');
+  document.body.appendChild(div);
+  try {
+    VistaCatalogos.render(div, {}, { lista: 'lugares' });
+    Pruebas.cierto(div.textContent.includes('Todavía no hay nada en esta lista') && div.textContent.includes('Finca La Esperanza'), 'vacía, con lo que se escribió abajo');
+    await VistaCatalogos.sumar([VistaCatalogos._fuera[0]]);
+    $('#ctValor', div).value = 'Bodega 69A';
+    await VistaCatalogos.agregar();
+    Pruebas.igual([Listas.valores('lugares'), $$('#ctPanel tbody tr', div).length, $('#ctNav [data-ct-lista="lugares"] .ct-n', div).textContent],
+      [['Finca La Esperanza', 'Bodega 69A'], 2, '2'], 'la lista y su número se ven al día');
+    $('#ctValor', div).value = 'bodega 69a';
+    await VistaCatalogos.agregar();
+    Pruebas.cierto(!$('#ctErr', div).classList.contains('hidden') && $('#ctErr', div).textContent.includes('Ya está'), 'lo repetido se avisa ahí mismo');
+  } finally { div.remove(); }
+  return 'Lugares de entrega';
+});
+Pruebas.def('Guardar la Configuración no deshace lo que se cambió en Catálogos', async () => {
+  await Datos.guardarCfg({ solicitantes: [{ id: ID(), nombre: 'FIRMANTE DE PRUEBA', cargo: 'COMPRAS', telefono: '', firma: '', activo: true, predeterminado: true }] });
+  const div = document.createElement('div');
+  document.body.appendChild(div);
+  const resolver = Router.resolver;
+  Router.resolver = () => {};
+  try {
+    VistaConfiguracion.render(div);
+    /* Mientras la Configuración está abierta, se agrega una unidad (otra pestaña) */
+    await Listas.agregar('unidades', 'LATA');
+    await VistaConfiguracion.guardar();
+    Pruebas.igual([Listas.valores('unidades').includes('LATA'), Datos.cfg.solicitantes.length], [true, 1], 'la unidad nueva sigue');
+  } finally { Router.resolver = resolver; Router.sucio = false; Combo.limpiar(); div.remove(); }
+  return 'LATA sigue';
 });
 Pruebas.def('Cada Editor cambia y elimina sólo sus órdenes; el administrador, todas', async ({ p1 }) => {
   const antes = Permiso.acceso;
@@ -9680,6 +10152,7 @@ function registrarRutas() {
   Router.def('/proveedores', VistaProveedores);
   Router.def('/proveedor/:id', VistaProveedor);
   Router.def('/equipos', VistaEquipos);
+  Router.def('/catalogos', VistaCatalogos, 'configurar');
   Router.def('/estadisticas', VistaEstadisticas);
   Router.def('/respaldos', VistaRespaldos, 'configurar');
   Router.def('/configuracion', VistaConfiguracion, 'configurar');
