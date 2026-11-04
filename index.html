@@ -830,8 +830,8 @@ html[data-theme="dark"] .hj-fm img{background:#fff;border-radius:4px}
 .hj-ln{margin-bottom:5px;border-top:1.5px solid var(--text-2)}
 .hj-firma b{display:block;font-size:12.5px}
 .hj-firma small{display:block;font-size:10.5px;color:var(--text-3);text-transform:uppercase;letter-spacing:.04em}
-.hj-solsel{height:30px;border-color:transparent;background-color:transparent;font-weight:700;text-align:center;text-align-last:center}
-.hj-solsel:hover{border-color:var(--border)}
+.hj-sinfirma{margin-top:4px;font-size:11px;color:var(--warn-700)}
+html[data-theme="dark"] .hj-sinfirma{color:var(--warn-500)}
 .hj-mas,.hj-acciones{max-width:1120px;margin:14px auto 0}
 .hj-mas{border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface)}
 .hj-mas summary{display:flex;align-items:center;gap:8px;padding:12px 16px;font-size:13px;font-weight:650;cursor:pointer;list-style:none}
@@ -926,6 +926,50 @@ html[data-theme="dark"] .hj-fm img{background:#fff;border-radius:4px}
 .or-pago.credito{color:var(--warn-700)}
 html[data-theme="dark"] .or-pago.contado{color:var(--ok-500)}
 html[data-theme="dark"] .or-pago.credito{color:var(--warn-500)}
+/* Remisiones: la hoja para armarla, con lo de cada orden junto, y la lista
+   para escoger las órdenes que van */
+.hj-rm{font-size:16px;font-weight:800;letter-spacing:.06em}
+table.rf-tbl tr.rf-g td{padding:7px 10px;background:var(--surface-2);border-top:1.5px solid var(--hj-l)}
+table.rf-tbl tr.rf-g:first-child td{border-top:none}
+.rf-g-in{display:flex;align-items:center;flex-wrap:wrap;gap:4px 10px;font-size:12px;font-weight:600}
+.rf-g-in .mono{font-weight:750}
+.rf-g-in .rf-para{font-weight:500;color:var(--text-2)}
+.rf-g-in .btn{margin-left:auto}
+table.rf-tbl tr.rf-vacio td{padding:6px}
+.rf-chips{display:flex;flex-wrap:wrap;align-items:center;gap:6px;flex:1 1 260px;min-width:0}
+.rf-chip{display:inline-flex;align-items:center;gap:2px;padding:1px 2px 1px 9px;border:1px solid var(--border);border-radius:999px;
+  background:var(--surface-2);font:650 11.5px/1.6 var(--mono)}
+.rf-chip .btn{width:20px;height:20px;padding:0}
+.rp-lista{display:flex;flex-direction:column;border:1px solid var(--border);border-radius:var(--radius);max-height:min(56vh,520px);overflow:auto}
+.rp-o{display:grid;grid-template-columns:18px minmax(0,1fr) auto;align-items:center;gap:4px 10px;margin:0;padding:8px 10px;
+  border-bottom:1px solid var(--border);cursor:pointer}
+.rp-o:last-child{border-bottom:none}
+.rp-o:hover,.rp-o.on{background:var(--accent-soft)}
+.rp-o.ya{cursor:default;opacity:.6}
+.rp-o input{margin:0;width:15px;height:15px;accent-color:var(--accent)}
+.rp-t{min-width:0}
+.rp-t div{font-size:12.5px;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rp-t small{display:block;font-size:11px;color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rp-m{display:flex;flex-direction:column;align-items:flex-end;gap:3px;font-size:11px;color:var(--text-3);white-space:nowrap}
+.rm-ords{display:flex;flex-wrap:wrap;gap:4px;min-width:170px;max-width:280px}
+.rm-ord{display:inline-block;padding:0 6px;border:1px solid var(--border);border-radius:5px;background:var(--surface-2);font:650 11px/1.6 var(--mono);white-space:nowrap}
+.or-rm{color:var(--accent);vertical-align:-1px}
+.rv-l{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);font-size:12.5px;color:var(--text)}
+.rv-l:last-child{border-bottom:none}
+.rv-l .mono{white-space:nowrap}
+.rv-l:hover .mono{color:var(--accent);text-decoration:underline}
+.cf-fir{padding:12px 14px;border-bottom:1px solid var(--border)}
+.cf-fir:last-child{border-bottom:none}
+.cf-fir-b{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px 12px;align-items:end;margin-top:8px}
+.cf-fir-b .field{margin:0;min-width:0}
+.cf-u b{display:block;font-size:12.5px}
+.cf-u small{display:block;font-size:11px;color:var(--text-3)}
+@media(max-width:760px){
+  table.items-ed.rf-tbl tr.rf-g,table.items-ed.rf-tbl tr.rf-vacio{display:block;padding:0}
+  table.items-ed.rf-tbl tr.rf-g td,table.items-ed.rf-tbl tr.rf-vacio td{display:block}
+  table.items-ed.rf-tbl td.it-acc{grid-column:4;grid-row:2;justify-self:end}
+  table.items-ed.rf-tbl td.it-obs{grid-column:2 / 5;grid-row:3}
+}
 /* «Ya se pagó», en la forma de pago de la hoja */
 .hj-ya{display:inline-flex;align-items:center;gap:5px;margin-left:auto;padding:3px 9px;border:1px solid var(--ok-500);border-radius:999px;
   font-size:11.5px;font-weight:650;color:var(--ok-700);background:var(--ok-50);cursor:pointer;white-space:nowrap}
@@ -1104,6 +1148,23 @@ html[data-theme="dark"] .pr-ok{color:var(--ok-500)}
 .dp-anulada{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none}
 .dp-anulada span{font-size:56pt;font-weight:900;color:rgba(200,0,0,.14);transform:rotate(-24deg);
   letter-spacing:8px;border:6px solid rgba(200,0,0,.14);padding:4mm 10mm;border-radius:6mm}
+/* La remisión (Juan, 04/11/2026): a quién se entrega y dónde, en grande; lo
+   que va, agrupado por orden; sin precios */
+.dp-rm-para{display:flex;align-items:stretch;border:1.8px solid #000;border-top:none;background:#eef0f3}
+.dp-rm-para>div{flex:1;min-width:0;display:flex;align-items:center;gap:3mm;padding:1.6mm 3.5mm}
+.dp-rm-para>div+div{border-left:1px solid #000}
+.dp-rm-para svg{flex:0 0 auto;width:6mm;height:6mm}
+.dp-rm-t{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.2}
+.dp-rm-t small{font-size:7pt;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:#333}
+.dp-rm-t b{font-size:12.5pt;font-weight:800;text-transform:uppercase;word-break:break-word}
+.dp-rm-lleva{display:flex;justify-content:space-between;gap:4mm;border:1.2px solid #000;border-top:none;padding:1.4mm 3mm;font-size:8.5pt}
+.dp-rm-lleva label{font-size:7pt;font-weight:700;text-transform:uppercase;letter-spacing:.2px;margin-right:2.5mm}
+.dp-rm-lleva b{white-space:nowrap}
+.dp-tbl.dp-rm-tbl td{padding:1.2mm 1.8mm}
+.dp-tbl tr.dp-rm-g td{background:#f2f3f5;font-size:7.4pt;font-weight:800;text-transform:uppercase;letter-spacing:.2px;padding:1.3mm 1.8mm;border-top:1px solid #000}
+.dp-rm-g div{display:flex;justify-content:space-between;gap:4mm}
+.dp-rm-cod{font-family:Consolas,"Courier New",monospace;font-size:8.8pt;letter-spacing:.4px}
+.dp-rm-aviso{margin-top:5mm;font-size:8.6pt;text-align:center;font-weight:700}
 
 .preview-shell{background:var(--ink-300);padding:18px;border-radius:var(--radius);overflow:auto}
 html[data-theme="dark"] .preview-shell{background:#0a0f13}
@@ -1863,7 +1924,7 @@ const APP = Object.freeze({
   nombre: 'Facturación',
   area: 'Órdenes de compra',
   empresa: 'SINUGRAVAS S.A.S.',
-  version: '2.14.1',
+  version: '2.15.0',
   /* 3: los datos viven en la nube y el número de cada orden sale de las órdenes */
   esquema: 3,
   /* La base del navegador de la versión local (1.x). Ya no se guarda en ella:
@@ -1958,6 +2019,13 @@ const Permiso = {
   exigirOrden(o, accion) {
     this.exigir(accion);
     if (!this.puedeOrden(o)) throw new ErrorDominio('Esta orden la hizo ' + (Modelo.autor(o) || 'otra persona') +
+      ': sólo esa persona o el administrador la pueden cambiar.', 'SIN_PERMISO');
+  },
+  /** Las remisiones, igual que las órdenes (SQL 213) */
+  puedeRemision(r) { return this.puedeOrden(r); },
+  exigirRemision(r, accion) {
+    this.exigir(accion);
+    if (!this.puedeRemision(r)) throw new ErrorDominio('Esta remisión la hizo ' + (Modelo.autor(r) || 'otra persona') +
       ': sólo esa persona o el administrador la pueden cambiar.', 'SIN_PERMISO');
   },
   rolTexto() {
@@ -2629,7 +2697,7 @@ const ListaEmpresas = {
    el de las pruebas del sistema, y el del navegador (IndexedDB) quedó sólo
    para leer lo que guardó la versión local.
    ========================================================================== */
-const COLECCIONES = ['configuracion', 'proveedores', 'equipos', 'ordenes', 'plantillas', 'auditoria', 'adjuntos'];
+const COLECCIONES = ['configuracion', 'proveedores', 'equipos', 'ordenes', 'remisiones', 'plantillas', 'auditoria', 'adjuntos'];
 
 class StorageAdapter {
   async init() { throw new Error('no implementado'); }
@@ -2731,7 +2799,7 @@ class IndexedDBAdapter extends StorageAdapter {
 
 /* En memoria: para las pruebas del sistema. Se porta como la base de la nube
    en lo que importa: o se guarda todo el lote o nada, y nunca deja dos órdenes
-   con el mismo número. */
+   (ni dos remisiones) con el mismo número en la misma empresa. */
 class MemoryAdapter extends StorageAdapter {
   constructor() { super(); this.m = {}; COLECCIONES.forEach(c => { this.m[c] = new Map(); }); }
   async init() { return this; }
@@ -2743,10 +2811,12 @@ class MemoryAdapter extends StorageAdapter {
   async clear(c) { this.m[c].clear(); }
   async lote(ops) {
     const clave = o => o.secuencia == null ? null : Empresa.de(o) + ':' + o.secuencia;
-    const quedan = new Map([...this.m.ordenes.values()].map(o => [o.id, clave(o)]));
-    ops.forEach(o => { if (o.col === 'ordenes') { if (o.tipo === 'del') quedan.delete(o.id); else quedan.set(o.doc.id, clave(o.doc)); } });
-    const secs = [...quedan.values()].filter(s => s != null);
-    if (new Set(secs).size !== secs.length) throw new ErrorDominio('Ese número de orden ya lo tomó otra orden.', 'NUMERO_TOMADO');
+    [['ordenes', 'Ese número de orden ya lo tomó otra orden.'], ['remisiones', 'Ese número de remisión ya lo tomó otra remisión.']].forEach(([col, aviso]) => {
+      const quedan = new Map([...this.m[col].values()].map(o => [o.id, clave(o)]));
+      ops.forEach(o => { if (o.col === col) { if (o.tipo === 'del') quedan.delete(o.id); else quedan.set(o.doc.id, clave(o.doc)); } });
+      const secs = [...quedan.values()].filter(s => s != null);
+      if (new Set(secs).size !== secs.length) throw new ErrorDominio(aviso, 'NUMERO_TOMADO');
+    });
     ops.forEach(o => { if (o.tipo === 'del') this.m[o.col].delete(o.id); else this.m[o.col].set(o.doc.id, U.clonar(o.doc)); });
   }
 }
@@ -2977,6 +3047,7 @@ const MAPA = (() => {
     ordenes: ['numero secuencia tipo fecha proveedor_id proveedor equipo_id concepto referencia items iva_pct retencion_pct subtotal iva retencion total ' +
       'forma_pago plazo_dias cuotas medio_pago entrega_lugar entrega_recibe entrega_cedula nota_proveedor notas_internas solicitante estado historial ' +
       'factura pago anulacion plantilla_id adjuntos empresa', 'proveedor equipo_id solicitante factura pago anulacion plantilla_id', ''],
+    remisiones: ['empresa numero secuencia fecha recibe lugar lleva items ordenes nota firma estado recibido historial anulacion', 'firma recibido anulacion', ''],
     adjuntos: ['orden_id nombre tipo tamano ruta en', '', 'en'],
     auditoria: ['en accion entidad entidad_id detalle', '', 'en']
   };
@@ -3023,7 +3094,8 @@ const MAPA = (() => {
   };
 })();
 
-/* Lo que la plataforma tiene en memoria (y revisa cada poco en la nube) */
+/* Lo que la plataforma tiene en memoria (y revisa cada poco en la nube). Las
+   remisiones se suman cuando la nube ya tiene su tabla (SQL 213, RemisionService.traer) */
 const EN_MEMORIA = ['configuracion', 'proveedores', 'equipos', 'plantillas', 'ordenes'];
 
 /* La nube como almacén, con el mismo contrato que los demás. Guardar va
@@ -3156,6 +3228,7 @@ class NubeAdapter extends StorageAdapter {
         : 'Otra persona cambió esto mientras usted trabajaba. Ya se trajeron sus cambios: revíselos y vuelva a intentarlo.', 'CAMBIADO');
     }
     if (e.sql === '23505' && /ordenes_secuencia_unica/.test(m)) return new ErrorDominio('Ese número de orden ya lo tomó otra orden.', 'NUMERO_TOMADO');
+    if (e.sql === '23505' && /remisiones_secuencia_unica/.test(m)) return new ErrorDominio('Ese número de remisión ya lo tomó otra remisión.', 'NUMERO_TOMADO');
     if (e.sql === '23505' && /equipos_placa_unica/.test(m)) return new ErrorDominio('Esa placa ya es de otro equipo.', 'DUPLICADO');
     if (e.sql === '23505') return new ErrorDominio('Eso ya existe en la base: ' + m, 'DUPLICADO');
     if (/^No tiene permiso/.test(m)) return new ErrorDominio(tabla(m) + ' Pídaselo al administrador.', 'SIN_PERMISO');
@@ -3253,6 +3326,8 @@ class NubeAdapter extends StorageAdapter {
   static conMargen(t) { return new Date(Date.parse(t) - 15000).toISOString(); }
   /* La nube no tiene la función: la API lo dice con 404 (PGRST202), la base con 42883 */
   static faltaFuncion(e) { return !!e && (e.status === 404 || e.sql === 'PGRST202' || e.sql === '42883'); }
+  /* Ni la tabla: la API lo dice con PGRST205, la base con 42P01 */
+  static faltaTabla(e) { return !!e && (e.sql === 'PGRST205' || e.sql === '42P01' || (e.status === 404 && !e.sql)); }
   /* Como antes del 203: un pedido pequeño (resumen) dice cuántas filas y la
      última marca de cada tabla. Sólo si algo no cuadra se trae lo que cambió
      (con un minuto de margen) y, si se borró algo, la lista de ids. */
@@ -3349,8 +3424,10 @@ const Empresa = {
     Shell.pintarEmpresa();
     Shell.refrescar();
     const r = Router.actual();
-    /* Una orden, o su hoja, es de la otra empresa: se vuelve a la lista */
-    if (r && /^\/orden(-nueva|-editar)?(\/|$)/.test(r.ruta)) Router.ir('/ordenes'); else Router.resolver(true);
+    /* Una orden o una remisión, o su hoja, es de la otra empresa: se vuelve a su lista */
+    if (r && /^\/orden(-nueva|-editar)?(\/|$)/.test(r.ruta)) Router.ir('/ordenes');
+    else if (r && /^\/remision(-nueva|-editar)?(\/|$)/.test(r.ruta)) Router.ir('/remisiones');
+    else Router.resolver(true);
     Toast.info('Ahora trabaja en <b>' + esc(this.nombre(id)) + '</b>.');
     return true;
   }
@@ -3365,6 +3442,17 @@ const ESTADOS = Object.freeze({
   ANULADA: { t: 'Anulada', pill: 'p-red', ic: 'ban', ayuda: 'No cuenta en las estadísticas.' }
 });
 const RUTA = ['ESPERANDO', 'CONTABILIDAD', 'PAGADA'];
+/* La remisión (Juan, 04/11/2026): una sola hoja con todo lo que se manda
+   junto, aunque venga de varias órdenes, para quien lo recibe. Va sin precios
+   y tiene su propio consecutivo en cada empresa, aparte del de las órdenes.
+   Quien la recibe contesta «Recibido» por WhatsApp, y quien la mandó la marca
+   como recibida. */
+const REMISION = Object.freeze({ t: 'Remisión', asunto: 'REMISIÓN', sigla: 'RM' });
+const ESTADOS_REM = Object.freeze({
+  ENVIADA: { t: 'Esperando el recibido', pill: 'p-blue', ic: 'clock', ayuda: 'Ya se mandó: falta que quien la recibe conteste «Recibido».' },
+  RECIBIDA: { t: 'Recibida', pill: 'p-green', ic: 'checkCircle', ayuda: 'Quien la recibió ya contestó «Recibido».' },
+  ANULADA: { t: 'Anulada', pill: 'p-red', ic: 'ban', ayuda: 'No se mandó, o se hizo otra en su lugar.' }
+});
 const FORMAS_PAGO = Object.freeze({ CONTADO: 'Contado', CREDITO: 'Crédito' });
 const MEDIOS_PAGO = Object.freeze({ EFECTIVO: 'Efectivo', CHEQUE: 'Cheque', TRANSFERENCIA: 'Transferencia' });
 /* Los vehículos y máquinas de la empresa, más motores y sedes, que en el
@@ -3560,9 +3648,9 @@ const Autores = {
       } finally { this._cuando = Date.now(); this._pidiendo = null; }
     })());
   },
-  /** Llegaron órdenes: si alguna es de una cuenta que no está, se vuelve a pedir */
+  /** Llegaron órdenes o remisiones: si alguna es de una cuenta que no está, se vuelve a pedir */
   async revisar() {
-    if (!Datos.ordenes.some(o => o.creadoPor && !this.mapa.has(o.creadoPor))) return;
+    if (!Datos.ordenes.concat(Datos.remisiones).some(o => o.creadoPor && !this.mapa.has(o.creadoPor))) return;
     if (await this.traer()) Bus.emit('datos:cambio');
   }
 };
@@ -3756,8 +3844,11 @@ const Config = {
         /* El tamaño del logo en la orden, en %: 100 es el de siempre */
         tamLogo: 100
       },
-      /* Quién firma lo pone la empresa en Configuración (queda en la nube) */
+      /* Los firmantes de antes: se escogían en la hoja. Las órdenes que los
+         tienen se siguen imprimiendo con su firma */
       solicitantes: [],
+      /* La firma de cada cuenta, por su id del panel (ver Firmas) */
+      firmas: {},
       autoriza: { nombre: '', cargo: '', firma: '' },
       ultimoRespaldo: null,
       semillas: 0
@@ -3770,6 +3861,7 @@ const Config = {
     const out = Object.assign({}, d, c);
     ['empresa', 'consecutivo', 'documento', 'autoriza'].forEach(k => { out[k] = Object.assign({}, d[k], c[k] || {}); });
     if (!Array.isArray(out.solicitantes)) out.solicitantes = d.solicitantes;
+    if (!out.firmas || typeof out.firmas !== 'object' || Array.isArray(out.firmas)) out.firmas = {};
     return out;
   },
   /* Lo de cada empresa que no es SINUGRAVAS, en su propia fila (id = la empresa):
@@ -3801,15 +3893,65 @@ const Config = {
   escalaLogo(pct) { return Math.min(250, Math.max(50, +pct || 100)) / 100; }
 };
 
+/* La firma de cada usuario (Juan, 04/11/2026): el administrador le pone a
+   cada cuenta la suya en Configuración, y cada quien firma con la suya lo que
+   hace (sus órdenes y sus remisiones). Ya no se escoge en la hoja la firma de
+   otro. Quedan en la configuración común («firmas», en «extra»: sin SQL), por
+   el id de la cuenta en el panel. Las órdenes de antes conservan la del
+   firmante que se escogió entonces. */
+const Firmas = {
+  de(cuenta) { return (cuenta && Datos.cfg && Datos.cfg.firmas && Datos.cfg.firmas[cuenta]) || null; },
+  /** Lo que queda en la orden o en la remisión al hacerla: la cuenta y cómo firma */
+  para(cuenta, nombre) {
+    const f = this.de(cuenta) || {};
+    return { cuenta, nombre: f.nombre || Txt.mayus(nombre || ''), cargo: f.cargo || '', telefono: f.telefono || '' };
+  },
+  /** La de quien está trabajando. Sin cuenta (las pruebas del sistema), el firmante por defecto de antes */
+  mia() {
+    const yo = Permiso.yo();
+    if (yo) return this.para(yo, Permiso.quien());
+    const s = Config.solicitantePred();
+    return s ? { id: s.id, nombre: s.nombre, cargo: s.cargo, telefono: s.telefono || '' } : null;
+  },
+  /** Cómo sale impresa: la de una cuenta, como está hoy en Configuración; la
+      de un firmante de antes, con su imagen de entonces */
+  impresa(sol) {
+    if (!sol) return null;
+    if (sol.cuenta) {
+      const f = this.de(sol.cuenta) || {};
+      return { nombre: f.nombre || sol.nombre || '', cargo: f.cargo || sol.cargo || '', telefono: f.telefono || sol.telefono || '', firma: f.firma || '' };
+    }
+    const v = ((Datos.cfg && Datos.cfg.solicitantes) || []).find(s => s.id === sol.id);
+    return { nombre: sol.nombre || '', cargo: sol.cargo || '', telefono: sol.telefono || '', firma: (v && v.firma) || '' };
+  }
+};
+
+/* Las cuentas con acceso a Facturación, del Panel de control (SQL 213): para
+   ponerle a cada una su firma. Sólo las trae el administrador */
+const Usuarios = {
+  lista: null, error: null,
+  async traer() {
+    if (!db || !db.nube) { this.lista = []; this.error = null; return this.lista; }
+    try { this.lista = (await Nube.rpc('usuarios', {}, { leer: true })) || []; this.error = null; }
+    catch (e) { this.lista = null; this.error = e; }
+    return this.lista;
+  },
+  /** ¿Falta el SQL 213? */
+  falta() { return NubeAdapter.faltaFuncion(this.error); },
+  rol(u) { return { admin_general: 'Administrador general', admin: 'Administrador', editor: 'Editor', consulta: 'Visualizador' }[u.rol] || ''; }
+};
+
 const Datos = {
   /* cfg: la configuración común y la de SINUGRAVAS; cfgs: la de cada otra empresa (ver Empresa.cfg) */
   cfg: null, cfgs: {}, proveedores: [],
-  /* Órdenes, equipos y plantillas son de una empresa. Aquí están las de todas,
-     y Datos.ordenes (y equipos y plantillas) da sólo las de la empresa activa */
-  _todo: { ordenes: [], equipos: [], plantillas: [] },
+  /* Órdenes, remisiones, equipos y plantillas son de una empresa. Aquí están
+     las de todas, y Datos.ordenes (y las demás) da sólo las de la empresa activa */
+  _todo: { ordenes: [], remisiones: [], equipos: [], plantillas: [] },
   _vista: {},
   get ordenes() { return this._de('ordenes'); },
   set ordenes(v) { this._poner('ordenes', v); },
+  get remisiones() { return this._de('remisiones'); },
+  set remisiones(v) { this._poner('remisiones', v); },
   get equipos() { return this._de('equipos'); },
   set equipos(v) { this._poner('equipos', v); },
   get plantillas() { return this._de('plantillas'); },
@@ -3835,23 +3977,25 @@ const Datos = {
   async cargar() {
     /* La hora de la nube antes de traer todo: lo que se guarde mientras tanto llega en la primera revisión */
     if (db.nube) await db.marcarHora();
-    const [cfgs, prov, eq, ord, pl] = await Promise.all(['configuracion', 'proveedores', 'equipos', 'ordenes', 'plantillas'].map(c => db.getAll(c, { marcar: true })));
+    const [cfgs, prov, eq, ord, pl, rem] = await Promise.all(['configuracion', 'proveedores', 'equipos', 'ordenes', 'plantillas'].map(c => db.getAll(c, { marcar: true }))
+      .concat([RemisionService.traer()]));
     this.cfg = Config.completar(cfgs.find(c => c.id === 'general'));
     this.cfgs = {};
     cfgs.filter(c => c.id !== 'general').forEach(c => { this.cfgs[c.id] = c; });
-    this.proveedores = prov; this.equipos = eq; this.ordenes = ord; this.plantillas = pl;
+    this.proveedores = prov; this.equipos = eq; this.ordenes = ord; this.plantillas = pl; this.remisiones = rem;
     this.indexar();
   },
   indexar(col) {
     /* En los equipos enlazados con Flota mandan sus datos (SQL 209) */
     if (!col || col === 'equipos') Flota.aplicar(this.crudo('equipos'));
-    (col ? [col] : ['proveedores', 'equipos', 'ordenes', 'plantillas']).forEach(c => { this._idx[c] = new Map(this.crudo(c).map(d => [d.id, d])); });
+    (col ? [col] : ['proveedores', 'equipos', 'ordenes', 'remisiones', 'plantillas']).forEach(c => { this._idx[c] = new Map(this.crudo(c).map(d => [d.id, d])); });
     this._vista = {};
     if (!col || col === 'proveedores' || col === 'equipos') HistoricoExcel.invalidar();
   },
   prov(id) { return (id && this._idx.proveedores.get(id)) || null; },
   equipo(id) { return (id && this._idx.equipos.get(id)) || null; },
   orden(id) { return (id && this._idx.ordenes.get(id)) || null; },
+  remision(id) { return (id && this._idx.remisiones && this._idx.remisiones.get(id)) || null; },
   plantilla(id) { return (id && this._idx.plantillas.get(id)) || null; },
   /** Escribe varias cosas de una vez (orden + consecutivo + auditoría). La
       memoria sólo cambia si la base confirmó. */
@@ -3895,7 +4039,7 @@ const Datos = {
       Bus.emit(c + ':cambio');
     });
     if (cols.length) Bus.emit('datos:cambio');
-    if (cols.includes('ordenes')) Autores.revisar();
+    if (cols.includes('ordenes') || cols.includes('remisiones')) Autores.revisar();
     return cols.length > 0;
   },
   guardar(col, doc) { return this.lote([{ col, tipo: 'put', doc }]); },
@@ -3962,6 +4106,16 @@ const Consecutivo = {
     while (s > 1 && borrados.has(s - 1) && !this.usado(s - 1)) s--;
     return s;
   }
+};
+
+/* El de las remisiones: cada empresa el suyo, aparte del de las órdenes, desde
+   la 001 y el que sigue a la última. Como en las órdenes, si se borra la
+   última su número vuelve a quedar libre, y si dos se guardan a la vez la base
+   no deja repetir: la segunda toma el siguiente (RemisionService.guardar) */
+const ConsecutivoRem = {
+  maximo() { return Datos.remisiones.reduce((m, r) => Math.max(m, r.secuencia || 0), 0); },
+  libre() { return this.maximo() + 1; },
+  vistaPrevia(fecha) { return Modelo.numero(this.libre(), fecha || Fecha.hoy()); }
 };
 
 /* Los PDF que se adjuntan se comprimen al guardarlos, igual que en las demás
@@ -4183,7 +4337,8 @@ const OrdenService = {
   nueva(opts) {
     opts = opts || {};
     const cfg = Datos.cfg, emp = Empresa.activa;
-    const sol = Config.solicitantePred();
+    /* Firma quien la hace, con la firma que le puso el administrador (Juan, 04/11/2026) */
+    const sol = Firmas.mia();
     const o = {
       id: null, empresa: emp, numero: '', secuencia: null, tipo: Empresa.tipoNuevo(emp), fecha: Fecha.hoy(),
       proveedorId: null, proveedor: null, equipoId: null, concepto: '', referencia: '',
@@ -4193,7 +4348,7 @@ const OrdenService = {
       formaPago: 'CONTADO', plazoDias: 0, cuotas: 0, medioPago: '',
       entregaLugar: Empresa.cfg(emp).documento.lugarEntrega || '', entregaRecibe: '', entregaCedula: '',
       notaProveedor: '', notasInternas: '',
-      solicitante: sol ? { id: sol.id, nombre: sol.nombre, cargo: sol.cargo, telefono: sol.telefono || '' } : null,
+      solicitante: sol,
       estado: 'ESPERANDO', historial: [], factura: null, anulacion: null, pago: null, plantillaId: null, adjuntos: []
     };
     if (opts.proveedorId) this.aplicarProveedor(o, opts.proveedorId);
@@ -4455,6 +4610,179 @@ const OrdenService = {
   diasEnEstado(o) {
     const h = (o.historial || []).filter(x => x.estado === o.estado).pop();
     return h ? Math.max(0, Math.round((Date.now() - new Date(h.en)) / 864e5)) : 0;
+  }
+};
+
+/* Las remisiones (Juan, 04/11/2026). Cada renglón dice de qué orden viene, si
+   viene de una, y de cada orden queda cómo se veía al guardar la remisión: su
+   número, su proveedor y para qué es. Las reglas son las de las órdenes: el
+   administrador cambia cualquiera y el Editor, las suyas. */
+const RemisionService = {
+  /** ¿Ya tiene la nube la tabla de remisiones (SQL 213)? */
+  disponible: false,
+  async traer() {
+    try {
+      const l = await db.getAll('remisiones', { marcar: true });
+      this.disponible = true;
+      if (db.nube && !EN_MEMORIA.includes('remisiones')) EN_MEMORIA.push('remisiones');
+      return l;
+    } catch (e) {
+      if (!NubeAdapter.faltaTabla(e)) throw e;
+      this.disponible = false;
+      return [];
+    }
+  },
+  /** Lo que se ve en la sección mientras la nube no tiene el SQL 213 */
+  falta() {
+    return '<div class="card"><div class="card-b">' + Comp.vacio('box', 'Las remisiones todavía no están listas en la nube',
+      Permiso.puede('configurar') ? 'Corra <b>213_facturacion_remisiones_y_firmas.sql</b> en Supabase (SQL Editor) y vuelva a cargar la página.'
+        : 'Falta un paso del administrador en la nube. Cuando lo haga, aparecen aquí.', '<a class="btn" href="#/ordenes">Ver las órdenes</a>') + '</div></div>';
+  },
+  /** «RM-001-26» */
+  codigo(r, numero) { const n = numero || (r && r.numero) || ''; return n ? REMISION.sigla + '-' + n : ''; },
+  nueva() {
+    return { id: null, empresa: Empresa.activa, numero: '', secuencia: null, fecha: Fecha.hoy(), recibe: '', lugar: '', lleva: '',
+      items: [], ordenes: [], nota: '', firma: Firmas.mia(), estado: 'ENVIADA', historial: [], recibido: null, anulacion: null };
+  },
+  /** La orden como va en la remisión: su número, su proveedor y para qué es */
+  fotoOrden(o) { return { id: o.id, codigo: Modelo.codigo(o), proveedor: Modelo.nombreProveedor(o), para: Modelo.nombreEquipo(o) }; },
+  /** Los artículos de una orden, sin precios. Una orden que ya está no se repite */
+  agregarOrden(r, o) {
+    if (!o || r.items.some(it => it.ordenId === o.id)) return 0;
+    const its = (o.items || []).filter(Modelo.itemValido).map(it => Object.assign({ id: ID(), ordenId: o.id, descripcion: it.descripcion,
+      cantidad: Num.cantidad(it.cantidad), unidad: it.unidad || 'UND', observacion: it.observacion || '' }, Modelo.fraccion(it) ? { fraccion: Modelo.fraccion(it) } : {}));
+    /* Lo de cada orden va junto, antes de lo que va aparte */
+    r.items = r.items.filter(it => it.ordenId).concat(its, r.items.filter(it => !it.ordenId));
+    if (!r.ordenes.some(x => x.id === o.id)) r.ordenes.push(this.fotoOrden(o));
+    return its.length;
+  },
+  quitarOrden(r, id) {
+    r.items = r.items.filter(it => it.ordenId !== id);
+    r.ordenes = r.ordenes.filter(x => x.id !== id);
+  },
+  /** Como sale en la hoja: cada orden con sus renglones, y al final lo que va aparte */
+  grupos(r) {
+    const ords = r.ordenes || [], items = r.items || [];
+    const g = ords.map(x => ({ orden: x, items: items.filter(it => it.ordenId === x.id) })).filter(x => x.items.length);
+    const aparte = items.filter(it => !it.ordenId || !ords.some(x => x.id === it.ordenId));
+    if (aparte.length) g.push({ orden: null, items: aparte });
+    return g;
+  },
+  /** Deja la remisión lista para guardar: renglones limpios y, de cada orden, cómo se ve hoy */
+  normalizar(r) {
+    r.items = (r.items || []).filter(Modelo.itemValido).map(it => Object.assign({
+      id: it.id || ID(),
+      descripcion: String(it.descripcion).trim().replace(/\s+/g, ' '),
+      cantidad: Num.cantidad(it.cantidad),
+      unidad: Txt.mayus(String(it.unidad || '').trim()) || 'UND',
+      observacion: String(it.observacion || '').trim()
+    }, it.ordenId ? { ordenId: it.ordenId } : {}, Modelo.fraccion(it) ? { fraccion: Modelo.fraccion(it) } : {}));
+    r.ordenes = (r.ordenes || []).filter(x => r.items.some(it => it.ordenId === x.id)).map(x => { const o = Datos.orden(x.id); return o ? this.fotoOrden(o) : x; });
+    ['recibe', 'lugar', 'lleva', 'nota'].forEach(k => { r[k] = String(r[k] || '').trim(); });
+    return r;
+  },
+  validar(r) {
+    const e = {};
+    if (!r.recibe) e.recibe = 'Escriba a quién se le entrega.';
+    if (!Fecha.valida(r.fecha)) e.fecha = 'Escriba una fecha válida.';
+    if (!r.items.length) e.items = 'Agregue lo que va: escoja las órdenes con «Agregar órdenes» o escriba un renglón.';
+    r.items.forEach((it, i) => { if (!(Num.cantidad(it.cantidad) > 0)) e['cant-' + it.id] = 'La cantidad del renglón ' + (i + 1) + ' debe ser mayor que cero.'; });
+    /* Lo que lleva es de órdenes de su misma empresa */
+    const otra = r.items.map(it => Datos.orden(it.ordenId)).find(o => o && Empresa.de(o) !== r.empresa);
+    if (otra) e.items = 'La orden ' + Modelo.codigo(otra) + ' es de ' + Empresa.nombre(Empresa.de(otra)) + ': quítela de esta remisión.';
+    if (Object.keys(e).length) throw new ErrorValidacion(e);
+  },
+  /** Lo que el formulario no toca (el estado, el recibido, la anulación, la
+      firma) sale de la remisión como está ahora en la nube */
+  async guardar(entrada) {
+    Permiso.exigir('editar');
+    const r = U.clonar(entrada);
+    const previo = r.id ? Datos.remision(r.id) : null;
+    if (previo) {
+      Permiso.exigirRemision(previo, 'editar');
+      if (previo.creadoPor) r.creadoPor = previo.creadoPor; else delete r.creadoPor;
+      r.empresa = Empresa.de(previo);
+      if (previo.membrete) r.membrete = U.clonar(previo.membrete); else delete r.membrete;
+      ['estado', 'recibido', 'anulacion', 'firma'].forEach(k => { r[k] = U.clonar(previo[k] || null); });
+      r.secuencia = previo.secuencia; r.numero = previo.numero; r.creadoEn = previo.creadoEn;
+    } else {
+      r.empresa = r.empresa || Empresa.activa;
+      r.estado = 'ENVIADA'; r.recibido = null; r.anulacion = null;
+    }
+    this.normalizar(r);
+    this.validar(r);
+    if (previo) {
+      r.historial = (previo.historial || []).concat([OrdenService.paso(r.estado, 'Al editar la remisión')]);
+    } else {
+      r.id = r.id || ID();
+      /* Es de quien la hace, y firma con la suya */
+      const yo = Permiso.yo();
+      if (yo) r.creadoPor = yo; else delete r.creadoPor;
+      r.firma = Firmas.mia();
+      r.membrete = U.clonar(Empresa.cfg(r.empresa).empresa);
+      r.historial = [OrdenService.paso('ENVIADA', 'Creada')];
+    }
+    for (let intento = 1; ; intento++) {
+      if (!previo) { r.secuencia = ConsecutivoRem.libre(); r.numero = Modelo.numero(r.secuencia, r.fecha); }
+      try {
+        await Datos.lote([{ col: 'remisiones', tipo: 'put', doc: r },
+          Datos.evento(previo ? 'editar' : 'crear', 'remisión', r.id, this.codigo(r) + (r.empresa !== 'SINUGRAVAS' ? ' ' + r.empresa : '') + ' · ' + r.recibe)]);
+        break;
+      } catch (e) {
+        /* Otra persona guardó una remisión con ese número al mismo tiempo: ésta toma el siguiente */
+        if (previo || e.codigo !== 'NUMERO_TOMADO' || intento >= 4) throw e;
+        await Datos.sincronizar();
+      }
+    }
+    return Datos.remision(r.id);
+  },
+  async cambiarEstado(entrada, estado, extra) {
+    extra = extra || {};
+    const r = U.clonar(Datos.remision(entrada.id) || entrada);
+    Permiso.exigirRemision(r, 'editar');
+    if (!ESTADOS_REM[estado]) throw new ErrorDominio('Estado no válido.');
+    if (r.estado === estado) return Datos.remision(r.id) || r;
+    const anterior = r.estado;
+    r.estado = estado;
+    r.historial = (r.historial || []).concat([OrdenService.paso(estado, extra.nota)]);
+    if (estado === 'RECIBIDA') r.recibido = extra.recibido || r.recibido || { fecha: Fecha.hoy(), nota: '' };
+    else if (estado === 'ENVIADA') r.recibido = null;
+    if (estado === 'ANULADA') r.anulacion = { motivo: extra.motivo || '', en: Fecha.ahora(), estadoPrevio: anterior };
+    else if (anterior === 'ANULADA') r.anulacion = null;
+    await Datos.lote([{ col: 'remisiones', tipo: 'put', doc: r },
+      Datos.evento('estado', 'remisión', r.id, this.codigo(r) + ': ' + ESTADOS_REM[anterior].t + ' → ' + ESTADOS_REM[estado].t)]);
+    return Datos.remision(r.id);
+  },
+  /** Quien la recibió contestó «Recibido»: el día y, si se quiere, quién o cómo */
+  marcarRecibida(r, rec) {
+    if (!Fecha.valida(rec.fecha)) throw new ErrorValidacion({ fecha: 'Revise la fecha en que la recibieron.' });
+    const nota = String(rec.nota || '').trim();
+    return this.cambiarEstado(r, 'RECIBIDA', { recibido: { fecha: rec.fecha, nota }, nota: 'Recibida el ' + Fecha.corta(rec.fecha) + (nota ? ' · ' + nota : '') });
+  },
+  async eliminar(entrada) {
+    const r = U.clonar(Datos.remision(entrada.id) || entrada);
+    Permiso.exigirRemision(r, 'editar');
+    await Datos.lote([{ col: 'remisiones', tipo: 'del', id: r.id }, Datos.evento('eliminar', 'remisión', r.id, this.codigo(r) + ' · ' + r.recibe)]);
+  },
+  /** Las remisiones (de todas las empresas) en que va cada orden: id de la orden → remisiones */
+  porOrden(exceptoId) {
+    const m = new Map();
+    Datos.crudo('remisiones').forEach(r => {
+      if (r.id === exceptoId || r.estado === 'ANULADA') return;
+      new Set((r.items || []).map(it => it.ordenId).filter(Boolean)).forEach(id => { if (!m.has(id)) m.set(id, []); m.get(id).push(r); });
+    });
+    m.forEach(l => l.sort((a, b) => (a.secuencia || 0) - (b.secuencia || 0)));
+    return m;
+  },
+  /** Las de una orden, anuladas también, la más nueva primero */
+  deOrden(ordenId) {
+    return Datos.crudo('remisiones').filter(r => (r.items || []).some(it => it.ordenId === ordenId)).sort((a, b) => (b.secuencia || 0) - (a.secuencia || 0));
+  },
+  /** Las órdenes que lleva, como fichas pequeñas */
+  chips(r) {
+    const ords = r.ordenes || [], aparte = (r.items || []).some(it => !it.ordenId);
+    return ords.length || aparte ? '<div class="rm-ords">' + ords.map(x => '<span class="rm-ord" title="' + attr([x.proveedor, x.para].filter(Boolean).join(' · ')) + '">' + esc(x.codigo) + '</span>').join('') +
+      (aparte ? '<span class="rm-ord" title="Renglones que no son de ninguna orden">+ aparte</span>' : '') + '</div>' : '<span class="txt-3">—</span>';
   }
 };
 
@@ -5089,6 +5417,10 @@ const Buscador = {
       .sort((a, b) => (b.secuencia || 0) - (a.secuencia || 0)).slice(0, 7);
     if (ord.length) g.push({ t: 'Órdenes', items: ord.map(o => ({ ic: 'doc', html: '<span class="mono fw7">' + esc(Modelo.codigo(o)) + '</span> · ' + Txt.resaltar(Modelo.nombreProveedor(o), q),
       m: Money.fmt(o.total) + ' · ' + ESTADOS[o.estado].t, ir: '/orden/' + o.id })) });
+    const rem = RemisionService.disponible ? Datos.remisiones.filter(r => [r.numero, RemisionService.codigo(r), r.recibe, r.lugar, ...(r.ordenes || []).map(x => x.codigo),
+      ...(r.items || []).map(i => i.descripcion)].some(x => Txt.norm(x).includes(nq))).sort((a, b) => (b.secuencia || 0) - (a.secuencia || 0)).slice(0, 5) : [];
+    if (rem.length) g.push({ t: 'Remisiones', items: rem.map(r => ({ ic: 'box', html: '<span class="mono fw7">' + esc(RemisionService.codigo(r)) + '</span> · ' + Txt.resaltar(r.recibe, q),
+      m: Fecha.corta(r.fecha) + ' · ' + ESTADOS_REM[r.estado].t, ir: '/remision/' + r.id })) });
     const hx = HistoricoExcel.lista().filter(o => [o.numero, Modelo.codigo(o), o.excel.hoja, Modelo.nombreProveedor(o), o.excel.textoProveedor, Modelo.nombreEquipo(o),
       ...o.items.map(i => i.descripcion + ' ' + i.observacion)].some(x => Txt.norm(x).includes(nq)))
       .sort(HistoricoExcel.porNumero).slice(0, 5);
@@ -5102,11 +5434,12 @@ const Buscador = {
     if (pl.length) g.push({ t: 'Plantillas', items: pl.map(p => ({ ic: 'layers', html: Txt.resaltar(p.nombre, q), m: Txt.plural(p.items.length, 'artículo'), ir: '/orden-nueva?plantilla=' + p.id })) });
     const acc = [
       { k: 'nueva orden compra crear', ic: 'plus', t: 'Nueva orden de compra', ir: '/orden-nueva' },
+      { k: 'nueva remision crear mandar enviar despacho', ic: 'box', t: 'Nueva remisión', ir: '/remision-nueva' },
       { k: 'nuevo proveedor crear', ic: 'building', t: 'Nuevo proveedor', ir: '/proveedores?nuevo=1' },
       { k: 'estadisticas graficas reportes', ic: 'chart', t: 'Estadísticas', ir: '/estadisticas' },
       { k: 'catalogos listas unidades lugares entrega plazos retencion iva suministra ciudades', ic: 'list', t: 'Catálogos', ir: '/catalogos' },
       { k: 'respaldo copia seguridad backup', ic: 'database', t: 'Copias de seguridad', ir: '/respaldos' },
-      { k: 'configuracion consecutivo empresa firma logo', ic: 'cog', t: 'Configuración', ir: '/configuracion' }
+      { k: 'configuracion consecutivo empresa firma firmas usuarios logo', ic: 'cog', t: 'Configuración', ir: '/configuracion' }
     ].filter(a => a.k.split(' ').some(w => w.startsWith(nq)) || Txt.norm(a.t).includes(nq));
     if (acc.length) g.push({ t: 'Ir a', items: acc.map(a => ({ ic: a.ic, html: esc(a.t), m: '', ir: a.ir })) });
     return g;
@@ -5539,6 +5872,8 @@ const Shell = {
     { id: 'ordenes', ruta: '/ordenes', t: 'Órdenes', ic: 'doc', badge: () => Datos.ordenes.filter(o => ['ESPERANDO', 'CONTABILIDAD'].includes(o.estado)).length || '',
       tipBadge: 'Órdenes abiertas: sin pagar ni anular' },
     { id: 'orden-nueva', ruta: '/orden-nueva', t: 'Nueva orden', ic: 'plus', accion: 'editar' },
+    { id: 'remisiones', ruta: '/remisiones', t: 'Remisiones', ic: 'box', badge: () => (RemisionService.disponible && Datos.remisiones.filter(r => r.estado === 'ENVIADA').length) || '',
+      tipBadge: 'Remisiones esperando el recibido' },
     { id: 'plantillas', ruta: '/plantillas', t: 'Plantillas', ic: 'layers', accion: 'editar', badge: () => Datos.plantillas.length || '' },
     { sec: 'Análisis' },
     { id: 'estadisticas', ruta: '/estadisticas', t: 'Estadísticas', ic: 'chart' },
@@ -5630,6 +5965,7 @@ const Shell = {
     if (p === '/') return 'dashboard';
     if (p.startsWith('/orden/') || p.startsWith('/orden-editar')) return 'ordenes';
     if (p.startsWith('/orden-nueva')) return 'orden-nueva';
+    if (p.startsWith('/remision')) return 'remisiones';
     if (p.startsWith('/proveedor')) return 'proveedores';
     return p.slice(1).split('/')[0];
   },
@@ -6081,13 +6417,16 @@ const VistaOrdenes = {
       $('#orPager', el).innerHTML = '';
       return;
     }
+    /* Las que ya se mandaron en una remisión llevan su cajita */
+    const enRem = RemisionService.disponible ? RemisionService.porOrden() : new Map();
     $('#orTabla', el).innerHTML = '<table class="tbl compacta"><thead><tr>' + th('secuencia', 'N.º') + '<th>Equipo o destino</th>' + th('fecha', 'Fecha') + '<th>Tipo</th>' +
       th('proveedor', 'Proveedor') + '<th>Concepto</th><th class="num">Ítems</th>' + th('total', 'Total', 'num') + th('estado', 'Estado') +
       '<th></th></tr></thead><tbody>' +
       vis.map(o => {
-        const eq = Modelo.nombreEquipo(o), q = eq && Datos.equipo(o.equipoId);
+        const eq = Modelo.nombreEquipo(o), q = eq && Datos.equipo(o.equipoId), rem = enRem.get(o.id);
         return '<tr class="row-click est-' + o.estado + '" data-ir="/orden/' + o.id + '"><td class="mono fw7 t-num nowrap">' + esc(Modelo.codigo(o)) +
-          (o.adjuntos && o.adjuntos.length ? ' <span class="adj-ic" data-tip="' + attr(Txt.plural(o.adjuntos.length, 'archivo adjunto', 'archivos adjuntos')) + '">' + Icon('clip', '', 12) + '</span>' : '') + '</td>' +
+          (o.adjuntos && o.adjuntos.length ? ' <span class="adj-ic" data-tip="' + attr(Txt.plural(o.adjuntos.length, 'archivo adjunto', 'archivos adjuntos')) + '">' + Icon('clip', '', 12) + '</span>' : '') +
+          (rem ? ' <span class="or-rm" data-tip="' + attr('Se mandó en ' + rem.map(r => RemisionService.codigo(r) + ' (' + ESTADOS_REM[r.estado].t.toLowerCase() + ')').join(', ')) + '">' + Icon('box', '', 12) + '</span>' : '') + '</td>' +
           '<td class="trunc or-eq" style="max-width:170px" title="' + attr(eq) + '">' + (eq ? Icon(EquipoService.icono(q), '', 13) + esc(eq) : '<span class="txt-3">—</span>') + '</td>' +
           '<td class="nowrap">' + (o.excel && o.excel.sinDia ? o.fecha.slice(5, 7) + '/' + o.fecha.slice(0, 4) : Fecha.corta(o.fecha)) +
           (o.excel || !Modelo.autor(o) ? '' : '<div class="or-autor" title="Hecha por ' + attr(Modelo.autor(o)) + '">' + Icon('user', '', 10) + esc(Modelo.autorCorto(o)) + '</div>') +
@@ -6145,7 +6484,7 @@ const VistaOrden = {
       '<div class="card-b" style="padding:12px"><div class="preview-shell doc-marco" id="odDoc"><div class="doc-escala">' + Documento.html(o) + '</div></div></div></div>';
     if (o.notasInternas) h += '<div class="card"><div class="card-h"><h3>' + Icon('lock', '', 15) + 'Notas internas</h3><span class="ch-sub">no salen en el documento</span></div>' +
       '<div class="card-b fs13" style="white-space:pre-wrap">' + esc(o.notasInternas) + '</div></div>';
-    h += '</div><div class="col sticky-col">' + this.ruta(o) + this.resumen(o) + this.adjuntos(o) + this.proveedor(o, prov) + this.detalles(o, eq) + this.historial(o) + '</div></div>';
+    h += '</div><div class="col sticky-col">' + this.ruta(o) + this.remisiones(o) + this.resumen(o) + this.adjuntos(o) + this.proveedor(o, prov) + this.detalles(o, eq) + this.historial(o) + '</div></div>';
     el.innerHTML = h;
     Documento.escalar($('#odDoc', el));
     $('#odVolver', el).onclick = () => Router.ir('/ordenes');
@@ -6181,6 +6520,14 @@ const VistaOrden = {
     });
     const cAdj = $('#odAdj', el);
     if (cAdj && Permiso.puedeOrden(o)) Adjuntos.unir(cAdj, async (a, ahorro) => { await OrdenService.adjuntar(Datos.orden(o.id), a); Toast.ok('<b>' + esc(a.nombre) + '</b> adjuntado' + (ahorro ? ', ' + esc(ahorro) : '') + '.'); recargar(); });
+  },
+  /** En qué remisiones se mandó (Juan, 04/11/2026) */
+  remisiones(o) {
+    const l = RemisionService.disponible ? RemisionService.deOrden(o.id) : [];
+    if (!l.length) return '';
+    return '<div class="card"><div class="card-h"><h3>' + Icon('box', '', 15) + 'Remisiones</h3><span class="ch-sub">en qué se mandó</span></div>' +
+      '<div class="card-b" style="padding-top:6px;padding-bottom:6px">' + l.map(r => '<a class="rv-l" href="#/remision/' + attr(r.id) + '"><span class="mono fw7">' + esc(RemisionService.codigo(r)) + '</span>' +
+        '<span class="f1 trunc txt-2">' + esc(Fecha.corta(r.fecha) + ' · ' + r.recibe) + '</span>' + AccionesRemision.pill(r) + '</a>').join('') + '</div></div>';
   },
   adjuntos(o) {
     const l = o.adjuntos || [];
@@ -6854,26 +7201,18 @@ const VistaOrdenForm = {
       : '<span class="txt-3">El vehículo, la máquina o el destino (oficina, bodega, finca…) para el que se compra.</span>';
     if (q) TarjetaEquipo.unir(cont);
   },
-  /** Las firmas como salen impresas: el solicitante se escoge sobre su línea */
+  /** Las firmas como salen impresas. Firma quien hace la orden, con la firma
+      que le puso el administrador en Configuración: aquí ya no se escoge la de
+      otro (Juan, 04/11/2026). Una orden de antes conserva la de su firmante */
   pintarSolicitante() {
-    const o = this.o, cfg = Datos.cfg, ce = Empresa.cfg(Empresa.de(o));
-    const cont = $('#ofSol', this.el);
-    const lista = Config.solicitantes();
-    if (o.solicitante && !lista.some(s => s.id === o.solicitante.id)) lista.unshift(Object.assign({}, o.solicitante, { _viejo: true }));
-    const firmaDe = id => (cfg.solicitantes.find(s => s.id === id) || {}).firma;
-    const bloque = (img, nombre, cargo, rol) => '<div class="hj-firma"><div class="hj-fm">' + (img ? '<img src="' + attr(img) + '" alt="Firma">' : '') + '</div><div class="hj-ln"></div>' +
-      nombre + '<small>' + esc(cargo || '') + '</small><small>' + rol + '</small></div>';
-    if (lista.length) {
-      const elegido = (o.solicitante && lista.find(s => s.id === o.solicitante.id)) || lista[0];
-      o.solicitante = { id: elegido.id, nombre: elegido.nombre, cargo: elegido.cargo, telefono: elegido.telefono || '' };
-    }
-    cont.innerHTML = (lista.length ? bloque(firmaDe(o.solicitante.id), '<select class="inp hj-solsel" id="ofSolSel" aria-label="Solicitante">' +
-        lista.map(s => '<option value="' + attr(s.id) + '"' + (o.solicitante.id === s.id ? ' selected' : '') + '>' + esc(s.nombre) + (s._viejo ? ' (inactivo)' : '') + '</option>').join('') + '</select>',
-        o.solicitante.cargo, 'Solicitante')
-      : '<div class="hj-firma"><div class="hj-fm"></div><div class="hj-ln"></div><div class="fs12 txt-3">No hay firmantes activos. <a href="#/configuracion">Agregue uno en Configuración</a>.</div></div>') +
-      (ce.autoriza && ce.autoriza.nombre ? bloque(ce.autoriza.firma, '<b>' + esc(ce.autoriza.nombre) + '</b>', ce.autoriza.cargo, 'Autorizó') : '');
-    const s = $('#ofSolSel', cont);
-    if (s) s.addEventListener('change', () => { const x = lista.find(y => y.id === s.value); if (x) o.solicitante = { id: x.id, nombre: x.nombre, cargo: x.cargo, telefono: x.telefono || '' }; this.marcar(); this.pintarSolicitante(); });
+    const o = this.o, ce = Empresa.cfg(Empresa.de(o));
+    const bloque = (img, nombre, cargo, rol, nota) => '<div class="hj-firma"><div class="hj-fm">' + (img ? '<img src="' + attr(img) + '" alt="Firma">' : '') + '</div><div class="hj-ln"></div>' +
+      '<b>' + esc(nombre || '') + '</b><small>' + esc(cargo || '') + '</small><small>' + rol + '</small>' + (nota || '') + '</div>';
+    const s = Firmas.impresa(o.solicitante);
+    const sinFirma = s && o.solicitante.cuenta && !s.firma ? '<div class="hj-sinfirma">' + (Permiso.puede('configurar') ? 'Sin firma todavía: <a href="#/configuracion">póngala en Configuración</a>.'
+      : 'Sin firma todavía: el administrador la pone en Configuración.') + '</div>' : '';
+    $('#ofSol', this.el).innerHTML = (s ? bloque(s.firma, s.nombre, s.cargo, 'Solicitante', sinFirma) : '<div class="hj-firma"><div class="hj-fm"></div><div class="hj-ln"></div><small>Solicitante</small></div>') +
+      (ce.autoriza && ce.autoriza.nombre ? bloque(ce.autoriza.firma, ce.autoriza.nombre, ce.autoriza.cargo, 'Autorizó') : '');
   },
   menuPlantillas(boton) {
     const o = this.o;
@@ -6957,6 +7296,538 @@ const VistaOrdenForm = {
         if (er.reteIca) $('#ofIca', el).classList.add('is-err');
         if (er.flete) $('#ofFlete', el).classList.add('is-err');
         $('#ofErr', el).innerHTML = '<div class="alert a-err mb12">' + Icon('warn') + '<div><b>Falta algo para guardar:</b><ul style="margin:4px 0 0;padding-left:18px">' +
+          Object.values(er).map(x => '<li>' + esc(x) + '</li>').join('') + '</ul></div></div>';
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        console.error(e);
+        Toast.err('No se pudo guardar: ' + esc(e.message || e));
+      }
+    }
+  }
+};
+
+/* ---------- Remisiones (Juan, 04/11/2026) ---------- */
+/* Acciones sobre una remisión que se usan desde la lista y desde la remisión */
+const AccionesRemision = {
+  pill(r) { const x = ESTADOS_REM[r.estado] || ESTADOS_REM.ENVIADA; return '<span class="pill ' + x.pill + '" data-tip="' + attr(x.ayuda) + '">' + esc(x.t) + '</span>'; },
+  /** El estado como desplegable, para quien la puede cambiar */
+  selEstado(r) {
+    if (!Permiso.puedeRemision(r)) return this.pill(r);
+    const x = ESTADOS_REM[r.estado] || ESTADOS_REM.ENVIADA;
+    return '<select class="sel-estado ' + x.pill + '" data-rm-estado="' + attr(r.id) + '" data-tip="Cambiar el estado" aria-label="Estado de la remisión ' + attr(RemisionService.codigo(r)) + '">' +
+      Object.keys(ESTADOS_REM).map(k => '<option value="' + k + '"' + (k === r.estado ? ' selected' : '') + '>' + esc(ESTADOS_REM[k].t) + '</option>').join('') + '</select>';
+  },
+  async cambiar(r, estado) {
+    if (!r || estado === r.estado) return r;
+    if (estado === 'ANULADA') return this.anular(r);
+    if (r.estado === 'ANULADA') return this.reactivar(r, estado);
+    if (estado === 'RECIBIDA') return this.recibida(r);
+    const ok = await Modal.confirmar({ titulo: 'Cambiar el estado', ok: 'Cambiar',
+      mensaje: 'La remisión <b>' + esc(RemisionService.codigo(r)) + '</b> vuelve a «' + esc(ESTADOS_REM.ENVIADA.t) + '». Se quita la fecha en que la recibieron.' });
+    if (!ok) return null;
+    try {
+      const n = await RemisionService.cambiarEstado(r, 'ENVIADA', { nota: 'Cambiado a mano' });
+      Toast.ok('Remisión <b>' + esc(RemisionService.codigo(n)) + '</b>: ' + esc(ESTADOS_REM.ENVIADA.t.toLowerCase()) + '.');
+      return n;
+    } catch (e) { Toast.err(esc(e.message)); return null; }
+  },
+  /** Quien la recibió contestó «Recibido» por WhatsApp */
+  recibida(r) {
+    return new Promise(res => {
+      let hecho = null;
+      const m = Modal.abrir({
+        titulo: 'Ya la recibieron', subtitulo: 'Remisión ' + esc(RemisionService.codigo(r)) + ' · ' + esc(r.recibe),
+        cuerpo: '<p class="fs13 txt-2 mb12">Márquela cuando quien la recibe conteste «Recibido» por WhatsApp.</p>' +
+          '<div class="row"><div class="field" style="flex:0 1 190px"><label for="rrFecha">La recibieron el</label><input class="inp" type="date" id="rrFecha" value="' + attr(Fecha.hoy()) + '"></div>' +
+          '<div class="field"><label for="rrNota">Nota</label><input class="inp" id="rrNota" placeholder="Opcional: quién contestó o qué faltó"></div></div>',
+        pie: '<button class="btn" data-cerrar>Cancelar</button><button class="btn btn-primary" id="rrOk">' + Icon('checkCircle', '', 14) + 'Marcar como recibida</button>',
+        alCerrar: () => res(hecho)
+      });
+      $('#rrOk', m).onclick = async () => {
+        try {
+          hecho = await RemisionService.marcarRecibida(r, { fecha: $('#rrFecha', m).value, nota: $('#rrNota', m).value });
+          Modal.cerrar(m, hecho);
+          Toast.ok('Remisión <b>' + esc(RemisionService.codigo(r)) + '</b> recibida.');
+        } catch (e) { Toast.err(esc(e instanceof ErrorValidacion ? Object.values(e.errores).join(' ') : e.message)); }
+      };
+    });
+  },
+  async anular(r) {
+    const motivo = await Modal.pedir({ titulo: 'Anular la remisión ' + esc(RemisionService.codigo(r)), etiqueta: 'Motivo', obligatorio: true, largo: true,
+      mensaje: 'La remisión conserva su número y queda marcada como anulada.', ok: 'Anular remisión', peligro: true, placeholder: 'Ej.: no se mandó, se hizo otra' });
+    if (motivo == null) return null;
+    try {
+      const n = await RemisionService.cambiarEstado(r, 'ANULADA', { motivo, nota: motivo });
+      Toast.ok('Remisión <b>' + esc(RemisionService.codigo(r)) + '</b> anulada.');
+      return n;
+    } catch (e) { Toast.err(esc(e.message)); return null; }
+  },
+  /** Vuelve a como estaba antes de anularla, o a la que se escoja */
+  async reactivar(r, estado) {
+    const a = estado || (r.anulacion && r.anulacion.estadoPrevio) || 'ENVIADA';
+    try {
+      const n = await RemisionService.cambiarEstado(r, a, { nota: 'Reactivada' });
+      Toast.ok('Remisión <b>' + esc(RemisionService.codigo(r)) + '</b> reactivada: ' + esc(ESTADOS_REM[a].t.toLowerCase()) + '.');
+      return n;
+    } catch (e) { Toast.err(esc(e.message)); return null; }
+  },
+  async eliminar(r) {
+    const ultima = r.secuencia && r.secuencia === ConsecutivoRem.maximo();
+    const ok = await Modal.confirmar({ titulo: 'Eliminar la remisión ' + esc(RemisionService.codigo(r)), peligro: true, ok: 'Eliminar',
+      mensaje: 'Se borra del todo y no se puede deshacer. ' + (ultima ? 'Como es la última, su número vuelve a quedar libre.'
+        : 'Su número queda sin usar. Si ya se mandó, mejor ' + (r.estado === 'ANULADA' ? 'déjela anulada.' : 'anúlela.')) });
+    if (!ok) return false;
+    try {
+      await RemisionService.eliminar(r);
+      Toast.ok('Remisión ' + esc(RemisionService.codigo(r)) + ' eliminada.');
+      return true;
+    } catch (e) { Toast.err(esc(e.message)); return false; }
+  },
+  /** Lo que va en «⋯»: anular o reactivar, y eliminar. Lo demás tiene su botón */
+  opciones(r, alCambiar) {
+    if (!Permiso.puedeRemision(r)) return [];
+    const listo = x => { if (x) alCambiar && alCambiar(x); };
+    return [r.estado === 'ANULADA' ? { texto: 'Reactivar', icono: 'rotate', accion: async () => listo(await this.reactivar(r)) }
+      : { texto: 'Anular', icono: 'ban', peligro: true, accion: async () => listo(await this.anular(r)) },
+      { texto: 'Eliminar', icono: 'trash', peligro: true, accion: async () => { if (await this.eliminar(r)) alCambiar && alCambiar(null); } }];
+  },
+  menu(boton, r, alCambiar) {
+    const ops = this.opciones(r, alCambiar);
+    if (ops.length) Menu.abrir(boton, ops);
+  }
+};
+
+/* ---------- Listado de remisiones ---------- */
+const VistaRemisiones = {
+  titulo() { return ['Remisiones', 'Lo que se manda junto, para quien lo recibe']; },
+  filtros() {
+    const f = Object.assign({ q: '', estado: '' }, Prefs.get('filRem', {}));
+    if (f.estado && !ESTADOS_REM[f.estado]) f.estado = '';
+    return f;
+  },
+  render(el, params, q) {
+    if (!RemisionService.disponible) { el.innerHTML = RemisionService.falta(); return; }
+    if (q.estado) Prefs.set('filRem', { q: '', estado: ESTADOS_REM[q.estado] ? q.estado : '' });
+    const f = this.filtros();
+    this.pag = 1;
+    el.innerHTML = '<div class="page-head"><div><h1>Remisiones</h1><div class="ph-sub" id="rmSub"></div></div>' +
+      '<div class="ph-actions">' + si('editar', '<a class="btn btn-primary" href="#/remision-nueva">' + Icon('plus', '', 14) + 'Nueva remisión</a>') + '</div></div>' +
+      '<div class="card mb12"><div class="card-b" style="padding:12px 14px"><div class="filters">' +
+        '<div class="field grow"><label for="rmQ">Búsqueda</label><input class="inp" id="rmQ" placeholder="Número, a quién, lugar, orden, artículo…" value="' + attr(f.q) + '"></div>' +
+        '<div class="field"><label for="rmEstado">Estado</label><select class="inp" id="rmEstado"><option value="">Todos</option>' +
+          Object.keys(ESTADOS_REM).map(k => '<option value="' + k + '"' + (f.estado === k ? ' selected' : '') + '>' + esc(ESTADOS_REM[k].t) + '</option>').join('') + '</select></div>' +
+        '<button class="btn" id="rmLimpiar">' + Icon('refresh', '', 13) + 'Limpiar</button>' +
+      '</div></div></div>' +
+      '<div class="card"><div class="tbl-wrap" id="rmTabla"></div><div id="rmPager"></div></div>';
+    const cambiar = () => { Prefs.set('filRem', { q: $('#rmQ', el).value.trim(), estado: $('#rmEstado', el).value }); this.pag = 1; this.pintar(el); };
+    $('#rmQ', el).addEventListener('input', U.debounce(cambiar, 160));
+    $('#rmEstado', el).addEventListener('change', cambiar);
+    $('#rmLimpiar', el).onclick = () => { Prefs.set('filRem', {}); Router.ir('/remisiones'); };
+    el.addEventListener('change', async e => {
+      if (e.target.matches('[data-pp]')) { Prefs.set('filas', +e.target.value); this.pag = 1; this.pintar(el); return; }
+      const s = e.target.closest('select[data-rm-estado]');
+      if (!s) return;
+      const r = Datos.remision(s.dataset.rmEstado);
+      if (!(await AccionesRemision.cambiar(r, s.value)) && Datos.remision(r.id)) s.value = Datos.remision(r.id).estado;
+      if (Router.actual() && Router.actual().ruta === '/remisiones') this.pintar(el);
+    });
+    el.addEventListener('click', e => {
+      const mas = e.target.closest('[data-rm-mas]');
+      if (mas) { e.stopPropagation(); AccionesRemision.menu(mas, Datos.remision(mas.dataset.rmMas), () => this.pintar(el)); return; }
+      const cp = e.target.closest('[data-rm-copiar]');
+      if (cp) { e.stopPropagation(); DocRemision.copiarImagen(Datos.remision(cp.dataset.rmCopiar)); return; }
+      const imp = e.target.closest('[data-rm-imp]');
+      if (imp) { e.stopPropagation(); DocRemision.imprimir(Datos.remision(imp.dataset.rmImp)); return; }
+      const pg = e.target.closest('[data-pg]');
+      if (pg && !pg.disabled) { this.pag = +pg.dataset.pg; this.pintar(el); $('#rmTabla', el).scrollIntoView({ block: 'nearest' }); }
+    });
+    this.pintar(el);
+  },
+  lista() {
+    const f = this.filtros(), nq = Txt.norm(f.q);
+    return Datos.remisiones.filter(r => (!f.estado || r.estado === f.estado) &&
+      (!nq || [r.numero, RemisionService.codigo(r), r.recibe, r.lugar, r.lleva, r.nota, Modelo.autor(r),
+        ...(r.ordenes || []).map(x => [x.codigo, x.proveedor, x.para].join(' ')), ...(r.items || []).map(i => i.descripcion + ' ' + (i.observacion || ''))]
+        .some(x => Txt.norm(x).includes(nq))))
+      .sort((a, b) => (b.secuencia || 0) - (a.secuencia || 0));
+  },
+  pintar(el) {
+    const l = this.lista();
+    const porPag = Prefs.get('filas', 25);
+    const paginas = Math.max(1, Math.ceil(l.length / porPag));
+    if (this.pag > paginas) this.pag = paginas;
+    const vis = l.slice((this.pag - 1) * porPag, this.pag * porPag);
+    const esperan = l.filter(r => r.estado === 'ENVIADA').length;
+    $('#rmSub', el).innerHTML = Txt.plural(l.length, 'remisión', 'remisiones') + (esperan ? ' · ' + esperan + ' esperando el recibido' : '') +
+      ' · la siguiente será la <b class="mono">' + esc(RemisionService.codigo(null, ConsecutivoRem.vistaPrevia())) + '</b>';
+    if (!l.length) {
+      const hayFiltro = Object.values(this.filtros()).some(Boolean);
+      $('#rmTabla', el).innerHTML = Comp.vacio('box', hayFiltro ? 'Ninguna remisión coincide' : 'Aún no hay remisiones',
+        hayFiltro ? 'Pruebe con otros filtros o límpielos.' : 'Una remisión junta en una sola hoja lo que se manda, aunque venga de varias órdenes. Quien lo recibe contesta «Recibido» por WhatsApp.',
+        hayFiltro ? '' : si('editar', '<a class="btn btn-primary" href="#/remision-nueva">' + Icon('plus', '', 14) + 'Hacer la primera remisión</a>'));
+      $('#rmPager', el).innerHTML = '';
+      return;
+    }
+    $('#rmTabla', el).innerHTML = '<table class="tbl compacta"><thead><tr><th>N.º</th><th>Fecha</th><th>Entregar a</th><th>Órdenes</th><th class="num">Artículos</th><th>Estado</th><th></th></tr></thead><tbody>' +
+      vis.map(r => '<tr class="row-click" data-ir="/remision/' + attr(r.id) + '"><td class="mono fw7 t-num nowrap">' + esc(RemisionService.codigo(r)) + '</td>' +
+        '<td class="nowrap">' + Fecha.corta(r.fecha) + (Modelo.autor(r) ? '<div class="or-autor" title="Hecha por ' + attr(Modelo.autor(r)) + '">' + Icon('user', '', 10) + esc(Modelo.autorCorto(r)) + '</div>' : '') + '</td>' +
+        '<td class="trunc" style="max-width:240px" title="' + attr([r.recibe, r.lugar].filter(Boolean).join(' · ')) + '"><b>' + esc(r.recibe) + '</b>' +
+          (r.lugar ? '<div class="fs11 txt-3 trunc">' + esc(r.lugar) + '</div>' : '') + '</td>' +
+        '<td>' + RemisionService.chips(r) + '</td><td class="num">' + (r.items || []).length + '</td>' +
+        '<td class="td-estado">' + AccionesRemision.selEstado(r) + '</td>' +
+        '<td class="nowrap tr"><button class="btn btn-ghost btn-icon btn-sm" data-rm-copiar="' + attr(r.id) + '" data-tip="Copiar como imagen" aria-label="Copiar como imagen">' + Icon('image', '', 13) + '</button>' +
+          '<button class="btn btn-ghost btn-icon btn-sm" data-rm-imp="' + attr(r.id) + '" data-tip="Imprimir o PDF" aria-label="Imprimir">' + Icon('print', '', 13) + '</button>' +
+          (AccionesRemision.opciones(r).length ? '<button class="btn btn-ghost btn-icon btn-sm" data-rm-mas="' + attr(r.id) + '" data-tip="Más acciones" aria-label="Más acciones">' + Icon('more', '', 14) + '</button>'
+            : '<span class="btn-icon btn-sm" style="display:inline-block" aria-hidden="true"></span>') + '</td></tr>').join('') + '</tbody></table>';
+    $('#rmPager', el).innerHTML = Comp.pager(l.length, this.pag, porPag, 'remisiones');
+  }
+};
+
+/* ---------- Una remisión ---------- */
+const VistaRemision = {
+  titulo(p) { const r = Datos.remision(p.id); return r ? ['Remisión ' + RemisionService.codigo(r), r.recibe] : ['Remisión', '']; },
+  render(el, p) {
+    if (!RemisionService.disponible) { el.innerHTML = RemisionService.falta(); return; }
+    const r = Datos.remision(p.id);
+    if (!r) { el.innerHTML = Comp.vacio('box', 'Esa remisión no existe', 'Puede que se haya eliminado.', '<a class="btn" href="#/remisiones">Ver las remisiones</a>'); return; }
+    const recargar = () => Router.resolver(true);
+    const mia = Permiso.puedeRemision(r), autor = Modelo.autor(r), n = (r.items || []).length;
+    let h = '<div class="page-head"><div><h1><button class="ph-back" id="rvVolver" aria-label="Volver" data-tip="Volver">' + Icon('back', '', 16) + '</button>' +
+      'Remisión <span class="mono">N.º ' + esc(RemisionService.codigo(r)) + '</span> ' + AccionesRemision.selEstado(r) + '</h1>' +
+      '<div class="ph-sub">' + esc(Fecha.larga(r.fecha)) + ' · para <b>' + esc(r.recibe) + '</b>' + (r.lugar ? ' en ' + esc(r.lugar) : '') + ' · ' + Txt.plural(n, 'artículo') +
+      (autor ? ' · hecha por <b>' + esc(autor) + '</b>' : '') + '</div></div><div class="ph-actions">' +
+      '<button class="btn" id="rvCopiar" data-tip="Para pegarla en WhatsApp">' + Icon('image', '', 14) + 'Copiar imagen</button>' +
+      '<button class="btn btn-primary" id="rvImp">' + Icon('print', '', 14) + 'Imprimir o PDF</button>' +
+      (mia && r.estado !== 'ANULADA' ? '<a class="btn" href="#/remision-editar/' + attr(r.id) + '">' + Icon('edit', '', 14) + 'Editar</a>' : '') +
+      (AccionesRemision.opciones(r).length ? '<button class="btn btn-icon" id="rvMas" aria-label="Más acciones" data-tip="Más acciones">' + Icon('more', '', 15) + '</button>' : '') + '</div></div>';
+    if (Permiso.puede('editar') && !mia) {
+      h += '<div class="alert a-info mb16">' + Icon('lock') + '<div>Esta remisión la hizo <b>' + esc(autor || 'otra persona') + '</b>: sólo esa persona o el administrador la pueden cambiar.</div></div>';
+    }
+    if (r.estado === 'ANULADA') {
+      h += '<div class="alert a-err mb16">' + Icon('ban') + '<div><b>Remisión anulada</b>' + (r.anulacion && r.anulacion.en ? ' el ' + esc(Fecha.stamp(r.anulacion.en)) : '') +
+        (r.anulacion && r.anulacion.motivo ? '. Motivo: ' + esc(r.anulacion.motivo) : '') + '.</div></div>';
+    }
+    h += '<div class="grid g-form"><div class="col"><div class="card"><div class="card-h"><h3>' + Icon('doc', '', 15) + 'Documento</h3><span class="ch-sub">así sale impresa o en la imagen para WhatsApp</span></div>' +
+      '<div class="card-b" style="padding:12px"><div class="preview-shell doc-marco" id="rvDoc"><div class="doc-escala">' + DocRemision.html(r) + '</div></div></div></div></div>' +
+      '<div class="col sticky-col">' + this.recibido(r) + this.ordenes(r) + this.historial(r) + '</div></div>';
+    el.innerHTML = h;
+    Documento.escalar($('#rvDoc', el));
+    $('#rvVolver', el).onclick = () => Router.ir('/remisiones');
+    $('#rvImp', el).onclick = () => DocRemision.imprimir(r);
+    $('#rvCopiar', el).onclick = () => DocRemision.copiarImagen(r);
+    const mas = $('#rvMas', el);
+    if (mas) mas.onclick = e => AccionesRemision.menu(e.currentTarget, r, x => { if (x === null) Router.ir('/remisiones'); else recargar(); });
+    el.addEventListener('change', async e => {
+      const s = e.target.closest('select[data-rm-estado]');
+      if (!s) return;
+      if (await AccionesRemision.cambiar(Datos.remision(r.id), s.value)) recargar(); else if (Datos.remision(r.id)) s.value = Datos.remision(r.id).estado;
+    });
+    el.addEventListener('click', async e => {
+      const b = e.target.closest('[data-rv-paso]');
+      if (!b) return;
+      const actual = Datos.remision(r.id), paso = b.dataset.rvPaso;
+      const x = paso === 'RECIBIDA' ? await AccionesRemision.recibida(actual) : paso === 'REACTIVAR' ? await AccionesRemision.reactivar(actual) : await AccionesRemision.cambiar(actual, paso);
+      if (x) recargar();
+    });
+  },
+  /** Se mandó → recibida, como el seguimiento de las órdenes */
+  recibido(r) {
+    const mia = Permiso.puedeRemision(r), creada = (r.historial || [])[0], rec = r.estado === 'RECIBIDA' && r.recibido;
+    let h = '<div class="card"><div class="card-h"><h3>' + Icon('clock', '', 15) + 'Recibido</h3><span class="ch-sub">' + esc(ESTADOS_REM[r.estado].ayuda) + '</span></div><div class="card-b"><div class="ruta">' +
+      '<div class="ruta-p hecho"><div class="ruta-ic">' + Icon('check', '', 12) + '</div><div class="ruta-tx"><b>Se mandó</b><small>' + esc(creada ? Fecha.stamp(creada.en) : Fecha.corta(r.fecha)) + '</small></div></div>';
+    if (r.estado === 'ANULADA') {
+      h += '<div class="ruta-p anulada"><div class="ruta-ic">' + Icon('ban', '', 12) + '</div><div class="ruta-tx"><b>Anulada</b><small>' + esc(r.anulacion ? Fecha.stamp(r.anulacion.en) : '') + '</small>' +
+        (mia ? '<button class="btn btn-sm" data-rv-paso="REACTIVAR">' + Icon('rotate', '', 12) + 'Reactivar</button>' : '') + '</div></div>';
+    } else {
+      h += '<div class="ruta-p ' + (rec ? 'hecho' : 'actual') + '"><div class="ruta-ic">' + Icon(rec ? 'check' : 'checkCircle', '', 12) + '</div><div class="ruta-tx"><b>' + (rec ? 'Recibida' : 'Esperando el recibido') + '</b>' +
+        (rec ? '<small>' + esc(Fecha.larga(r.recibido.fecha)) + (r.recibido.nota ? ' · ' + esc(r.recibido.nota) : '') + '</small>' +
+            (mia ? '<button class="btn btn-sm" data-rv-paso="ENVIADA">' + Icon('rotate', '', 12) + 'Deshacer</button>' : '')
+          : '<small>Cuando quien la recibe conteste «Recibido» por WhatsApp</small>' +
+            (mia ? '<button class="btn btn-sm btn-primary" data-rv-paso="RECIBIDA">' + Icon('checkCircle', '', 12) + 'Ya la recibieron</button>' : '')) + '</div></div>';
+    }
+    return h + '</div></div></div>';
+  },
+  /** Las órdenes que lleva, con su estado de hoy */
+  ordenes(r) {
+    const ords = r.ordenes || [], aparte = (r.items || []).filter(it => !it.ordenId).length;
+    return '<div class="card"><div class="card-h"><h3>' + Icon('doc', '', 15) + 'Órdenes que lleva</h3><span class="ch-sub">' + Txt.plural(ords.length, 'orden', 'órdenes') + '</span></div>' +
+      '<div class="card-b" style="padding-top:6px;padding-bottom:6px">' + (ords.length ? ords.map(x => {
+        const o = Datos.orden(x.id), cuantos = (r.items || []).filter(it => it.ordenId === x.id).length;
+        return (o ? '<a class="rv-l" href="#/orden/' + attr(o.id) + '">' : '<div class="rv-l">') + '<span class="mono fw7">' + esc(x.codigo) + '</span>' +
+          '<span class="f1 trunc txt-2" title="' + attr([x.proveedor, x.para].filter(Boolean).join(' · ')) + '">' + esc([x.proveedor, x.para].filter(Boolean).join(' · ')) + '</span>' +
+          '<span class="fs11 txt-3 nowrap">' + Txt.plural(cuantos, 'artículo') + '</span>' + (o ? Comp.pillOrden(o) + '</a>' : '<span class="pill p-gray np">Ya no existe</span></div>');
+      }).join('') : '<div class="fs12 txt-3" style="padding:6px 0">No lleva órdenes: sólo renglones escritos a mano.</div>') +
+      (ords.length && aparte ? '<div class="fs12 txt-3" style="padding:6px 0">Y ' + Txt.plural(aparte, 'renglón', 'renglones') + ' sin orden.</div>' : '') + '</div></div>';
+  },
+  historial(r) {
+    const hs = (r.historial || []).slice().reverse();
+    return '<div class="card"><div class="card-h"><h3>' + Icon('clock', '', 15) + 'Historial</h3><span class="ch-sub">' + Txt.plural(hs.length, 'cambio') + '</span></div>' +
+      '<div class="card-b" style="padding-top:8px;padding-bottom:8px">' + hs.map(x => '<div class="flex aic g8" style="padding:6px 0;border-bottom:1px solid var(--border)">' +
+        AccionesRemision.pill({ estado: x.estado }) + '<span class="fs12 f1 trunc txt-2" title="' + attr([x.nota, x.por].filter(Boolean).join(' · ')) + '">' + esc(x.nota || '') +
+        (x.por ? ' <span class="txt-3">· ' + esc(x.por) + '</span>' : '') + '</span><span class="fs11 txt-3 nowrap">' + esc(Fecha.stamp(x.en)) + '</span></div>').join('') +
+      '<div class="fs11 txt-3 mt8">Creada el ' + esc(Fecha.stamp(r.creadoEn)) + ' · última modificación ' + esc(Fecha.hace(r.actualizadoEn)) + '</div></div></div>';
+  }
+};
+
+/* La lista para escoger las órdenes que van en la remisión: las de la empresa
+   que tienen artículos, sin anuladas ni solicitudes de cotización, las más
+   nuevas primero. Dice si una ya va en otra remisión. Devuelve sus ids */
+const EscogerOrdenes = {
+  abrir(r) {
+    return new Promise(res => {
+      let elegidas = null;
+      const ya = new Set((r.ordenes || []).map(x => x.id)), sel = new Set(), enOtra = RemisionService.porOrden(r.id);
+      const todas = Datos.ordenes.filter(o => o.estado !== 'ANULADA' && o.tipo !== 'COTIZACION' && (o.items || []).some(Modelo.itemValido))
+        .sort((a, b) => (b.secuencia || 0) - (a.secuencia || 0));
+      const m = Modal.abrir({
+        titulo: 'Agregar órdenes a la remisión', subtitulo: 'Escoja las que van: sus artículos se agregan solos, sin precios', ancho: 'wide',
+        cuerpo: '<div class="field"><input class="inp" id="eoQ" placeholder="Buscar por número, proveedor, equipo o artículo…" autocomplete="off" autofocus aria-label="Buscar órdenes"></div>' +
+          '<div class="rp-lista" id="eoLista"></div>',
+        pie: '<span class="mf-left fs12 txt-3" id="eoCuenta"></span><button class="btn" data-cerrar>Cancelar</button>' +
+          '<button class="btn btn-primary" id="eoOk" disabled>' + Icon('plus', '', 14) + 'Agregar</button>',
+        alCerrar: () => res(elegidas)
+      });
+      const cuenta = () => {
+        $('#eoCuenta', m).textContent = sel.size ? Txt.plural(sel.size, 'orden escogida', 'órdenes escogidas') : '';
+        $('#eoOk', m).disabled = !sel.size;
+        $('#eoOk', m).innerHTML = Icon('plus', '', 14) + (sel.size ? 'Agregar ' + Txt.plural(sel.size, 'orden', 'órdenes') : 'Agregar');
+      };
+      const pintar = () => {
+        const q = $('#eoQ', m).value, nq = Txt.norm(q);
+        const l = todas.filter(o => !nq || [o.numero, Modelo.codigo(o), Modelo.nombreProveedor(o), Modelo.nombreEquipo(o), o.concepto, ...o.items.map(i => i.descripcion)]
+          .some(x => Txt.norm(x).includes(nq))).slice(0, 80);
+        $('#eoLista', m).innerHTML = l.length ? l.map(o => {
+          const esta = ya.has(o.id), otras = enOtra.get(o.id) || [], eq = Modelo.nombreEquipo(o);
+          return '<label class="rp-o' + (esta ? ' ya' : sel.has(o.id) ? ' on' : '') + '"><input type="checkbox" data-eo="' + attr(o.id) + '"' + (esta || sel.has(o.id) ? ' checked' : '') + (esta ? ' disabled' : '') + '>' +
+            '<div class="rp-t"><div><span class="mono">' + esc(Modelo.codigo(o)) + '</span> · ' + Txt.resaltar(Modelo.nombreProveedor(o), q) + '</div>' +
+              '<small>' + esc([eq ? 'Para: ' + eq : '', Modelo.concepto(o)].filter(Boolean).join(' · ')) + '</small></div>' +
+            '<div class="rp-m"><span>' + esc(Fecha.corta(o.fecha)) + ' · ' + Txt.plural(o.items.filter(Modelo.itemValido).length, 'artículo') + '</span>' +
+              (esta ? '<span class="pill p-brand np">Ya está en esta</span>'
+                : otras.length ? '<span class="pill p-amber np" data-tip="' + attr('Ya se mandó en ' + otras.map(x => RemisionService.codigo(x)).join(', ')) + '">Ya va en ' + esc(RemisionService.codigo(otras[0])) + '</span>' : '') +
+            '</div></label>';
+        }).join('') : '<div class="adj-vacio" style="margin:10px">' + (todas.length ? 'Ninguna orden coincide.' : 'Todavía no hay órdenes para mandar.') + '</div>';
+        cuenta();
+      };
+      $('#eoQ', m).addEventListener('input', U.debounce(pintar, 120));
+      $('#eoQ', m).addEventListener('keydown', e => { if (e.key === 'Enter' && sel.size) { e.preventDefault(); $('#eoOk', m).click(); } });
+      $('#eoLista', m).addEventListener('change', e => {
+        const c = e.target.closest('[data-eo]');
+        if (!c) return;
+        if (c.checked) sel.add(c.dataset.eo); else sel.delete(c.dataset.eo);
+        c.closest('.rp-o').classList.toggle('on', c.checked);
+        cuenta();
+      });
+      $('#eoOk', m).onclick = () => { elegidas = [...sel]; Modal.cerrar(m); };
+      pintar();
+    });
+  }
+};
+
+/* ---------- Nueva remisión / editar remisión ---------- */
+/* La hoja como sale impresa: a quién y dónde, quién lo lleva, las órdenes que
+   van (sus artículos llegan solos, agrupados) y lo que va aparte */
+const VistaRemisionForm = {
+  titulo(p) { return p.id ? ['Editar remisión', 'Los cambios quedan en su historial'] : ['Nueva remisión', 'El número se asigna al guardar']; },
+  render(el, p, q) {
+    if (!RemisionService.disponible) { el.innerHTML = RemisionService.falta(); return; }
+    let r;
+    if (p.id) {
+      const b = Datos.remision(p.id);
+      if (!b) { el.innerHTML = Comp.vacio('box', 'Esa remisión no existe', 'Puede que se haya eliminado.', '<a class="btn" href="#/remisiones">Ver las remisiones</a>'); return; }
+      if (!Permiso.puedeRemision(b)) {
+        el.innerHTML = Comp.vacio('lock', 'Esta remisión no la puede cambiar', 'La remisión ' + esc(RemisionService.codigo(b)) + ' la hizo ' + esc(Modelo.autor(b) || 'otra persona') +
+          ': sólo esa persona o el administrador la pueden cambiar.', '<a class="btn" href="#/remision/' + attr(b.id) + '">Ver la remisión</a>');
+        return;
+      }
+      if (b.estado === 'ANULADA') { el.innerHTML = Comp.vacio('ban', 'La remisión ' + esc(RemisionService.codigo(b)) + ' está anulada', 'Reactívela para poder editarla.', '<a class="btn" href="#/remision/' + attr(b.id) + '">Ver la remisión</a>'); return; }
+      r = U.clonar(b);
+    } else {
+      r = RemisionService.nueva();
+      /* Con «?orden=<id>» arranca con lo de esa orden */
+      const o = q.orden && Datos.orden(q.orden);
+      if (o) RemisionService.agregarOrden(r, o);
+    }
+    this.r = r; this.el = el; this.editando = !!p.id;
+    /* La marca con que estaba en la nube al abrir la hoja: al guardar se mira si alguien la cambió */
+    this.version = this.editando ? db.version('remisiones', r.id) : null;
+    Router.sucio = false;
+    const emp = r.membrete ? Object.assign({}, Empresa.cfg(Empresa.de(r)).empresa, r.membrete) : Empresa.cfg(Empresa.de(r)).empresa, logo = Config.logo(Empresa.de(r));
+    const acciones = '<button class="btn" data-acc="cancelar">Cancelar</button><button class="btn btn-primary" data-acc="guardar">' + Icon('save', '', 14) + 'Guardar remisión</button>';
+    const fila = (id, etiqueta, req, cuerpo, cls) => '<div class="hj-fila' + (cls ? ' ' + cls : '') + '"><div class="hj-lbl"><label for="' + id + '">' + etiqueta + (req ? '<span class="req">*</span>' : '') +
+      '</label></div><div class="hj-val">' + cuerpo + '</div></div>';
+    el.innerHTML =
+      '<div class="page-head"><div><h1><button class="ph-back" id="rfVolver" aria-label="Volver" data-tip="Volver">' + Icon('back', '', 16) + '</button>' +
+        (this.editando ? 'Editar remisión <span class="mono">N.º ' + esc(RemisionService.codigo(r)) + '</span> ' + AccionesRemision.pill(r) : 'Nueva remisión') + '</h1>' +
+        '<div class="ph-sub">' + (this.editando ? 'Creada el ' + esc(Fecha.stamp(r.creadoEn)) + '. El número no cambia.'
+          : 'Escoja las órdenes que van y quite lo que no va. Al guardar se abre la remisión para copiarla a WhatsApp o imprimirla.') + '</div></div>' +
+        '<div class="ph-actions">' + acciones + '</div></div>' +
+      '<div id="rfErr"></div>' +
+      '<div class="hoja">' +
+        '<div class="hj-head"><div class="hj-logo">' + (logo ? '<img src="' + attr(logo) + '" alt="' + attr(emp.nombre) + '" style="max-height:' + Math.round(62 * Config.tamLogo(Empresa.de(r))) + 'px">' : '<b>' + esc(emp.nombre) + '</b>') + '</div>' +
+          '<div class="hj-tit"><div class="hj-rm">' + esc(REMISION.asunto) + '</div><div class="hj-emp">' + esc(emp.nombre) + '</div>' +
+            '<div class="hj-meta">' + esc([emp.nit ? (emp.tipoDoc || 'NIT') + ' ' + emp.nit : '', emp.ciudad].filter(Boolean).join(' · ')) + '</div></div>' +
+          '<div class="hj-num"><small>N.º</small><b id="rfNum"></b>' + (this.editando ? '' : '<span class="hj-prov">se confirma al guardar</span>') +
+            '<small><label for="rfFecha">Fecha</label></small><input class="inp" type="date" id="rfFecha" value="' + attr(r.fecha) + '"></div></div>' +
+        fila('rfRecibe', 'Entregar a', true, '<div class="hj-campo"><input class="inp" id="rfRecibe" autocomplete="off" placeholder="¿A quién se le entrega?" value="' + attr(r.recibe) + '"></div>' +
+          '<div class="hj-info">Quien lo recibe, revisa y contesta «Recibido» por WhatsApp.</div>', 'hj-eq') +
+        fila('rfLugar', 'Lugar de entrega', false, '<div class="hj-campo"><input class="inp" id="rfLugar" autocomplete="off" placeholder="Finca, bodega, obra…" value="' + attr(r.lugar) + '"></div>') +
+        fila('rfLleva', 'Lo lleva', false, '<div class="hj-campo"><input class="inp" id="rfLleva" autocomplete="off" placeholder="Opcional: quién lo lleva y en qué" value="' + attr(r.lleva) + '"></div>') +
+        fila('rfOrdBtn', 'Órdenes que van', false, '<div class="rf-chips" id="rfChips"></div><button type="button" class="btn btn-sm btn-primary" id="rfOrdBtn">' + Icon('plus', '', 12) + 'Agregar órdenes</button>') +
+        '<div class="hj-items"><table class="items-ed hj-tbl rf-tbl"><thead><tr><th class="it-n">Ítem</th><th>Descripción</th><th class="num" style="width:96px">Cantidad</th>' +
+          '<th style="width:100px">Unidad</th><th style="width:240px">Observación</th><th class="it-acc"><span class="sr">Quitar</span></th></tr></thead><tbody id="rfItems"></tbody></table></div>' +
+        '<div class="hj-itpie"><button type="button" class="btn btn-sm" id="rfAdd">' + Icon('plus', '', 12) + 'Un renglón sin orden</button><span class="fs12 txt-2" id="rfCuenta"></span>' +
+          '<span class="ip-nota">Quite lo que no va, o cambie la cantidad si va sólo una parte.</span></div>' +
+        '<div class="hj-obs"><label for="rfNota">Observaciones</label><textarea class="inp" id="rfNota" rows="2" placeholder="Opcional: sale impresa en la remisión">' + esc(r.nota) + '</textarea></div>' +
+        '<div class="hj-firmas" id="rfFirmas"></div>' +
+      '</div>' +
+      '<div class="hj-acciones">' + acciones + '</div>';
+    this.pintarNumero(); this.pintarItems(); this.pintarFirmas();
+    this.unir();
+  },
+  marcar() { Router.sucio = true; },
+  pintarNumero() {
+    const b = $('#rfNum', this.el), r = this.r;
+    if (!b) return;
+    if (this.editando) b.textContent = RemisionService.codigo(r);
+    else if (Fecha.valida(r.fecha)) b.textContent = RemisionService.codigo(null, ConsecutivoRem.vistaPrevia(r.fecha));
+  },
+  fila(it, i) {
+    return '<tr data-fila="' + attr(it.id) + '"><td class="it-n">' + (i + 1) + '</td>' +
+      '<td class="it-desc"><input class="inp" data-k="descripcion" autocomplete="off" value="' + attr(it.descripcion) + '" placeholder="Qué va…" aria-label="Descripción del renglón ' + (i + 1) + '"></td>' +
+      '<td class="it-cant"><input class="inp inp-num" data-k="cantidad" value="' + attr(Modelo.cantidadTexto(it)) + '" placeholder="Cant." aria-label="Cantidad"></td>' +
+      '<td class="it-uni"><input class="inp inp-lista" data-k="unidad" value="' + attr(it.unidad || '') + '" placeholder="Unidad" aria-label="Unidad"></td>' +
+      '<td class="it-obs"><input class="inp" data-k="observacion" value="' + attr(it.observacion || '') + '" placeholder="Observación" aria-label="Observación"></td>' +
+      '<td class="it-acc"><button type="button" class="btn btn-ghost btn-icon btn-sm" data-quitar="' + attr(it.id) + '" tabindex="-1" data-tip="Quitar este renglón" aria-label="Quitar el renglón ' + (i + 1) + '">' +
+        Icon('x', '', 13) + '</button></td></tr>';
+  },
+  pintarItems() {
+    const r = this.r, tb = $('#rfItems', this.el), grupos = RemisionService.grupos(r);
+    let i = 0, h = '';
+    grupos.forEach(g => {
+      h += '<tr class="rf-g"><td colspan="6"><div class="rf-g-in">' + (g.orden
+        ? '<span class="mono">' + esc(g.orden.codigo) + '</span><span>' + esc(g.orden.proveedor || '') + '</span>' + (g.orden.para ? '<span class="rf-para">Para: ' + esc(g.orden.para) + '</span>' : '') +
+          '<button type="button" class="btn btn-ghost btn-sm" data-quitar-orden="' + attr(g.orden.id) + '">' + Icon('x', '', 12) + 'Quitar la orden</button>'
+        : '<span>Sin orden · va aparte</span>') + '</div></td></tr>';
+      g.items.forEach(it => { h += this.fila(it, i++); });
+    });
+    tb.innerHTML = h || '<tr class="rf-vacio"><td colspan="6">' + Comp.vacio('box', 'Todavía no va nada', 'Escoja las órdenes que van con «Agregar órdenes», o escriba un renglón sin orden.', '', true) + '</td></tr>';
+    $$('tr[data-fila]', tb).forEach(tr => Desplegable.unir($('[data-k="unidad"]', tr), 'unidades'));
+    const n = r.items.filter(Modelo.itemValido).length, nOrd = grupos.filter(g => g.orden).length;
+    $('#rfCuenta', this.el).textContent = n ? Txt.plural(n, 'artículo') + (nOrd ? ' de ' + Txt.plural(nOrd, 'orden', 'órdenes') : '') : '';
+    $('#rfChips', this.el).innerHTML = (r.ordenes || []).length ? r.ordenes.map(x => '<span class="rf-chip">' + esc(x.codigo) +
+      '<button type="button" class="btn btn-ghost btn-icon btn-sm" data-quitar-orden="' + attr(x.id) + '" data-tip="Quitar la orden ' + attr(x.codigo) + '" aria-label="Quitar la orden ' + attr(x.codigo) + '">' + Icon('x', '', 11) + '</button></span>').join('')
+      : '<span class="fs12 txt-3">Ninguna todavía</span>';
+  },
+  /** Quien la entrega es quien la hace: firma con la suya */
+  pintarFirmas() {
+    const f = Firmas.impresa(this.editando ? this.r.firma : Firmas.mia());
+    const sinFirma = f && !f.firma && Permiso.yo();
+    $('#rfFirmas', this.el).innerHTML = '<div class="hj-firma"><div class="hj-fm">' + (f && f.firma ? '<img src="' + attr(f.firma) + '" alt="Firma">' : '') + '</div><div class="hj-ln"></div>' +
+      '<b>' + esc(f ? f.nombre : '') + '</b><small>' + esc(f ? f.cargo : '') + '</small><small>Entregó</small>' +
+      (sinFirma && !this.editando ? '<div class="hj-sinfirma">' + (Permiso.puede('configurar') ? 'Sin firma todavía: <a href="#/configuracion">póngala en Configuración</a>.' : 'Sin firma todavía: el administrador la pone en Configuración.') + '</div>' : '') + '</div>' +
+      '<div class="hj-firma"><div class="hj-fm"></div><div class="hj-ln"></div><b>&nbsp;</b><small>Nombre, firma y fecha</small><small>Recibió</small></div>';
+  },
+  item(id) { return this.r.items.find(it => it.id === id); },
+  unir() {
+    const el = this.el, r = this.r;
+    const volver = () => Router.ir(this.editando ? '/remision/' + r.id : '/remisiones', { reemplazar: true });
+    $('#rfVolver', el).onclick = volver;
+    $$('[data-acc]', el).forEach(b => { b.onclick = () => (b.dataset.acc === 'cancelar' ? volver() : this.guardar()); });
+    el.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); this.guardar(); } });
+    $('#rfFecha', el).addEventListener('change', e => { r.fecha = e.target.value; this.marcar(); this.pintarNumero(); });
+    /* Si otra persona guarda una remisión mientras se llena ésta, el número de arriba se corre solo */
+    if (!this.editando) {
+      const quitar = Bus.on('remisiones:cambio', () => {
+        const b = $('#rfNum', el);
+        if (!b || !b.isConnected) { quitar(); return; }
+        this.pintarNumero();
+      });
+    }
+    [['#rfRecibe', 'recibe'], ['#rfLugar', 'lugar'], ['#rfLleva', 'lleva'], ['#rfNota', 'nota']].forEach(([s, k]) =>
+      $(s, el).addEventListener('input', e => { r[k] = e.target.value; e.target.classList.remove('is-err'); this.marcar(); }));
+    Desplegable.unir($('#rfLugar', el), 'lugares');
+    $('#rfOrdBtn', el).onclick = () => this.elegirOrdenes();
+    $('#rfAdd', el).onclick = () => {
+      const it = { id: ID(), descripcion: '', cantidad: 1, unidad: 'UND', observacion: '' };
+      r.items.push(it);
+      this.pintarItems();
+      const inp = $('#rfItems tr[data-fila="' + it.id + '"] [data-k="descripcion"]', el);
+      if (inp) inp.focus();
+    };
+    const tb = $('#rfItems', el);
+    tb.addEventListener('input', e => {
+      const inp = e.target.closest('[data-k]'), tr = inp && inp.closest('tr[data-fila]'), it = tr && this.item(tr.dataset.fila);
+      if (!it) return;
+      const k = inp.dataset.k;
+      if (k === 'cantidad') Modelo.ponerCantidad(it, inp.value); else it[k] = inp.value;
+      inp.classList.remove('is-err');
+      this.marcar();
+      if (k === 'descripcion') {
+        const n = r.items.filter(Modelo.itemValido).length, nOrd = RemisionService.grupos(r).filter(g => g.orden).length;
+        $('#rfCuenta', el).textContent = n ? Txt.plural(n, 'artículo') + (nOrd ? ' de ' + Txt.plural(nOrd, 'orden', 'órdenes') : '') : '';
+      }
+    });
+    tb.addEventListener('change', e => { if (e.target.dataset.k === 'unidad') { const it = this.item(e.target.closest('tr[data-fila]').dataset.fila); if (it) e.target.value = it.unidad = Txt.mayus(e.target.value.trim()); } });
+    const quitar = e => {
+      const q = e.target.closest('[data-quitar]');
+      if (q) {
+        const it = this.item(q.dataset.quitar);
+        r.items = r.items.filter(x => x.id !== q.dataset.quitar);
+        /* Si era lo último de su orden, la orden ya no va */
+        if (it && it.ordenId && !r.items.some(x => x.ordenId === it.ordenId)) r.ordenes = r.ordenes.filter(x => x.id !== it.ordenId);
+        this.marcar(); this.pintarItems();
+        return;
+      }
+      const qo = e.target.closest('[data-quitar-orden]');
+      if (qo) { RemisionService.quitarOrden(r, qo.dataset.quitarOrden); this.marcar(); this.pintarItems(); }
+    };
+    tb.addEventListener('click', quitar);
+    $('#rfChips', el).addEventListener('click', quitar);
+  },
+  async elegirOrdenes() {
+    const r = this.r, ids = await EscogerOrdenes.abrir(r);
+    if (!ids || !ids.length) return;
+    const n = ids.reduce((s, id) => s + RemisionService.agregarOrden(r, Datos.orden(id)), 0);
+    this.marcar(); this.pintarItems();
+    Toast.ok(Txt.plural(ids.length, 'orden agregada', 'órdenes agregadas') + ', con ' + Txt.plural(n, 'artículo') + '. Quite lo que no va.');
+  },
+  async guardar() {
+    const el = this.el;
+    $('#rfErr', el).innerHTML = '';
+    $$('.is-err', el).forEach(x => x.classList.remove('is-err'));
+    const btns = $$('[data-acc="guardar"]', el);
+    btns.forEach(b => { b.disabled = true; });
+    try {
+      if (this.editando && !Datos.remision(this.r.id)) {
+        btns.forEach(b => { b.disabled = false; });
+        Modal.alerta('Esta remisión ya no existe', 'Otra persona la eliminó mientras usted la editaba. Lo que escribió no se guardó.', 'err');
+        return;
+      }
+      if (this.editando && db.version('remisiones', this.r.id) !== this.version) {
+        const ok = await Modal.confirmar({ titulo: 'Otra persona cambió esta remisión', ok: 'Guardar lo mío', cancelar: 'Volver a la hoja',
+          mensaje: 'Mientras usted la editaba, alguien más guardó cambios en la remisión <b>' + esc(RemisionService.codigo(this.r)) + '</b>. Si guarda, lo que usted escribió ' +
+            'queda encima de lo de esa persona. El estado y el recibido se conservan como están.' });
+        if (!ok) { btns.forEach(b => { b.disabled = false; }); return; }
+        this.version = db.version('remisiones', this.r.id);
+      }
+      const previsto = this.editando ? '' : $('#rfNum', el).textContent.trim();
+      const g = await RemisionService.guardar(this.r);
+      Router.sucio = false;
+      Toast.ok((this.editando ? 'Cambios guardados en la remisión ' : 'Remisión creada: ') + '<b class="mono">' + esc(RemisionService.codigo(g)) + '</b>.');
+      if (previsto && RemisionService.codigo(g) !== previsto) Toast.info('El número <b class="mono">' + esc(previsto) + '</b> lo tomó otra remisión guardada casi al mismo tiempo. Ésta quedó con el <b class="mono">' + esc(RemisionService.codigo(g)) + '</b>.', { ms: 9000 });
+      Shell.refrescar();
+      Router.ir('/remision/' + g.id, { reemplazar: true });
+    } catch (e) {
+      btns.forEach(b => { b.disabled = false; });
+      if (e instanceof ErrorValidacion) {
+        const er = e.errores;
+        if (er.recibe) $('#rfRecibe', el).classList.add('is-err');
+        if (er.fecha) $('#rfFecha', el).classList.add('is-err');
+        Object.keys(er).forEach(k => {
+          const m = /^cant-(.+)$/.exec(k), inp = m && $('#rfItems tr[data-fila="' + m[1] + '"] [data-k="cantidad"]', el);
+          if (inp) inp.classList.add('is-err');
+        });
+        $('#rfErr', el).innerHTML = '<div class="alert a-err mb12">' + Icon('warn') + '<div><b>Falta algo para guardar:</b><ul style="margin:4px 0 0;padding-left:18px">' +
           Object.values(er).map(x => '<li>' + esc(x) + '</li>').join('') + '</ul></div></div>';
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } else {
@@ -7751,7 +8622,8 @@ const Respaldo = {
   async armar(opts) {
     opts = opts || {};
     const datos = {};
-    for (const c of COLECCIONES) datos[c] = await db.getAll(c);
+    /* Las remisiones, si la nube ya tiene su tabla (SQL 213) */
+    for (const c of COLECCIONES) datos[c] = c === 'remisiones' && !RemisionService.disponible ? [] : await db.getAll(c);
     if (db.nube && opts.archivos !== false) {
       for (let i = 0; i < datos.adjuntos.length; i++) {
         const a = datos.adjuntos[i];
@@ -7789,8 +8661,12 @@ const Respaldo = {
       antes se suben los archivos adjuntos que trae (avance(n, total)) */
   async restaurar(obj, avance) {
     Permiso.exigir('configurar');
+    if (!RemisionService.disponible && (obj.datos.remisiones || []).length) {
+      throw new ErrorDominio('Este respaldo trae remisiones y la nube todavía no tiene dónde guardarlas: primero corra 213_facturacion_remisiones_y_firmas.sql en Supabase.');
+    }
     const ops = [];
     for (const c of COLECCIONES) {
+      if (c === 'remisiones' && !RemisionService.disponible) continue;
       (await db.getAll(c)).forEach(d => ops.push({ col: c, tipo: 'del', id: d.id }));
       (obj.datos[c] || []).forEach(d => ops.push({ col: c, tipo: 'put', doc: d }));
     }
@@ -7834,7 +8710,7 @@ const VistaRespaldos = {
         Comp.kpi({ l: 'Archivos adjuntos', icono: 'clip', v: String(adj.length), k: 'var(--violet-500)',
           m: adj.length ? Adjuntos.peso(peso) + ' en el depósito de la nube' : 'Ninguno todavía' }) + '</div>' +
       '<div class="grid g2 mb16"><div class="card"><div class="card-h"><h3>' + Icon('download', '', 15) + 'Crear respaldo</h3></div><div class="card-b">' +
-        '<p class="fs13 txt-2 mb12">Descarga un archivo <b>.json</b> con todo: órdenes, proveedores, equipos, plantillas, configuración (con el logo y las firmas) y el registro de actividad. ' +
+        '<p class="fs13 txt-2 mb12">Descarga un archivo <b>.json</b> con todo: órdenes, remisiones, proveedores, equipos, plantillas, configuración (con el logo y las firmas) y el registro de actividad. ' +
         'Guárdelo en una carpeta suya o en la nube de la empresa.</p>' +
         (adj.length ? '<label class="flex aic g6 fs13 mb12" style="cursor:pointer"><input type="checkbox" id="rsArch" checked>Con los archivos adjuntos (' +
           Txt.plural(adj.length, 'archivo') + ', ' + esc(Adjuntos.peso(peso)) + ')</label>' : '') +
@@ -7914,8 +8790,9 @@ const VistaRespaldos = {
 const VistaConfiguracion = {
   titulo() { return ['Configuración', Empresa.nombre() + ': membrete, consecutivo y formato de la orden']; },
   render(el) {
-    /* c: lo común (firmantes e IVA) y lo de SINUGRAVAS; ce: lo de la empresa activa
-       (membrete, logo, consecutivo, textos y firma). En SINUGRAVAS son la misma fila */
+    /* c: lo común (las firmas de los usuarios y el IVA) y lo de SINUGRAVAS; ce: lo de
+       la empresa activa (membrete, logo, consecutivo, textos y segunda firma). En
+       SINUGRAVAS son la misma fila */
     const emp = Empresa.activa, comun = emp === 'SINUGRAVAS';
     const c = U.clonar(Datos.cfg), ce = comun ? c : U.clonar(Empresa.cfg(emp));
     this.c = c; this.ce = ce; this.emp = emp; this.el = el;
@@ -7926,7 +8803,7 @@ const VistaConfiguracion = {
       (extra && extra.ph ? ' placeholder="' + attr(extra.ph) + '"' : '') + '>') + (extra && extra.hint ? '<div class="hint">' + extra.hint + '</div>' : '') + '</div>';
     const maxUsado = Consecutivo.maximo();
     el.innerHTML = '<div class="page-head"><div><h1>Configuración · ' + esc(Empresa.nombre()) + '</h1><div class="ph-sub">' +
-      (Empresa.lista().length > 1 ? 'El membrete, el logo, el consecutivo, los textos y la segunda firma son de esta empresa. Los firmantes y el IVA son de las dos' : 'Estos datos alimentan el formato impreso y toda la plataforma') + '</div></div>' +
+      (Empresa.lista().length > 1 ? 'El membrete, el logo, el consecutivo, los textos y la segunda firma son de esta empresa. Las firmas de los usuarios y el IVA son de las dos' : 'Estos datos alimentan el formato impreso y toda la plataforma') + '</div></div>' +
       '<div class="ph-actions"><button class="btn" id="cfPrev">' + Icon('eye', '', 14) + 'Ver el formato</button>' + si('configurar', '<button class="btn btn-primary" id="cfGuardar">' + Icon('save', '', 14) + 'Guardar configuración</button>') + '</div></div>' +
       (Permiso.puede('configurar') ? '' : '<div class="alert a-info mb12">' + Icon('lock') + '<div><b>Solo consulta.</b> Puede ver la configuración, pero no cambiarla.</div></div>') +
       '<div id="cfErr"></div><div class="grid g-form"><div class="col">' +
@@ -7944,9 +8821,10 @@ const VistaConfiguracion = {
         ', nunca uno menor que el de aquí: súbalo sólo si necesita saltar a otro número. Si se borra la última orden, su número vuelve a quedar libre.' +
         '<div class="alert a-info mt12" style="padding:8px 11px">' + Icon('cloud', '', 14) + '<div>Varias personas pueden hacer órdenes al mismo tiempo: ' +
         'la base de datos nunca deja repetir un número. Si dos se guardan a la vez, la segunda toma el siguiente.</div></div></div></div></div>' +
-      '<div class="card"><div class="card-h"><h3>Firmantes</h3><span class="ch-sub">quien solicita la orden y firma' + (Empresa.lista().length > 1 ? ' · en las dos empresas' : '') + '</span><div class="ch-act"><button class="btn btn-sm" id="cfAddSol">' + Icon('plus', '', 12) + 'Agregar</button></div></div>' +
-        '<div class="tbl-wrap"><table class="tbl compacta"><thead><tr><th>Nombre</th><th>Cargo</th><th>Teléfono</th><th>Firma</th><th class="tc">Por defecto</th><th class="tc">Activo</th><th></th></tr></thead><tbody id="cfSol"></tbody></table></div>' +
-        '<div class="card-f">La firma se imprime sobre la línea. Use una imagen con fondo blanco o transparente (una foto recortada sirve).</div></div>' +
+      '<div class="card"><div class="card-h"><h3>Firmas de los usuarios</h3><span class="ch-sub">cada quien firma lo que hace' + (Empresa.lista().length > 1 ? ' · en las dos empresas' : '') + '</span></div>' +
+        '<div id="cfFirmas"><div class="card-b fs12 txt-3 flex aic g8"><span class="spin"></span>Trayendo los usuarios del Panel de control…</div></div>' +
+        '<div class="card-f">Cada orden y cada remisión salen con la firma de la cuenta que las hace. Los usuarios se crean y reciben su acceso en el Panel de control. ' +
+        'La firma se imprime sobre la línea: use una imagen con fondo blanco o transparente (una foto recortada sirve).</div><input type="file" id="cfFirmaFile" accept="image/*" hidden></div>' +
       '<div class="card"><div class="card-h"><h3>Formato de la orden</h3><span class="ch-sub">los textos del Excel, ya corregidos</span></div><div class="card-b">' +
         campo('cfSalC', 'Saludo · orden de compra', d.saludoCompra) + campo('cfSalS', 'Saludo · orden de servicio', d.saludoServicio) + campo('cfSalQ', 'Saludo · solicitud de cotización', d.saludoCotizacion) +
         campo('cfIntro', 'Frase de la solicitud', d.intro, { area: 1 }) +
@@ -7980,7 +8858,7 @@ const VistaConfiguracion = {
         '<dt>Datos</dt><dd>' + Txt.plural(Datos.ordenes.length, 'orden', 'órdenes') + ' · ' + Datos.proveedores.length + ' proveedores</dd></dl>' +
         '<div class="fs11 txt-3 mt8">Diseño de la plataforma de caja menor con los colores de SINUGRAVAS. Atajos: Ctrl + K busca, Ctrl + G orden nueva.</div></div></div>' +
       '</div></div>';
-    this.pintarSol();
+    this.pintarFirmas();
     this.pintarLogo();
     const sig = () => { const n = parseInt($('#cfSig', el).value, 10), s = Math.max(n > 0 ? n : 1, Consecutivo.maximo() + 1);
       $('#cfSigPrev', el).textContent = 'N.º ' + Modelo.numero(s, Fecha.hoy()) + (n > 0 && s !== n ? '  (sigue a la última)' : ''); };
@@ -7991,7 +8869,6 @@ const VistaConfiguracion = {
     el.addEventListener('change', () => { Router.sucio = true; });
     if ($('#cfGuardar', el)) $('#cfGuardar', el).onclick = () => this.guardar();
     $('#cfPrev', el).onclick = () => this.vistaPrevia();
-    $('#cfAddSol', el).onclick = () => { this.leerSol(); c.solicitantes.push({ id: ID(), nombre: '', cargo: '', telefono: '', firma: '', activo: true, predeterminado: !c.solicitantes.some(s => s.predeterminado && s.activo) }); this.pintarSol(); Router.sucio = true; $$('#cfSol tr:last-child input', el)[0].focus(); };
     const tema = () => $$('#cfTema button', el).forEach(b => b.classList.toggle('on', b.dataset.t === (document.documentElement.getAttribute('data-theme') || 'light')));
     tema();
     $('#cfTema', el).onclick = ev => { const b = ev.target.closest('[data-t]'); if (b) { Shell.tema(b.dataset.t); tema(); } };
@@ -8037,53 +8914,71 @@ const VistaConfiguracion = {
     $('#cfTam', this.el).disabled = $('#cfTamAjustar', this.el).disabled = !l;
     $('#cfLogoQuitar', this.el).disabled = !this.ce.logo;
   },
-  pintarSol() {
-    const c = this.c, el = this.el;
-    $('#cfSol', el).innerHTML = c.solicitantes.map((s, i) => '<tr data-s="' + i + '"><td><input class="inp" data-f="nombre" value="' + attr(s.nombre) + '" placeholder="Nombre completo" style="min-width:200px"></td>' +
-      '<td><input class="inp" data-f="cargo" value="' + attr(s.cargo) + '" placeholder="Cargo" style="min-width:150px"></td><td><input class="inp" data-f="telefono" value="' + attr(s.telefono || '') + '" style="width:120px"></td>' +
-      '<td><div class="flex aic g6"><div class="firma-th">' + (s.firma ? '<img src="' + attr(s.firma) + '" alt="Firma">' : 'Sin firma') + '</div>' +
-        '<button class="btn btn-sm btn-icon" data-firma="' + i + '" data-tip="Cargar la firma" aria-label="Cargar firma">' + Icon('pen', '', 12) + '</button>' +
-        (s.firma ? '<button class="btn btn-sm btn-icon btn-danger-ghost" data-sinfirma="' + i + '" data-tip="Quitar la firma" aria-label="Quitar firma">' + Icon('x', '', 12) + '</button>' : '') + '</div></td>' +
-      '<td class="tc"><input type="radio" name="cfPred" data-pred="' + i + '"' + (s.predeterminado ? ' checked' : '') + ' aria-label="Por defecto"></td>' +
-      '<td class="tc"><input type="checkbox" data-act="' + i + '"' + (s.activo ? ' checked' : '') + ' aria-label="Activo"></td>' +
-      '<td><button class="btn btn-ghost btn-icon btn-sm" data-quitar-sol="' + i + '" data-tip="Quitar" aria-label="Quitar firmante">' + Icon('trash', '', 13) + '</button></td></tr>').join('');
-    const tb = $('#cfSol', el);
-    tb.onclick = async ev => {
+  /** Las firmas de los usuarios (Juan, 04/11/2026): una fila por cada cuenta
+      con acceso a Facturación, que da el Panel de control (SQL 213). Se
+      guardan con «Guardar configuración» */
+  async pintarFirmas() {
+    const el = this.el, cont = $('#cfFirmas', el);
+    if (!cont) return;
+    const lista = await Usuarios.traer();
+    if (!cont.isConnected || this.el !== el) return;
+    this.leerFirmas();
+    const firmas = this.c.firmas || (this.c.firmas = {}), yo = Permiso.yo();
+    const filas = (lista || []).map(u => Object.assign({}, u));
+    /* Sin la lista, por lo menos la propia; y las que ya tienen firma aunque ya no tengan acceso */
+    if (!lista && yo) filas.push({ id: yo, nombre: Permiso.quien(), correo: Nube.correo(), cargo: '', rol: Permiso.acceso && Permiso.acceso.es_admin ? 'admin_general' : (Permiso.acceso || {}).rol });
+    Object.keys(firmas).filter(id => !filas.some(u => u.id === id)).forEach(id => filas.push({ id, nombre: firmas[id].nombre || Autores.de(id) || 'Cuenta', correo: '', cargo: '', fuera: !!lista }));
+    /* Quien todavía no tiene la suya arranca con su nombre y su cargo del panel */
+    filas.forEach(u => { if (!firmas[u.id]) firmas[u.id] = { nombre: Txt.mayus(u.nombre || ''), cargo: Txt.mayus(u.cargo || ''), telefono: '', firma: '' }; });
+    this._usuarios = filas.sort((a, b) => !!a.fuera - !!b.fuera || String(a.nombre || '').localeCompare(String(b.nombre || ''), 'es'));
+    cont.innerHTML = (lista ? '' : '<div class="alert a-warn" style="margin:12px 14px 0">' + Icon('warn', '', 14) + '<div>' +
+        (Usuarios.falta() ? 'Para ver aquí a todos los usuarios, corra <b>213_facturacion_remisiones_y_firmas.sql</b> en Supabase (SQL Editor).'
+          : 'No se pudo traer la lista de usuarios del Panel de control' + (Usuarios.error ? ': ' + esc(Usuarios.error.message) : '') + '.') + '</div></div>') +
+      (filas.length ? '<div id="cfFirmasT"></div>' : '<div class="card-b fs12 txt-3">Todavía no hay usuarios con acceso a Facturación: se les da en el Panel de control.</div>');
+    this.pintarTablaFirmas();
+    const tb = $('#cfFirmasT', el);
+    if (tb) tb.onclick = ev => {
       const f = ev.target.closest('[data-firma]');
-      if (f) { this.leerSol(); this._firmaDe = +f.dataset.firma; $('#cfFirmaFile', el).click(); return; }
+      if (f) { this.leerFirmas(); this._firmaDe = f.dataset.firma; $('#cfFirmaFile', el).click(); return; }
       const sf = ev.target.closest('[data-sinfirma]');
-      if (sf) { this.leerSol(); c.solicitantes[+sf.dataset.sinfirma].firma = ''; this.pintarSol(); Router.sucio = true; return; }
-      const q = ev.target.closest('[data-quitar-sol]');
-      if (q) {
-        this.leerSol();
-        const i = +q.dataset.quitarSol;
-        const usado = Datos.ordenes.some(o => o.solicitante && o.solicitante.id === c.solicitantes[i].id);
-        if (usado) { Toast.warn('Ya firmó órdenes: mejor desmárquelo como activo para conservar su firma en ellas.'); return; }
-        c.solicitantes.splice(i, 1); this.pintarSol(); Router.sucio = true;
-      }
+      if (sf) { this.leerFirmas(); firmas[sf.dataset.sinfirma].firma = ''; this.pintarTablaFirmas(); Router.sucio = true; }
     };
-    if (!$('#cfFirmaFile', el)) $('#cfSol', el).closest('.card').insertAdjacentHTML('beforeend', '<input type="file" id="cfFirmaFile" accept="image/*" hidden>');
     $('#cfFirmaFile', el).onchange = async ev => {
       const file = ev.target.files[0]; if (!file) return;
+      ev.target.value = '';
       if (!/^image\//.test(file.type)) { Toast.err('Escoja una imagen.'); return; }
-      c.solicitantes[this._firmaDe].firma = await U.reducirImagen(await U.leerArchivo(file), 600, 'image/png');
-      this.pintarSol(); Router.sucio = true;
+      firmas[this._firmaDe] = Object.assign({}, firmas[this._firmaDe], { firma: await U.reducirImagen(await U.leerArchivo(file), 600, 'image/png') });
+      this.pintarTablaFirmas(); Router.sucio = true;
+      Toast.info('Firma cargada. Recuerde «Guardar configuración».');
     };
   },
-  leerSol() {
+  pintarTablaFirmas() {
+    const tb = $('#cfFirmasT', this.el), firmas = this.c.firmas || {};
+    if (!tb) return;
+    /* Una ficha por usuario: así cabe en la columna, también en el celular */
+    tb.innerHTML = (this._usuarios || []).map((u, i) => {
+      const f = firmas[u.id] || {}, rol = u.fuera ? 'Ya no tiene acceso' : Usuarios.rol(u), k = 'cfF' + i;
+      return '<div class="cf-fir" data-u="' + attr(u.id) + '"><div class="cf-u"><b>' + esc(u.nombre || u.correo || 'Cuenta') + '</b><small>' + esc([rol, u.correo].filter(Boolean).join(' · ')) + '</small></div>' +
+        '<div class="cf-fir-b"><div class="field"><label for="' + k + 'n">Nombre en la firma</label><input class="inp" id="' + k + 'n" data-f="nombre" value="' + attr(f.nombre || '') + '" placeholder="Nombre completo"></div>' +
+          '<div class="field"><label for="' + k + 'c">Cargo</label><input class="inp" id="' + k + 'c" data-f="cargo" value="' + attr(f.cargo || '') + '" placeholder="Cargo"></div>' +
+          '<div class="field"><label for="' + k + 't">Teléfono</label><input class="inp" id="' + k + 't" data-f="telefono" value="' + attr(f.telefono || '') + '"></div>' +
+          '<div class="field"><label>Firma</label><div class="flex aic g6"><div class="firma-th">' + (f.firma ? '<img src="' + attr(f.firma) + '" alt="Firma">' : 'Sin firma') + '</div>' +
+            '<button class="btn btn-sm btn-icon" data-firma="' + attr(u.id) + '" data-tip="Cargar la firma" aria-label="Cargar la firma">' + Icon('pen', '', 12) + '</button>' +
+            (f.firma ? '<button class="btn btn-sm btn-icon btn-danger-ghost" data-sinfirma="' + attr(u.id) + '" data-tip="Quitar la firma" aria-label="Quitar la firma">' + Icon('x', '', 12) + '</button>' : '') +
+          '</div></div></div></div>';
+    }).join('');
+  },
+  leerFirmas() {
     const c = this.c;
-    $$('#cfSol tr[data-s]', this.el).forEach(tr => {
-      const s = c.solicitantes[+tr.dataset.s];
-      s.nombre = Txt.mayus($('[data-f="nombre"]', tr).value.trim());
-      s.cargo = Txt.mayus($('[data-f="cargo"]', tr).value.trim());
-      s.telefono = $('[data-f="telefono"]', tr).value.trim();
-      s.activo = $('[data-act]', tr).checked;
-      s.predeterminado = $('[data-pred]', tr).checked;
+    if (!c.firmas) c.firmas = {};
+    $$('#cfFirmasT [data-u]', this.el).forEach(fila => {
+      c.firmas[fila.dataset.u] = Object.assign({}, c.firmas[fila.dataset.u], { nombre: Txt.mayus($('[data-f="nombre"]', fila).value.trim()),
+        cargo: Txt.mayus($('[data-f="cargo"]', fila).value.trim()), telefono: $('[data-f="telefono"]', fila).value.trim() });
     });
   },
   leer() {
     const c = this.c, ce = this.ce, el = this.el, v = id => $('#' + id, el).value.trim();
-    this.leerSol();
+    this.leerFirmas();
     ce.empresa = Object.assign({}, ce.empresa, { nombre: Txt.mayus(v('cfNom')), tipoDoc: $('#cfTipoDoc', el).value, nit: v('cfNit'), direccion: v('cfDir'), ciudad: v('cfCiu'),
       telefono: v('cfTel'), correo: v('cfCor').toLowerCase() });
     ce.consecutivo = { siguiente: parseInt(v('cfSig'), 10) };
@@ -8098,9 +8993,7 @@ const VistaConfiguracion = {
     if (!ce.empresa.nombre) e.push('Escriba la razón social de la empresa.');
     if (!(ce.consecutivo.siguiente >= 1)) e.push('El siguiente número debe ser un entero mayor que cero.');
     if (!(ce.documento.filasMinimas >= 0 && ce.documento.filasMinimas <= 30)) e.push('Los renglones mínimos deben estar entre 0 y 30.');
-    const act = c.solicitantes.filter(s => s.activo);
-    if (c.solicitantes.some(s => !s.nombre)) e.push('Todos los firmantes necesitan nombre.');
-    if (!act.length) e.push('Deje al menos un firmante activo.');
+    if (Object.keys(c.firmas || {}).some(id => c.firmas[id].firma && !c.firmas[id].nombre)) e.push('Cada firma necesita el nombre de quien firma.');
     if (ce.empresa.correo && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(ce.empresa.correo)) e.push('Revise el correo de la empresa.');
     return e;
   },
@@ -8110,9 +9003,6 @@ const VistaConfiguracion = {
     const box = $('#cfErr', this.el);
     if (errores.length) { box.innerHTML = '<div class="alert a-err mb12">' + Icon('warn') + '<div><ul style="margin:0;padding-left:18px">' + errores.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul></div></div>'; window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
     box.innerHTML = '';
-    const act = c.solicitantes.filter(s => s.activo);
-    c.solicitantes.forEach(s => { if (!s.activo) s.predeterminado = false; });
-    if (!act.some(s => s.predeterminado)) act[0].predeterminado = true;
     /* Los catálogos se cambian en Catálogos: van como están ahora, aunque esta pantalla se abriera antes */
     if (Datos.cfg.catalogos) c.catalogos = U.clonar(Datos.cfg.catalogos); else delete c.catalogos;
     try {
@@ -8202,7 +9092,7 @@ const Documento = {
   html(o, opts) {
     opts = opts || {};
     /* El membrete, el logo, los textos y la firma son de la empresa de la orden; los solicitantes, comunes */
-    const cfg = Datos.cfg, ce = Empresa.cfg(Empresa.de(o)), d = ce.documento, emp = o.membrete ? Object.assign({}, ce.empresa, o.membrete) : ce.empresa, logo = Config.logo(Empresa.de(o));
+    const ce = Empresa.cfg(Empresa.de(o)), d = ce.documento, emp = o.membrete ? Object.assign({}, ce.empresa, o.membrete) : ce.empresa, logo = Config.logo(Empresa.de(o));
     const f = o.proveedor || Modelo.fotoProveedor(Datos.prov(o.proveedorId)) || { nombre: '' };
     const t = Modelo.totales(o);
     const items = (o.items || []).filter(Modelo.itemValido);
@@ -8210,9 +9100,9 @@ const Documento = {
     const eq = Datos.equipo(o.equipoId);
     const num = Modelo.codigo(o, o.numero || Consecutivo.vistaPrevia(o.fecha));
     const saludo = { COMPRA: d.saludoCompra, PEDIDO: d.saludoCompra, SERVICIO: d.saludoServicio, COTIZACION: d.saludoCotizacion }[o.tipo] || '';
-    const sol = o.solicitante;
-    const solCfg = sol && cfg.solicitantes.find(s => s.id === sol.id);
-    const firma = solCfg && solCfg.firma;
+    /* La firma de quien la hizo, como está hoy en Configuración (o la del firmante de antes) */
+    const sol = Firmas.impresa(o.solicitante);
+    const firma = sol && sol.firma;
     const val = t.valorizada;
     const m = n => val ? Money.fmt(n) : '';
     const x = (txt, on) => '<span class="dp-x"><i>' + (on ? '✕' : '') + '</i>' + esc(txt) + '</span>';
@@ -8306,12 +9196,14 @@ const Documento = {
     }
     return (this._css = reglas.join('\n'));
   },
-  /* La hoja como imagen PNG, al doble de resolución para que se lea bien en el
-     celular. Se dibuja con el mismo formato de la impresión, sin librerías:
-     la hoja va dentro de un SVG y el SVG se pinta en un lienzo. */
-  async imagen(o) {
+  async imagen(o) { return this.imagenDe(this.html(o)); },
+  /* Una hoja (la orden o la remisión) como imagen PNG, al doble de resolución
+     para que se lea bien en el celular. Se dibuja con el mismo formato de la
+     impresión, sin librerías: la hoja va dentro de un SVG y el SVG se pinta en
+     un lienzo. */
+  async imagenDe(html) {
     const caja = document.createElement('div');
-    caja.innerHTML = '<style>' + this.css() + '</style>' + this.html(o);
+    caja.innerHTML = '<style>' + this.css() + '</style>' + html;
     caja.style.cssText = 'position:fixed;left:-20000px;top:0';
     document.body.appendChild(caja);
     const pag = $('.doc-page', caja);
@@ -8331,32 +9223,88 @@ const Documento = {
   },
   /** Un clic y queda copiada: se pega con Ctrl + V en WhatsApp o en el correo.
       Si el navegador no deja copiar, se descarga la imagen. */
-  async copiarImagen(o) {
-    const imagen = this.imagen(o);
+  copiarImagen(o) { return this.copiar(this.imagen(o), 'Orden', Modelo.codigo(o), 'Orden ' + Modelo.codigo(o) + ' ' + Modelo.nombreProveedor(o)); },
+  /** imagen: la promesa de la imagen, pedida en el mismo clic (si no, el
+      navegador no deja copiar); que: «Orden» o «Remisión»; archivo: el nombre
+      del PNG si hay que descargarla */
+  async copiar(imagen, que, codigo, archivo) {
     const escribir = valor => navigator.clipboard.write([new ClipboardItem({ 'image/png': valor })]);
     try {
       if (!navigator.clipboard || !window.ClipboardItem) throw new Error('sin portapapeles');
       try { await escribir(imagen); } catch (e) { await escribir(await imagen); }
-      Toast.ok('Orden <b class="mono">' + esc(Modelo.codigo(o)) + '</b> copiada como imagen. Péguela con <b>Ctrl + V</b> en WhatsApp o en el correo.');
+      Toast.ok(que + ' <b class="mono">' + esc(codigo) + '</b> copiada como imagen. Péguela con <b>Ctrl + V</b> en WhatsApp o en el correo.');
     } catch (e) {
       try {
-        U.descargar(await imagen, ('Orden ' + Modelo.codigo(o) + ' ' + Modelo.nombreProveedor(o)).replace(/[\\/:*?"<>|]/g, '').trim() + '.png');
-        Toast.info('El navegador no dejó copiarla: se descargó la imagen de la orden ' + esc(Modelo.codigo(o)) + '.');
+        U.descargar(await imagen, archivo.replace(/[\\/:*?"<>|]/g, '').trim() + '.png');
+        Toast.info('El navegador no dejó copiarla: se descargó la imagen de la ' + que.toLowerCase() + ' ' + esc(codigo) + '.');
       } catch (x) { Toast.err('No se pudo hacer la imagen: ' + esc(x.message)); }
     }
   },
   /** Imprime (o guarda en PDF desde el diálogo del navegador) */
-  imprimir(o) {
+  imprimir(o) { this.imprimirHtml(this.html(o), Modelo.codigo(o) + ' - ' + Modelo.nombreProveedor(o)); },
+  /** nombre: el que el navegador propone para el PDF */
+  imprimirHtml(html, nombre) {
     const raiz = $('#printRoot');
-    raiz.innerHTML = this.html(o);
+    raiz.innerHTML = html;
     const titulo = document.title;
-    /* El nombre que el navegador propone para el PDF */
-    document.title = Modelo.codigo(o) + ' - ' + Modelo.nombreProveedor(o).replace(/[\\/:*?"<>|]/g, '');
+    document.title = nombre.replace(/[\\/:*?"<>|]/g, '');
     const fin = () => { document.title = titulo; raiz.innerHTML = ''; removeEventListener('afterprint', fin); };
     addEventListener('afterprint', fin);
     const imgs = $$('img', raiz).filter(i => !i.complete);
     Promise.all(imgs.map(i => new Promise(r => { i.onload = i.onerror = r; }))).then(() => setTimeout(() => window.print(), 60));
   }
+};
+
+/* La remisión impresa (Juan, 04/11/2026): el encabezado de la empresa; a quién
+   se entrega y dónde, en grande; quién lo lleva; lo que va, agrupado por orden
+   (su número, su proveedor y para qué es) y sin precios; quién la entrega y
+   quién la recibe. Usa el formato de la orden (Documento) */
+const DocRemision = {
+  html(r, opts) {
+    opts = opts || {};
+    const ce = Empresa.cfg(Empresa.de(r)), emp = r.membrete ? Object.assign({}, ce.empresa, r.membrete) : ce.empresa, logo = Config.logo(Empresa.de(r));
+    const num = RemisionService.codigo(r, r.numero || ConsecutivoRem.vistaPrevia(r.fecha));
+    const items = (r.items || []).filter(Modelo.itemValido);
+    const grupos = RemisionService.grupos(Object.assign({}, r, { items }));
+    const nOrd = grupos.filter(g => g.orden).length;
+    const f = Firmas.impresa(r.firma);
+    let h = '<div class="dp-head"><div class="dp-logo">' + (logo ? '<img src="' + attr(logo) + '" alt="' + attr(emp.nombre) + '" style="max-height:' + (22 * Config.tamLogo(Empresa.de(r))).toFixed(1) + 'mm">' : '<b>' + esc(emp.nombre) + '</b>') + '</div>' +
+      '<div class="dp-hc"><h1>' + esc(REMISION.asunto) + '</h1><div class="dp-co">' + esc(emp.nombre) + '</div><div class="dp-meta">' +
+      esc([emp.nit ? (emp.tipoDoc || 'NIT') + ' ' + emp.nit : '', emp.direccion, emp.ciudad, emp.telefono ? 'Tel. ' + emp.telefono : '', emp.correo].filter(Boolean).join(' · ')) + '</div></div>' +
+      '<div class="dp-num"><div>N.º</div><b>' + esc(num) + '</b><div>Fecha</div><b class="dp-fecha">' + esc(Fecha.larga(r.fecha)) + '</b></div></div>';
+    h += '<div class="dp-rm-para"><div>' + Icon('user', '', 24) + '<div class="dp-rm-t"><small>Entregar a</small><b>' + esc(r.recibe || '') + '</b></div></div>' +
+      (r.lugar ? '<div>' + Icon('pin', '', 24) + '<div class="dp-rm-t"><small>Lugar de entrega</small><b>' + esc(r.lugar) + '</b></div></div>' : '') + '</div>';
+    h += '<div class="dp-rm-lleva"><span>' + (r.lleva ? '<label>Lo lleva</label>' + esc(r.lleva) : '') + '</span><b>' +
+      (nOrd ? Txt.plural(nOrd, 'orden', 'órdenes') + ' · ' : '') + Txt.plural(items.length, 'artículo') + '</b></div>';
+    h += '<table class="dp-tbl dp-rm-tbl"><thead><tr><th style="width:9mm">Ítem</th><th>Descripción</th><th style="width:17mm">Cantidad</th><th style="width:17mm">Unidad</th>' +
+      '<th style="width:52mm">Observación</th></tr></thead><tbody>';
+    let n = 0;
+    grupos.forEach(g => {
+      h += '<tr class="dp-rm-g"><td colspan="5"><div><span>' + (g.orden ? '<b class="dp-rm-cod">' + esc(g.orden.codigo) + '</b>' + (g.orden.proveedor ? ' · ' + esc(g.orden.proveedor) : '') : 'Sin orden · va aparte') + '</span>' +
+        (g.orden && g.orden.para ? '<span>Para: ' + esc(g.orden.para) + '</span>' : '') + '</div></td></tr>';
+      g.items.forEach(it => {
+        h += '<tr><td class="c">' + (++n) + '</td><td>' + esc(it.descripcion) + '</td><td class="c">' + esc(Modelo.cantidadTexto(it)) + '</td><td class="c">' + esc(it.unidad) + '</td>' +
+          '<td class="obs">' + esc(it.observacion || '') + '</td></tr>';
+      });
+    });
+    if (!grupos.length) h += '<tr class="vacia"><td></td><td></td><td></td><td></td><td></td></tr>';
+    h += '</tbody></table>';
+    if (r.nota) h += '<div class="dp-obs"><b>Observaciones</b>' + esc(r.nota).replace(/\n/g, '<br>') + '</div>';
+    h += '<div class="dp-sign"><div><div class="fm">' + (f && f.firma ? '<img src="' + attr(f.firma) + '" alt="Firma">' : '') + '</div><div class="ln"></div>' +
+      '<b>' + esc(f ? f.nombre : '') + '</b><small>' + esc(f ? f.cargo : '') + '</small><small>Entregó</small></div>' +
+      '<div><div class="fm"></div><div class="ln"></div><b>&nbsp;</b><small>Nombre, firma y fecha</small><small>Recibió</small></div></div>';
+    const tel = (f && f.telefono) || ce.documento.telefono;
+    h += '<div class="dp-rm-aviso">Al recibir, revise cada artículo y conteste «Recibido» por WhatsApp' + (tel ? ' al ' + esc(tel) : '') + '.</div>';
+    h += '<div class="dp-foot"><span>' + esc(emp.nombre) + ' · Remisión ' + esc(num) + '</span><span>' +
+      (opts.provisional ? 'Vista previa · número provisional' : 'Generada el ' + esc(Fecha.stamp(Fecha.ahora()))) + '</span></div>';
+    if (r.estado === 'ANULADA') h += '<div class="dp-anulada"><span>ANULADA</span></div>';
+    return '<div class="doc-page">' + h + '</div>';
+  },
+  copiarImagen(r) {
+    const c = RemisionService.codigo(r);
+    return Documento.copiar(Documento.imagenDe(this.html(r)), 'Remisión', c, 'Remisión ' + c + ' ' + r.recibe);
+  },
+  imprimir(r) { Documento.imprimirHtml(this.html(r), RemisionService.codigo(r) + ' - ' + r.recibe); }
 };
 
 /* ==========================================================================
@@ -8791,11 +9739,17 @@ const Pruebas = {
     if (!o.equipoId && Datos.equipos[0]) o.equipoId = Datos.equipos[0].id;
     return Object.assign(o, extra || {});
   },
+  /** Una remisión con lo de esas órdenes, para Carlos en la finca */
+  remision(ordenes, extra) {
+    const r = RemisionService.nueva();
+    (ordenes || []).forEach(o => RemisionService.agregarOrden(r, o));
+    return Object.assign(r, { recibe: 'CARLOS PÉREZ', lugar: 'Finca La Esperanza' }, extra || {});
+  },
   async correr() {
     /* Se guardan las de todas las empresas, no sólo las que se ven */
     const real = { db, cfg: Datos.cfg, cfgs: Datos.cfgs, proveedores: Datos.proveedores, equipos: Datos.crudo('equipos'), ordenes: Datos.crudo('ordenes'),
-      plantillas: Datos.crudo('plantillas'), acceso: Permiso.acceso, historico: HistoricoExcel.crudo(), autores: Autores.mapa,
-      empresa: Empresa.activa, disponible: Empresa.disponible, flota: Flota.unidades };
+      plantillas: Datos.crudo('plantillas'), remisiones: Datos.crudo('remisiones'), acceso: Permiso.acceso, historico: HistoricoExcel.crudo(), autores: Autores.mapa,
+      empresa: Empresa.activa, disponible: Empresa.disponible, flota: Flota.unidades, conRemisiones: RemisionService.disponible };
     /* Las pruebas no ven los nombres de la nube, y empiezan en SINUGRAVAS con las dos empresas */
     Autores.mapa = new Map();
     Empresa.disponible = true;
@@ -8820,7 +9774,8 @@ const Pruebas = {
       }
     } finally {
       db = real.db;
-      Object.assign(Datos, { cfg: real.cfg, cfgs: real.cfgs, proveedores: real.proveedores, equipos: real.equipos, ordenes: real.ordenes, plantillas: real.plantillas });
+      Object.assign(Datos, { cfg: real.cfg, cfgs: real.cfgs, proveedores: real.proveedores, equipos: real.equipos, ordenes: real.ordenes, plantillas: real.plantillas, remisiones: real.remisiones });
+      RemisionService.disponible = real.conRemisiones;
       Empresa.disponible = real.disponible;
       Empresa.poner(real.empresa);
       Permiso.acceso = real.acceso;
@@ -9187,10 +10142,10 @@ Pruebas.def('Los roles del Panel: cada uno ve su menú y hace sólo lo suyo', as
   const ve = r => !Router.accion(r) || Permiso.puede(Router.accion(r));
   try {
     Permiso.acceso = { rol: 'admin', acciones: ['ver', 'editar', 'eliminar', 'configurar', 'pagar'], activo: true };
-    Pruebas.igual(Shell.menu().filter(n => n.id).length, 11, 'el administrador ve todo el menú');
+    Pruebas.igual(Shell.menu().filter(n => n.id).length, 12, 'el administrador ve todo el menú');
     Permiso.acceso = { rol: 'editor', acciones: ['ver', 'editar', 'pagar'], activo: true };
-    Pruebas.igual(menu(), 'Operación dashboard Órdenes de compra ordenes orden-nueva plantillas Análisis estadisticas Maestros proveedores equipos');
-    Pruebas.igual(['/plantillas', '/orden-nueva', '/respaldos', '/configuracion', '/pruebas', '/catalogos'].map(ve), [true, true, false, false, false, false]);
+    Pruebas.igual(menu(), 'Operación dashboard Órdenes de compra ordenes orden-nueva remisiones plantillas Análisis estadisticas Maestros proveedores equipos');
+    Pruebas.igual(['/plantillas', '/orden-nueva', '/remision-nueva', '/respaldos', '/configuracion', '/pruebas', '/catalogos'].map(ve), [true, true, true, false, false, false, false]);
     Pruebas.igual(Permiso.rolTexto(), 'Editor');
     await Pruebas.falla(() => OrdenService.eliminar(o), ErrorDominio, 'el Editor no elimina órdenes de otros');
     await EquipoService.eliminar(suelto);
@@ -9198,9 +10153,9 @@ Pruebas.def('Los roles del Panel: cada uno ve su menú y hace sólo lo suyo', as
     await ProveedorService.fusionar(p2, p1);
     Pruebas.igual([Datos.equipo(suelto.id), Datos.plantilla(pl.id), Datos.prov(p2.id).fusionadoCon], [null, null, p1.id], 'el Editor elimina equipos y plantillas y fusiona proveedores');
     Permiso.acceso = { rol: 'consulta', acciones: ['ver'], activo: true };
-    Pruebas.igual(menu(), 'Operación dashboard Órdenes de compra ordenes Análisis estadisticas Maestros proveedores equipos');
-    Pruebas.igual(['/', '/ordenes', '/orden/x', '/estadisticas', '/proveedores', '/proveedor/x', '/equipos'].every(ve), true, 'Consulta entra a lo suyo');
-    Pruebas.igual(['/orden-nueva', '/orden-editar/x', '/plantillas', '/respaldos', '/configuracion', '/pruebas', '/catalogos'].some(ve), false, 'Consulta no entra a lo demás');
+    Pruebas.igual(menu(), 'Operación dashboard Órdenes de compra ordenes remisiones Análisis estadisticas Maestros proveedores equipos');
+    Pruebas.igual(['/', '/ordenes', '/orden/x', '/remisiones', '/remision/x', '/estadisticas', '/proveedores', '/proveedor/x', '/equipos'].every(ve), true, 'Consulta entra a lo suyo');
+    Pruebas.igual(['/orden-nueva', '/orden-editar/x', '/remision-nueva', '/remision-editar/x', '/plantillas', '/respaldos', '/configuracion', '/pruebas', '/catalogos'].some(ve), false, 'Consulta no entra a lo demás');
     const div = document.createElement('div'); VistaSinPermiso.render(div);
     Pruebas.cierto(div.textContent.includes('no es de su rol') && div.textContent.includes('Visualizador'), 'debía decir que la sección no es de su rol');
     await Pruebas.falla(() => EquipoService.eliminar(e1), ErrorDominio, 'el Visualizador no elimina equipos');
@@ -9881,6 +10836,153 @@ Pruebas.def('Duplicar una orden del Excel no copia los precios de entonces', asy
   const g = await OrdenService.guardar(Object.assign(n, { equipoId: n.equipoId || e1.id }));
   Pruebas.igual([g.secuencia, /del Excel/.test(g.historial[0].nota)], [Consecutivo.siguiente() - 1, true]);
 });
+/* ---------- Remisiones y firmas por usuario (Juan, 04/11/2026) ---------- */
+Pruebas.def('Remisión: junta lo de varias órdenes, agrupado y sin precios', async ({ p1, p2 }) => {
+  const a = await OrdenService.guardar(Pruebas.orden(p1));
+  const b = await OrdenService.guardar(Pruebas.orden(p2, { tipo: 'SERVICIO', items: [
+    Object.assign(Modelo.itemVacio(), { descripcion: 'Cilindro hidráulico reparado', cantidad: 1, unidad: 'UND', valorUnitario: 900000 }),
+    Object.assign(Modelo.itemVacio(), { descripcion: 'Pintura', cantidad: 0.25, fraccion: '1/4', unidad: 'GLN', valorUnitario: 80000 })] }));
+  const r = Pruebas.remision([a, b]);
+  Pruebas.igual(RemisionService.agregarOrden(r, a), 0, 'una orden que ya está no se repite');
+  r.items.push({ id: ID(), descripcion: 'Caja de herramientas', cantidad: 1, unidad: 'UND', observacion: 'Va prestada' });
+  const g = await RemisionService.guardar(r);
+  Pruebas.igual([RemisionService.codigo(g), g.items.length, g.ordenes.map(x => x.codigo), g.estado],
+    ['RM-001-' + Fecha.hoy().slice(2, 4), 4, [Modelo.codigo(a), Modelo.codigo(b)], 'ENVIADA']);
+  Pruebas.cierto(g.items.every(it => !('valorUnitario' in it)), 'la remisión no lleva precios');
+  Pruebas.igual(RemisionService.grupos(g).map(x => x.orden ? x.orden.codigo : 'aparte'), [Modelo.codigo(a), Modelo.codigo(b), 'aparte'], 'lo de cada orden junto, y lo de aparte al final');
+  const h = DocRemision.html(g);
+  Pruebas.cierto(h.includes('REMISIÓN') && h.includes('CARLOS PÉREZ') && h.includes(Modelo.codigo(b)) && h.includes('Para: ' + esc(Modelo.nombreEquipo(b))) && h.includes('Sin orden') && h.includes('1/4'),
+    'la hoja dice a quién, de qué orden, para qué es, y la fracción como se escribió');
+  Pruebas.cierto(!h.includes('$') && !h.includes('900.000'), 'la hoja no lleva precios');
+  Pruebas.igual(RemisionService.deOrden(a.id).map(x => x.id), [g.id], 'la orden sabe en qué remisión va');
+  Pruebas.cierto(VistaOrden.remisiones(Datos.orden(a.id)).includes(RemisionService.codigo(g)), 'y lo dice en la orden');
+  return RemisionService.codigo(g) + ' · 4 artículos de 2 órdenes';
+});
+Pruebas.def('Remisión: cada empresa numera las suyas, aparte de las órdenes', async ({ p1 }) => {
+  const a = await OrdenService.guardar(Pruebas.orden(p1));
+  const r1 = await RemisionService.guardar(Pruebas.remision([a]));
+  const r2 = await RemisionService.guardar(Pruebas.remision([], { items: [{ id: ID(), descripcion: 'Manguera de 1/2', cantidad: 20, unidad: 'MT' }] }));
+  Pruebas.igual([r1.numero.slice(0, 3), r2.numero.slice(0, 3), a.numero.slice(0, 3)], ['001', '002', '290'], 'las remisiones no gastan números de las órdenes');
+  Empresa.poner('JDPR');
+  try {
+    Pruebas.igual([Datos.remisiones.length, ConsecutivoRem.vistaPrevia('2026-11-04')], [0, '001-26'], 'JDPR empieza en la 001');
+    const j = await RemisionService.guardar(Pruebas.remision([], { items: [{ id: ID(), descripcion: 'Sal mineralizada', cantidad: 10, unidad: 'BULTO' }] }));
+    Pruebas.igual([j.empresa, j.numero.slice(0, 3)], ['JDPR', '001']);
+    Pruebas.cierto(DocRemision.html(j).includes(Empresa.nombre('JDPR')), 'con el membrete de JDPR');
+    const e = await Pruebas.falla(() => RemisionService.guardar(Pruebas.remision([Datos.orden(a.id)])), ErrorValidacion);
+    Pruebas.cierto(/es de/.test(e.errores.items), 'una orden de SINUGRAVAS no va en una remisión de JDPR');
+  } finally { Empresa.poner('SINUGRAVAS'); }
+  await RemisionService.eliminar(r2);
+  Pruebas.igual(ConsecutivoRem.vistaPrevia('2026-11-04'), '002-26', 'al borrar la última, su número vuelve a quedar libre');
+  return 'RM-001 y RM-002 en SINUGRAVAS · RM-001 en JDPR';
+});
+Pruebas.def('Remisión: pide a quién se entrega y al menos un renglón con cantidad', async () => {
+  const e = await Pruebas.falla(() => RemisionService.guardar(Object.assign(RemisionService.nueva(), { recibe: '  ' })), ErrorValidacion);
+  Pruebas.cierto(!!(e.errores.recibe && e.errores.items), 'debía pedir a quién y qué va');
+  const e2 = await Pruebas.falla(() => RemisionService.guardar(Pruebas.remision([], { items: [{ id: 'x1', descripcion: 'Filtro', cantidad: 0, unidad: 'UND' }] })), ErrorValidacion);
+  Pruebas.cierto(!!e2.errores['cant-x1'], 'la cantidad debía ser mayor que cero');
+  Pruebas.igual(Datos.remisiones.length, 0, 'no se guardó nada');
+});
+Pruebas.def('Remisión: recibida, deshacer, anular y reactivar', async ({ p1 }) => {
+  const a = await OrdenService.guardar(Pruebas.orden(p1));
+  let r = await RemisionService.guardar(Pruebas.remision([a]));
+  r = await RemisionService.marcarRecibida(r, { fecha: '2026-11-05', nota: 'Contestó Carlos' });
+  Pruebas.igual([r.estado, r.recibido.fecha, r.recibido.nota], ['RECIBIDA', '2026-11-05', 'Contestó Carlos']);
+  r = await RemisionService.guardar(Object.assign(U.clonar(r), { lleva: 'PEDRO' }));
+  Pruebas.igual([r.estado, r.lleva, r.recibido.fecha], ['RECIBIDA', 'PEDRO', '2026-11-05'], 'editarla no le quita el recibido');
+  r = await RemisionService.cambiarEstado(r, 'ENVIADA', { nota: 'Cambiado a mano' });
+  Pruebas.igual([r.estado, r.recibido], ['ENVIADA', null], 'deshacer quita la fecha');
+  r = await RemisionService.cambiarEstado(r, 'ANULADA', { motivo: 'Se hizo otra' });
+  Pruebas.cierto(r.estado === 'ANULADA' && DocRemision.html(r).includes('dp-anulada'), 'anulada, con su sello');
+  Pruebas.igual(RemisionService.porOrden().has(a.id), false, 'una anulada no cuenta como mandada');
+  r = await RemisionService.cambiarEstado(r, r.anulacion.estadoPrevio, { nota: 'Reactivada' });
+  Pruebas.igual([r.estado, r.anulacion, r.historial.map(x => x.estado)], ['ENVIADA', null, ['ENVIADA', 'RECIBIDA', 'RECIBIDA', 'ENVIADA', 'ANULADA', 'ENVIADA']]);
+  await Pruebas.falla(() => RemisionService.marcarRecibida(r, { fecha: '2026-13-40' }), ErrorValidacion, 'la fecha debía ser válida');
+});
+Pruebas.def('Remisión: cada Editor cambia sólo las suyas; el administrador, todas', async ({ p1 }) => {
+  const antes = Permiso.acceso;
+  const editor = (id, nombre) => ({ id, nombre, rol: 'editor', acciones: ['ver', 'editar', 'pagar'], activo: true });
+  try {
+    Permiso.acceso = editor('u1', 'DELSY ROJAS');
+    const a = await OrdenService.guardar(Pruebas.orden(p1));
+    const r = await RemisionService.guardar(Pruebas.remision([a]));
+    Pruebas.igual([r.creadoPor, r.firma.cuenta, Modelo.autor(r)], ['u1', 'u1', 'DELSY ROJAS'], 'es de quien la hizo, y la entrega con su firma');
+    Permiso.acceso = editor('u2', 'OTRO EDITOR');
+    await Pruebas.falla(() => RemisionService.guardar(Object.assign(U.clonar(r), { lleva: 'X' })), ErrorDominio, 'otro editor no la cambia');
+    await Pruebas.falla(() => RemisionService.marcarRecibida(r, { fecha: Fecha.hoy() }), ErrorDominio, 'ni la marca recibida');
+    await Pruebas.falla(() => RemisionService.eliminar(r), ErrorDominio, 'ni la borra');
+    Pruebas.igual(AccionesRemision.opciones(Datos.remision(r.id)).length, 0, 'ni le salen las acciones');
+    Permiso.acceso = { id: 'u3', nombre: 'VISUALIZADOR', rol: 'consulta', acciones: ['ver'], activo: true };
+    await Pruebas.falla(() => RemisionService.guardar(Pruebas.remision([], { items: [{ id: ID(), descripcion: 'X', cantidad: 1 }] })), ErrorDominio, 'el Visualizador no hace remisiones');
+    Permiso.acceso = { id: 'u9', nombre: 'ADMIN', rol: 'admin', acciones: ['ver', 'editar', 'eliminar', 'configurar', 'pagar'], activo: true };
+    const b = await RemisionService.guardar(Object.assign(U.clonar(Datos.remision(r.id)), { lleva: 'PEDRO' }));
+    Pruebas.igual([b.lleva, b.creadoPor, b.firma.cuenta], ['PEDRO', 'u1', 'u1'], 'el administrador la cambia, y sigue siendo de quien la hizo');
+  } finally { Permiso.acceso = antes; }
+});
+Pruebas.def('Remisión: si dos se guardan a la vez, la segunda toma el número siguiente', async () => {
+  const r1 = await RemisionService.guardar(Pruebas.remision([], { items: [{ id: ID(), descripcion: 'A', cantidad: 1, unidad: 'UND' }] }));
+  /* Otra pestaña guardó la 002 y ésta todavía no se ha enterado */
+  await db.lote([{ col: 'remisiones', tipo: 'put', doc: Object.assign(U.clonar(r1), { id: ID(), secuencia: 2, numero: '002-' + r1.numero.slice(-2), recibe: 'OTRA' }) }]);
+  Pruebas.igual(ConsecutivoRem.vistaPrevia(r1.fecha).slice(0, 3), '002', 'esta pestaña todavía cree que sigue la 002');
+  const r3 = await RemisionService.guardar(Pruebas.remision([], { items: [{ id: ID(), descripcion: 'B', cantidad: 1, unidad: 'UND' }] }));
+  Pruebas.igual(r3.numero.slice(0, 3), '003', 'debía tomar la siguiente libre');
+  return RemisionService.codigo(r3);
+});
+Pruebas.def('La hoja de la remisión trae los artículos de la orden y deja quitar lo que no va', async ({ p1 }) => {
+  const a = await OrdenService.guardar(Pruebas.orden(p1, { items: ['Filtro de aceite', 'Filtro de aire', 'Correa'].map(d => Object.assign(Modelo.itemVacio(), { descripcion: d, cantidad: 2, unidad: 'UND' })) }));
+  const div = document.createElement('div');
+  try {
+    VistaRemisionForm.render(div, {}, { orden: a.id });
+    Pruebas.igual([$$('#rfItems tr[data-fila]', div).length, $('#rfItems tr.rf-g', div).textContent.includes(Modelo.codigo(a)), $('#rfNum', div).textContent],
+      [3, true, RemisionService.codigo(null, ConsecutivoRem.vistaPrevia())], 'desde la orden, con sus tres artículos y el número que sigue');
+    $('#rfItems [data-quitar]', div).click();
+    const cant = $('#rfItems tr[data-fila] [data-k="cantidad"]', div);
+    cant.value = '1'; cant.dispatchEvent(new Event('input', { bubbles: true }));
+    $('#rfAdd', div).click();
+    const nueva = $$('#rfItems tr[data-fila] [data-k="descripcion"]', div).pop();
+    nueva.value = 'Caja de herramientas'; nueva.dispatchEvent(new Event('input', { bubbles: true }));
+    const recibe = $('#rfRecibe', div);
+    recibe.value = 'Carlos Pérez'; recibe.dispatchEvent(new Event('input', { bubbles: true }));
+    Pruebas.cierto(Router.sucio, 'la hoja quedó con cambios sin guardar');
+    const g = await RemisionService.guardar(VistaRemisionForm.r);
+    Pruebas.igual(g.items.map(it => it.descripcion + ' ' + it.cantidad), ['Filtro de aire 1', 'Correa 2', 'Caja de herramientas 1'], 'sin lo que se quitó, con la cantidad cambiada y lo de aparte');
+    Pruebas.igual([g.recibe, g.items.filter(it => it.ordenId === a.id).length], ['Carlos Pérez', 2]);
+  } finally { Router.sucio = false; Combo.limpiar(); }
+});
+Pruebas.def('Firmas: cada quien firma con la suya, y las órdenes de antes conservan la de su firmante', async ({ p1 }) => {
+  const antes = Permiso.acceso;
+  try {
+    /* Una orden de antes, con un firmante de la lista vieja */
+    await Datos.guardarCfg({ solicitantes: [{ id: 's1', nombre: 'FIRMANTE DE ANTES', cargo: 'COMPRAS', telefono: '', firma: 'data:image/png;base64,VIEJA', activo: true, predeterminado: true }] });
+    const vieja = await OrdenService.guardar(Pruebas.orden(p1, { solicitante: { id: 's1', nombre: 'FIRMANTE DE ANTES', cargo: 'COMPRAS', telefono: '' } }));
+    await Datos.guardarCfg({ firmas: { u1: { nombre: 'DELSY ROJAS DÍAZ', cargo: 'JEFE DE COMPRAS', telefono: '300 111 2233', firma: 'data:image/png;base64,DELSY' } } });
+    Permiso.acceso = { id: 'u1', nombre: 'Delsy Rojas', rol: 'editor', acciones: ['ver', 'editar', 'pagar'], activo: true };
+    const g = await OrdenService.guardar(Pruebas.orden(p1));
+    Pruebas.igual(g.solicitante, { cuenta: 'u1', nombre: 'DELSY ROJAS DÍAZ', cargo: 'JEFE DE COMPRAS', telefono: '300 111 2233' }, 'la orden nueva firma con la de quien la hace');
+    const h = Documento.html(g);
+    Pruebas.cierto(h.includes('base64,DELSY') && h.includes('JEFE DE COMPRAS') && h.includes('300 111 2233'), 'la impresa lleva su firma, su cargo y su teléfono');
+    Pruebas.cierto(Documento.html(Datos.orden(vieja.id)).includes('base64,VIEJA'), 'la de antes sigue con la firma de su firmante');
+    Permiso.acceso = { id: 'u2', nombre: 'Juan Posada', rol: 'admin', acciones: ['ver', 'editar', 'eliminar', 'configurar', 'pagar'], activo: true };
+    Pruebas.igual(OrdenService.nueva().solicitante, { cuenta: 'u2', nombre: 'JUAN POSADA', cargo: '', telefono: '' }, 'sin firma puesta, sale su nombre del panel');
+    const r = await RemisionService.guardar(Pruebas.remision([], { items: [{ id: ID(), descripcion: 'Filtro', cantidad: 1, unidad: 'UND' }] }));
+    Pruebas.igual(Firmas.impresa(r.firma).nombre, 'JUAN POSADA', 'la remisión la entrega quien la hace');
+    /* La firma que se pone después sale también en lo que ya hizo */
+    await Datos.guardarCfg({ firmas: Object.assign({}, Datos.cfg.firmas, { u2: { nombre: 'JUAN DAVID POSADA RESTREPO', cargo: 'GERENTE', telefono: '', firma: 'data:image/png;base64,JUAN' } }) });
+    const hr = DocRemision.html(Datos.remision(r.id));
+    Pruebas.cierto(hr.includes('base64,JUAN') && hr.includes('GERENTE') && hr.includes('JUAN DAVID POSADA RESTREPO'), 'la firma puesta después sale en lo que ya hizo');
+  } finally { Permiso.acceso = antes; }
+  return 'Delsy firma lo suyo; la orden de antes, con su firmante';
+});
+Pruebas.def('Respaldo: lleva las remisiones y las devuelve al restaurar', async ({ p1 }) => {
+  const a = await OrdenService.guardar(Pruebas.orden(p1));
+  const r = await RemisionService.guardar(Pruebas.remision([a]));
+  const obj = await Respaldo.armar({ archivos: false });
+  Pruebas.igual(obj.conteos.remisiones, 1);
+  await RemisionService.eliminar(r);
+  Pruebas.igual(Datos.remisiones.length, 0);
+  await Respaldo.restaurar(obj);
+  Pruebas.igual([Datos.remisiones.length, Datos.remision(r.id).numero, Datos.remision(r.id).items.length], [1, r.numero, r.items.length], 'volvió completa, con su número');
+});
 
 /* ==========================================================================
    §16  SESIÓN, REVISIÓN DE CAMBIOS Y ARRANQUE
@@ -10216,6 +11318,10 @@ function registrarRutas() {
   Router.def('/orden/:id', VistaOrden);
   Router.def('/orden-nueva', VistaOrdenForm, 'editar');
   Router.def('/orden-editar/:id', VistaOrdenForm, 'editar');
+  Router.def('/remisiones', VistaRemisiones);
+  Router.def('/remision/:id', VistaRemision);
+  Router.def('/remision-nueva', VistaRemisionForm, 'editar');
+  Router.def('/remision-editar/:id', VistaRemisionForm, 'editar');
   Router.def('/plantillas', VistaPlantillas, 'editar');
   Router.def('/proveedores', VistaProveedores);
   Router.def('/proveedor/:id', VistaProveedor);
