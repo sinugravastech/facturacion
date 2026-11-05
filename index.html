@@ -1063,6 +1063,8 @@ html[data-theme="dark"] .pr-ok{color:var(--ok-500)}
    Calcado del formato en Excel de la empresa: fecha, SEÑOR(ES), ASUNTO con su
    número, la tabla de 7 columnas, subtotal / retención / IVA / total, forma y
    medio de pago, a quién se entrega y quién la solicita.
+   Si cambia algo de este formato, súbale uno a HojaFlota.DISENO: así se
+   rehacen las hojas que ve Flota.
    ========================================================================== */
 #printRoot{display:none}
 .doc-page{width:215.9mm;min-height:279.4mm;padding:12mm 13mm;background:#fff;color:#000;margin:0 auto;
@@ -1924,7 +1926,7 @@ const APP = Object.freeze({
   nombre: 'Facturación',
   area: 'Órdenes de compra',
   empresa: 'SINUGRAVAS S.A.S.',
-  version: '2.15.0',
+  version: '2.16.0',
   /* 3: los datos viven en la nube y el número de cada orden sale de las órdenes */
   esquema: 3,
   /* La base del navegador de la versión local (1.x). Ya no se guarda en ella:
@@ -4018,6 +4020,8 @@ const Datos = {
     });
     cols.forEach(c => { if (c !== 'configuracion') this.indexar(c); Bus.emit(c + ':cambio'); });
     if (cols.size) { Bus.emit('datos:cambio'); Canal.avisar(); }
+    /* La hoja que ve Flota de cada orden que se guardó, por detrás */
+    HojaFlota.despues(ops);
   },
   /** Trae lo que otros guardaron. En la nube, sólo lo que cambió; en memoria, todo otra vez */
   async sincronizar() {
@@ -8855,7 +8859,8 @@ const VistaConfiguracion = {
         '<dt>Módulo</dt><dd>' + esc(APP.nombre) + ' · ' + esc(APP.area) + '</dd><dt>Versión</dt><dd>' + esc(APP.version) + ' · esquema ' + APP.esquema + '</dd>' +
         '<dt>Base</dt><dd>' + (db.nube ? 'La nube de SINUGRAVAS (Supabase) · esquema <span class="mono">' + esc(NUBE.esquema) + '</span>' : 'en memoria') + '</dd>' +
         (Permiso.acceso ? '<dt>Cuenta</dt><dd>' + esc(Nube.correo()) + ' · ' + esc(Permiso.rolTexto()) + '</dd>' : '') +
-        '<dt>Datos</dt><dd>' + Txt.plural(Datos.ordenes.length, 'orden', 'órdenes') + ' · ' + Datos.proveedores.length + ' proveedores</dd></dl>' +
+        '<dt>Datos</dt><dd>' + Txt.plural(Datos.ordenes.length, 'orden', 'órdenes') + ' · ' + Datos.proveedores.length + ' proveedores</dd>' +
+        (comun && HojaFlota.texto() ? '<dt>Flota</dt><dd>Las hojas de las órdenes: ' + esc(HojaFlota.texto()) + '</dd>' : '') + '</dl>' +
         '<div class="fs11 txt-3 mt8">Diseño de la plataforma de caja menor con los colores de SINUGRAVAS. Atajos: Ctrl + K busca, Ctrl + G orden nueva.</div></div></div>' +
       '</div></div>';
     this.pintarFirmas();
@@ -9091,6 +9096,8 @@ const Documento = {
   ALTO_UTIL: 272,
   html(o, opts) {
     opts = opts || {};
+    /* Para la huella de la hoja de Flota (HojaFlota): cada imagen va por una marca corta, y el pie sin la hora */
+    const img = u => opts.huella ? HojaFlota.marca(u) : u;
     /* El membrete, el logo, los textos y la firma son de la empresa de la orden; los solicitantes, comunes */
     const ce = Empresa.cfg(Empresa.de(o)), d = ce.documento, emp = o.membrete ? Object.assign({}, ce.empresa, o.membrete) : ce.empresa, logo = Config.logo(Empresa.de(o));
     const f = o.proveedor || Modelo.fotoProveedor(Datos.prov(o.proveedorId)) || { nombre: '' };
@@ -9108,7 +9115,7 @@ const Documento = {
     const x = (txt, on) => '<span class="dp-x"><i>' + (on ? '✕' : '') + '</i>' + esc(txt) + '</span>';
     const cred = o.formaPago === 'CREDITO';
     const cont = o.formaPago === 'CONTADO' || (!cred && !o.excel);
-    let h = '<div class="dp-head"><div class="dp-logo">' + (logo ? '<img src="' + attr(logo) + '" alt="' + attr(emp.nombre) + '" style="max-height:' + (22 * Config.tamLogo(Empresa.de(o))).toFixed(1) + 'mm">' : '<b>' + esc(emp.nombre) + '</b>') + '</div>' +
+    let h = '<div class="dp-head"><div class="dp-logo">' + (logo ? '<img src="' + attr(img(logo)) + '" alt="' + attr(emp.nombre) + '" style="max-height:' + (22 * Config.tamLogo(Empresa.de(o))).toFixed(1) + 'mm">' : '<b>' + esc(emp.nombre) + '</b>') + '</div>' +
       '<div class="dp-hc"><h1>' + esc(TIPOS[o.tipo].asunto) + '</h1><div class="dp-co">' + esc(emp.nombre) + '</div><div class="dp-meta">' +
       esc([emp.nit ? (emp.tipoDoc || 'NIT') + ' ' + emp.nit : '', emp.direccion, emp.ciudad, emp.telefono ? 'Tel. ' + emp.telefono : '', emp.correo].filter(Boolean).join(' · ')) + '</div></div>' +
       '<div class="dp-num"><div>N.º</div><b>' + esc(num) + '</b><div>Fecha</div><b class="dp-fecha">' + esc(o.excel && o.excel.sinDia ? Fecha.mesLargo(o.fecha.slice(0, 7)) : Fecha.larga(o.fecha)) + '</b></div></div>';
@@ -9154,14 +9161,14 @@ const Documento = {
       '<tr class="grand"><td>Total</td><td>' + m(t.total) + '</td></tr></table></div></div>';
     h += '<div class="dp-obs"><b>Observaciones</b>' + (o.notaProveedor ? esc(o.notaProveedor).replace(/\n/g, '<br>') + '<br>' : '') + esc(d.citar || '') + '</div>';
     h += '<div class="dp-cierre">' + esc(d.cierre || '') + '</div>';
-    h += '<div class="dp-sign"><div><div class="fm">' + (firma ? '<img src="' + attr(firma) + '" alt="Firma">' : '') + '</div><div class="ln"></div>' +
+    h += '<div class="dp-sign"><div><div class="fm">' + (firma ? '<img src="' + attr(img(firma)) + '" alt="Firma">' : '') + '</div><div class="ln"></div>' +
       '<b>' + esc(sol ? sol.nombre : '') + '</b><small>' + esc(sol ? sol.cargo : '') + '</small><small>Solicitante</small></div>' +
-      (!o.excel && ce.autoriza && ce.autoriza.nombre ? '<div><div class="fm">' + (ce.autoriza.firma ? '<img src="' + attr(ce.autoriza.firma) + '" alt="Firma">' : '') + '</div><div class="ln"></div><b>' +
+      (!o.excel && ce.autoriza && ce.autoriza.nombre ? '<div><div class="fm">' + (ce.autoriza.firma ? '<img src="' + attr(img(ce.autoriza.firma)) + '" alt="Firma">' : '') + '</div><div class="ln"></div><b>' +
         esc(ce.autoriza.nombre) + '</b><small>' + esc(ce.autoriza.cargo || '') + '</small><small>Autorizó</small></div>' : '') + '</div>';
     const tel = (sol && sol.telefono) || d.telefono;
     if (tel) h += '<div class="dp-tel">TEL N.º ' + esc(tel) + '</div>';
     h += '<div class="dp-foot"><span>' + esc(emp.nombre) + ' · ' + esc(TIPOS[o.tipo].t) + ' ' + esc(num) + '</span><span>' +
-      (o.excel ? 'Copia de la hoja «' + esc(o.excel.hoja) + '» del Excel de pedidos' : opts.provisional ? 'Vista previa · número provisional' : 'Generada el ' + esc(Fecha.stamp(Fecha.ahora()))) + '</span></div>';
+      (o.excel ? 'Copia de la hoja «' + esc(o.excel.hoja) + '» del Excel de pedidos' : opts.provisional ? 'Vista previa · número provisional' : opts.huella ? 'Generada' : 'Generada el ' + esc(Fecha.stamp(Fecha.ahora()))) + '</span></div>';
     if (o.estado === 'ANULADA') h += '<div class="dp-anulada"><span>ANULADA</span></div>';
     return '<div class="doc-page">' + h + '</div>';
   },
@@ -9197,11 +9204,12 @@ const Documento = {
     return (this._css = reglas.join('\n'));
   },
   async imagen(o) { return this.imagenDe(this.html(o)); },
-  /* Una hoja (la orden o la remisión) como imagen PNG, al doble de resolución
-     para que se lea bien en el celular. Se dibuja con el mismo formato de la
-     impresión, sin librerías: la hoja va dentro de un SVG y el SVG se pinta en
-     un lienzo. */
-  async imagenDe(html) {
+  /** Una hoja (la orden o la remisión) como imagen: PNG, salvo que se pida otro tipo */
+  async imagenDe(html, tipo, calidad) { return this.blob(await this.lienzo(html), tipo || 'image/png', calidad); },
+  /* La hoja dibujada en un lienzo, al doble de resolución para que se lea bien
+     en el celular. Se dibuja con el mismo formato de la impresión, sin
+     librerías: la hoja va dentro de un SVG y el SVG se pinta en el lienzo. */
+  async lienzo(html) {
     const caja = document.createElement('div');
     caja.innerHTML = '<style>' + this.css() + '</style>' + html;
     caja.style.cssText = 'position:fixed;left:-20000px;top:0';
@@ -9219,8 +9227,10 @@ const Documento = {
     const g = c.getContext('2d');
     g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
     g.drawImage(img, 0, 0, c.width, c.height);
-    return new Promise((res, rej) => c.toBlob(b => (b ? res(b) : rej(new Error('no se pudo crear la imagen'))), 'image/png'));
+    return c;
   },
+  /** El lienzo como archivo. Un navegador que no sabe hacer el tipo pedido entrega PNG */
+  blob(c, tipo, calidad) { return new Promise((res, rej) => c.toBlob(b => (b ? res(b) : rej(new Error('no se pudo crear la imagen'))), tipo, calidad)); },
   /** Un clic y queda copiada: se pega con Ctrl + V en WhatsApp o en el correo.
       Si el navegador no deja copiar, se descarga la imagen. */
   copiarImagen(o) { return this.copiar(this.imagen(o), 'Orden', Modelo.codigo(o), 'Orden ' + Modelo.codigo(o) + ' ' + Modelo.nombreProveedor(o)); },
@@ -9305,6 +9315,234 @@ const DocRemision = {
     return Documento.copiar(Documento.imagenDe(this.html(r)), 'Remisión', c, 'Remisión ' + c + ' ' + r.recibe);
   },
   imprimir(r) { Documento.imprimirHtml(this.html(r), RemisionService.codigo(r) + ' - ' + r.recibe); }
+};
+
+/* La hoja de cada orden para Flota (Juan, 04/11/2026, en el chat de Flota:
+   «que se vea exactamente la orden del PDF» al darle al ojito; 05/11/2026: que
+   se haga sola, sin botón). Es la imagen de «Copiar imagen», en WebP (o JPG si
+   el navegador no hace WebP), en orden/<orden>/hoja-<huella>.webp del depósito,
+   y Flota muestra la última que se subió (SQL 214). La huella sale de la hoja
+   misma: cambia si cambia algo de lo que sale impreso (la orden, las firmas,
+   el logo, los textos, el equipo con sus datos de Flota) y no con lo demás.
+   · Al guardar una orden, el navegador que la guardó sube su hoja, por detrás.
+   · El computador del administrador revisa al entrar y cada vez que algo
+     cambia, y rehace las que quedaron viejas. No el celular: gastaría sus datos.
+   Las de las órdenes que ya no van para Flota (anuladas, de otro equipo,
+   borradas) se borran. Sin el SQL 214 no hace nada. */
+const HojaFlota = {
+  DISENO: 1,
+  disponible: null,     // null: no se sabe todavía · false: falta el SQL 214
+  pausa: false,
+  resumen: null,        // la última revisión de todas: { van, alDia, cuando }
+  _pedidas: new Set(), _todasEn: 0, _t: null, _cuando: 0, _ocupado: false, _probado: 0,
+  _marcas: new Map(), _cache: new WeakMap(), _hechas: new Map(), _vista: false, _rota: false,
+  /** ¿La hoja de esta orden se ve en Flota? Las mismas órdenes del 210 */
+  aplica(o) {
+    const eq = o && Datos.equipo(o.equipoId);
+    return !!(o && !o.excel && eq && eq.flotaId && Empresa.de(o) === 'SINUGRAVAS' && o.estado !== 'ANULADA' && o.tipo !== 'COTIZACION');
+  },
+  /** Una imagen (el logo, una firma) por una marca corta, para la huella */
+  marca(u) {
+    if (!u) return '';
+    let m = this._marcas.get(u);
+    if (!m) {
+      if (this._marcas.size > 200) this._marcas.clear();
+      m = 'img:' + (U.hash(u) >>> 0).toString(36) + u.length.toString(36);
+      this._marcas.set(u, m);
+    }
+    return m;
+  },
+  /** La huella de la hoja: va en el nombre del archivo. Se guarda mientras no
+      cambie la orden, la configuración, el proveedor (si la orden no trae sus
+      datos) ni lo que se imprime del equipo */
+  huella(o) {
+    const eq = Datos.equipo(o.equipoId) || {};
+    const k = [Datos.cfg, o.proveedor ? null : Datos.prov(o.proveedorId), [eq.nombre, eq.tipo, eq.clase, eq.detalle, eq.placa].join('|')];
+    const c = this._cache.get(o);
+    if (c && c.k.every((x, i) => x === k[i])) return c.h;
+    const s = this.DISENO + '|' + Documento.html(o, { sinAjuste: true, huella: true });
+    const h = (U.hash(s) >>> 0).toString(36) + s.length.toString(36);
+    this._cache.set(o, { k, h });
+    return h;
+  },
+  huellaDe(nombre) { const m = /\/hoja-([0-9a-z]+)\.(webp|jpg)$/.exec(nombre || ''); return m ? m[1] : ''; },
+  /** La imagen de la hoja, la misma de «Copiar imagen» */
+  async imagen(o) {
+    const c = await Documento.lienzo(Documento.html(o));
+    const b = await Documento.blob(c, 'image/webp', 0.9);
+    return b.type === 'image/webp' ? b : Documento.blob(c, 'image/jpeg', 0.88);
+  },
+  /* Lo de la nube va aparte, para que las pruebas lo cambien */
+  nube: {
+    estado(orden) { return Nube.rpc('hojas_flota', orden ? { p_orden: orden } : {}, { leer: true }); },
+    subir(ruta, blob) { return Nube.subir(ruta, blob); },
+    quitar(ruta) { return Nube.quitarArchivo(ruta); }
+  },
+  /** ¿Trabaja aquí? En la nube, con una cuenta que puede cambiar órdenes y
+      con el 214 (si faltaba, se vuelve a mirar a los diez minutos) */
+  activa() {
+    if (this.disponible === false && Date.now() - this._probado > 10 * 60000) this.disponible = null;
+    return !this.pausa && !this._rota && !!db && !!db.nube && this.disponible !== false && !!Permiso.acceso && Permiso.puede('editar');
+  },
+  /** ¿Revisa todas? El administrador, en un computador, con los vehículos de Flota a la mano */
+  revisora() { return Permiso.puede('eliminar') && Flota.disponible && !!(window.matchMedia && matchMedia('(hover: hover) and (pointer: fine)').matches); },
+  iniciar() {
+    ['ordenes:cambio', 'configuracion:cambio', 'equipos:cambio', 'proveedores:cambio'].forEach(e => Bus.on(e, () => this.revisar()));
+    this.revisar(8000);
+  },
+  /** Después de guardar: las órdenes que se guardaron o se borraron */
+  despues(ops) {
+    if (!this.activa()) return;
+    const ids = [...new Set(ops.filter(o => o.col === 'ordenes').map(o => (o.tipo === 'del' ? o.id : o.doc.id)))];
+    if (ids.length > 10) { this.revisar(3000); return; }
+    ids.forEach(id => this._pedidas.add(id));
+    if (ids.length) this._programar(800);
+  },
+  /** Revisar todas dentro de un rato: a lo que guardó otra persona se le da
+      tiempo para que su navegador suba la hoja primero */
+  revisar(ms) {
+    const en = Date.now() + (ms == null ? 20000 : ms);
+    if (!this._todasEn || en < this._todasEn) this._todasEn = en;
+    this._programar(this._todasEn - Date.now());
+  },
+  _programar(ms) {
+    ms = Math.max(0, ms);
+    const cuando = Date.now() + ms;
+    if (this._t && this._cuando <= cuando) return;
+    clearTimeout(this._t);
+    this._cuando = cuando;
+    this._t = setTimeout(() => { this._t = null; this._trabajar(); }, ms);
+  },
+  async _trabajar() {
+    if (this._ocupado) return;
+    this._ocupado = true;
+    try {
+      for (;;) {
+        if (!this.activa()) { this._pedidas.clear(); break; }
+        if (this._pedidas.size) {
+          const id = this._pedidas.values().next().value;
+          this._pedidas.delete(id);
+          await this.una(id);
+        } else if (this._todasEn && Date.now() >= this._todasEn) {
+          this._todasEn = 0;
+          if (this.revisora()) await this.todas();
+        } else break;
+      }
+    } catch (e) {
+      console.warn('Hojas para Flota:', e);
+      this.revisar(120000);
+    } finally {
+      this._ocupado = false;
+      if (this._pedidas.size && this.activa()) this._programar(1000);
+      else if (this._todasEn) this._programar(this._todasEn - Date.now());
+    }
+  },
+  /** Lo que dice la nube de una orden (o de todas): null si falta el SQL 214 */
+  async _estado(orden) {
+    try {
+      const filas = await this.nube.estado(orden);
+      this.disponible = true;
+      return filas || [];
+    } catch (e) {
+      if (!NubeAdapter.faltaFuncion(e)) throw e;
+      this.disponible = false;
+      this._probado = Date.now();
+      return null;
+    }
+  },
+  /** La de una orden que se acaba de guardar o de borrar */
+  async una(id) {
+    const filas = await this._estado(id);
+    const f = filas && filas.find(x => x.orden_id === id);
+    if (f) await this.poner(Datos.orden(id), f);
+  },
+  /** Todas las que puede cambiar quien está: hace las que faltan, rehace las
+      viejas y borra las que sobran. Lo que se acaba de guardar va primero */
+  async todas() {
+    const filas = await this._estado(null);
+    if (!filas) return;
+    let van = 0, alDia = 0;
+    for (let i = 0; i < filas.length; i++) {
+      if (!this.activa()) return;
+      if (this._pedidas.size) { this.revisar(5000); return; }
+      const f = filas[i];
+      const r = await this.poner(Datos.orden(f.orden_id), f, true);
+      if (f.para_flota) { van++; if (r !== 'pendiente') alDia++; }
+      if (r === 'subida' || r === 'quitada') await esperar(300);
+      else if (i % 25 === 24) await esperar(0);
+    }
+    this.resumen = { van, alDia, cuando: Date.now() };
+  },
+  /** No dibuja mientras alguien escribe o acaba de tocar la pantalla: dibujar
+      la hoja toma un instante. Después de medio minuto, sigue */
+  async _quieto() {
+    for (let i = 0; i < 30; i++) {
+      const a = document.activeElement;
+      if (!(a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) && Date.now() - (Sincro._toque || 0) > 1500) return;
+      await esperar(1000);
+    }
+  },
+  /** Deja como debe estar la hoja de una orden. fila: lo que dice la nube
+      (hojas_flota), con las hojas de la última a la primera. Devuelve
+      'subida', 'quitada', 'pendiente' (aquí no ha llegado lo último) o '' */
+  async poner(o, fila, enLote) {
+    const hojas = fila.hojas || [];
+    if (!fila.para_flota) {
+      for (const h of hojas) await this.nube.quitar(h.nombre);
+      return hojas.length ? 'quitada' : '';
+    }
+    if (!o || !this.aplica(o)) return 'pendiente';
+    const huella = this.huella(o), ult = hojas[0];
+    const igual = !!ult && this.huellaDe(ult.nombre) === huella;
+    /* Una hoja de antes del último cambio de la orden se vuelve a subir, para
+       que Flota no diga que cambió después. Una sola vez por cada cambio, por
+       si la hora del depósito no se moviera */
+    const vieja = !!ult && new Date(ult.subida) < new Date(fila.actualizado);
+    const ya = this._hechas.get(o.id);
+    let nombre = ult && ult.nombre;
+    if (!igual || (vieja && !(ya && ya.huella === huella && ya.actualizado === fila.actualizado))) {
+      if (enLote) await this._quieto();
+      const b = await this.imagen(o);
+      nombre = 'orden/' + o.id + '/hoja-' + huella + '.' + (b.type === 'image/webp' ? 'webp' : 'jpg');
+      await this.nube.subir(nombre, b);
+      this._hechas.set(o.id, { huella, actualizado: fila.actualizado });
+      await this._comprobar(o.id, nombre);
+      for (const h of hojas) if (h.nombre !== nombre) await this.nube.quitar(h.nombre);
+      return 'subida';
+    }
+    const sobran = hojas.filter(h => h.nombre !== nombre);
+    for (const h of sobran) await this.nube.quitar(h.nombre);
+    return sobran.length ? 'quitada' : '';
+  },
+  /** La primera hoja que sube en esta sesión: la nube tiene que verla. Si no
+      la ve, el 214 no quedó bien: se deja de subir, para no llenar el depósito */
+  async _comprobar(id, nombre) {
+    if (this._vista) return;
+    const filas = await this._estado(id);
+    const f = filas && filas.find(x => x.orden_id === id);
+    if (f && (f.hojas || []).some(h => h.nombre === nombre)) { this._vista = true; return; }
+    this._rota = true;
+    throw new Error('la nube no ve la hoja que se acaba de subir (' + nombre + '): no se suben más en esta sesión');
+  },
+  /** Para las pruebas del sistema: que no trabaje mientras corren */
+  async detener() {
+    this.pausa = true;
+    while (this._ocupado) await esperar(100);
+  },
+  seguir() {
+    this.pausa = false;
+    if (this._todasEn) this._programar(this._todasEn - Date.now());
+  },
+  /** Cómo van, para Configuración */
+  texto() {
+    if (!db || !db.nube) return '';
+    if (this._rota) return 'no se pudo comprobar que Flota las vea: avísele a Facturación';
+    if (this.disponible === false) return 'falta correr el 214_facturacion_hoja_para_flota.sql en Supabase';
+    if (!this.revisora()) return 'las pone al día el computador del administrador';
+    const r = this.resumen;
+    if (!r) return 'revisándolas…';
+    return (r.alDia === r.van ? '' : r.alDia + ' de ') + Txt.plural(r.van, 'hoja', 'hojas') + ' al día · se hacen solas';
+  }
 };
 
 /* ==========================================================================
@@ -9745,6 +9983,22 @@ const Pruebas = {
     (ordenes || []).forEach(o => RemisionService.agregarOrden(r, o));
     return Object.assign(r, { recibe: 'CARLOS PÉREZ', lugar: 'Finca La Esperanza' }, extra || {});
   },
+  /** Un vehículo de Flota, para las hojas que ve Flota */
+  vehiculo() { return EquipoService.guardar(Object.assign(EquipoService.vacio(), { nombre: 'SNW865', tipo: 'carga', placa: 'SNW865', flotaId: 'snw865' })); },
+  /** Corre fn con la hoja para Flota trabajando contra una nube y una imagen
+      de mentira (n: lo que se subió y lo que se quitó). Todo vuelve como estaba */
+  async conHojas(fn) {
+    const k = ['nube', 'imagen', 'activa', 'revisora', '_quieto', '_programar', '_hechas', '_vista', '_rota', '_pedidas', '_todasEn', 'resumen', 'disponible'];
+    const antes = {};
+    k.forEach(x => { antes[x] = HojaFlota[x]; });
+    const n = { filas: [], subidas: [], quitadas: [] };
+    n.estado = async orden => (orden ? n.filas.filter(f => f.orden_id === orden) : n.filas);
+    n.subir = async ruta => { n.subidas.push(ruta); };
+    n.quitar = async ruta => { n.quitadas.push(ruta); return true; };
+    Object.assign(HojaFlota, { nube: n, imagen: async () => new Blob(['hoja'], { type: 'image/webp' }), activa: () => true, revisora: () => true,
+      _quieto: async () => {}, _programar: () => {}, _hechas: new Map(), _vista: true, _rota: false, _pedidas: new Set(), _todasEn: 0, resumen: null, disponible: true });
+    try { return await fn(n); } finally { Object.assign(HojaFlota, antes); }
+  },
   async correr() {
     /* Se guardan las de todas las empresas, no sólo las que se ven */
     const real = { db, cfg: Datos.cfg, cfgs: Datos.cfgs, proveedores: Datos.proveedores, equipos: Datos.crudo('equipos'), ordenes: Datos.crudo('ordenes'),
@@ -9758,6 +10012,7 @@ const Pruebas = {
     Canal.avisar = () => {};
     /* Mientras corren, nada llega de la nube y se prueba con todos los permisos */
     await Sincro.detener();
+    await HojaFlota.detener();
     Permiso.acceso = null;
     const res = [];
     try {
@@ -9785,6 +10040,7 @@ const Pruebas = {
       Autores.mapa = real.autores;
       Canal.avisar = avisar;
       Sincro.seguir();
+      HojaFlota.seguir();
       Shell.refrescar();
     }
     return res;
@@ -10983,6 +11239,101 @@ Pruebas.def('Respaldo: lleva las remisiones y las devuelve al restaurar', async 
   await Respaldo.restaurar(obj);
   Pruebas.igual([Datos.remisiones.length, Datos.remision(r.id).numero, Datos.remision(r.id).items.length], [1, r.numero, r.items.length], 'volvió completa, con su número');
 });
+Pruebas.def('Hoja para Flota: van las órdenes de los vehículos de Flota, como en el 210', async ({ p1, e1 }) => {
+  const q = await Pruebas.vehiculo();
+  const o = await OrdenService.guardar(Pruebas.orden(p1, { equipoId: q.id }));
+  const no = x => !HojaFlota.aplica(Object.assign(U.clonar(o), x));
+  Pruebas.igual([HojaFlota.aplica(o), no({ estado: 'ANULADA' }), no({ tipo: 'COTIZACION' }), no({ equipoId: e1.id }), no({ empresa: 'JDPR' }), no({ excel: { hoja: '289-26' } })],
+    [true, true, true, true, true, true]);
+  return 'la del vehículo sí; anulada, solicitud de cotización, sin Flota, de JDPR o del Excel, no';
+});
+Pruebas.def('Hoja para Flota: la huella cambia con lo que sale impreso, no con lo demás', async ({ p1 }) => {
+  const q = await Pruebas.vehiculo();
+  await Datos.guardarCfg({ firmas: { u1: { nombre: 'DELSY ROJAS', cargo: 'COMPRAS', telefono: '', firma: 'data:image/png;base64,UNA' } } });
+  const o = await OrdenService.guardar(Pruebas.orden(p1, { equipoId: q.id, solicitante: { cuenta: 'u1', nombre: 'DELSY ROJAS', cargo: 'COMPRAS', telefono: '' } }));
+  const h = HojaFlota.huella(o);
+  Pruebas.cierto(/^[0-9a-z]{6,}$/.test(h), 'la huella va en el nombre del archivo: ' + h);
+  const s = Documento.html(o, { sinAjuste: true, huella: true });
+  Pruebas.cierto(!s.includes('Generada el') && !s.includes('base64,UNA') && s.includes(HojaFlota.marca('data:image/png;base64,UNA')), 'sin la hora del pie, y la firma por su marca');
+  const otra = x => HojaFlota.huella(Object.assign(U.clonar(o), x));
+  Pruebas.igual(otra({}), h, 'la misma orden, la misma huella');
+  Pruebas.igual(otra({ notasInternas: 'sólo para nosotros', historial: [], adjuntos: [{ id: 'a1', nombre: 'f.pdf' }], factura: { numero: 'FE-1' } }), h, 'lo que no sale impreso no la cambia');
+  Pruebas.cierto(otra({ entregaRecibe: 'CARLOS PÉREZ' }) !== h, 'quién recibe, sí');
+  await Datos.guardarCfg({ firmas: { u1: Object.assign({}, Datos.cfg.firmas.u1, { firma: 'data:image/png;base64,OTRA' }) } });
+  const h2 = HojaFlota.huella(Datos.orden(o.id));
+  Pruebas.cierto(h2 !== h, 'la firma nueva en Configuración, sí');
+  /* Un logo de verdad (un punto de 1 × 1): el encabezado de la plataforma también lo pinta */
+  await Datos.guardarCfg({ logo: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=' });
+  const h3 = HojaFlota.huella(Datos.orden(o.id));
+  Pruebas.cierto(h3 !== h2, 'otro logo, sí');
+  await EquipoService.guardar(Object.assign(U.clonar(Datos.equipo(q.id)), { clase: 'Volqueta' }));
+  Pruebas.cierto(HojaFlota.huella(Datos.orden(o.id)) !== h3, 'lo que se imprime del vehículo, sí');
+  return h + ' → ' + HojaFlota.huella(Datos.orden(o.id));
+});
+Pruebas.def('Hoja para Flota: sube la que falta, rehace la vieja y borra las de antes', async ({ p1 }) => {
+  const q = await Pruebas.vehiculo();
+  const o = await OrdenService.guardar(Pruebas.orden(p1, { equipoId: q.id }));
+  return Pruebas.conHojas(async n => {
+    const ruta = 'orden/' + o.id + '/hoja-' + HojaFlota.huella(o) + '.webp', vieja = 'orden/' + o.id + '/hoja-otra1.webp';
+    const t0 = '2026-11-05T15:00:00.000000+00:00', t1 = '2026-11-05T15:00:05.000000+00:00', t2 = '2026-11-05T15:10:00.000000+00:00';
+    const fila = (hojas, actualizado, va) => ({ orden_id: o.id, para_flota: va !== false, actualizado: actualizado || t0, hojas });
+    Pruebas.igual([await HojaFlota.poner(o, fila([])), n.subidas], ['subida', [ruta]], 'la que no tiene hoja');
+    Pruebas.igual(await HojaFlota.poner(o, fila([{ nombre: ruta, subida: t1 }])), '', 'la que está al día no se toca');
+    n.subidas = [];
+    Pruebas.igual([await HojaFlota.poner(o, fila([{ nombre: vieja, subida: t1 }])), n.subidas, n.quitadas], ['subida', [ruta], [vieja]], 'la de otra huella se rehace y la vieja se borra');
+    n.subidas = []; n.quitadas = [];
+    /* La misma hoja, pero la orden cambió después (una nota interna): se sube otra vez, una sola */
+    Pruebas.igual([await HojaFlota.poner(o, fila([{ nombre: ruta, subida: t1 }], t2)), n.subidas], ['subida', [ruta]], 'la de antes del último cambio de la orden');
+    Pruebas.igual([await HojaFlota.poner(o, fila([{ nombre: ruta, subida: t1 }], t2)), n.subidas.length], ['', 1], 'y no una y otra vez');
+    Pruebas.igual([await HojaFlota.poner(o, fila([{ nombre: ruta, subida: t2 }, { nombre: vieja, subida: t1 }])), n.quitadas], ['quitada', [vieja]], 'las que sobran se borran');
+    n.quitadas = [];
+    Pruebas.igual([await HojaFlota.poner(o, fila([{ nombre: ruta, subida: t2 }], t2, false)), n.quitadas], ['quitada', [ruta]], 'la de una orden que ya no va para Flota se borra');
+    Pruebas.igual(await HojaFlota.poner(Object.assign(U.clonar(o), { estado: 'ANULADA' }), fila([])), 'pendiente', 'si aquí no ha llegado lo último, espera');
+    HojaFlota.imagen = async () => new Blob(['hoja'], { type: 'image/jpeg' });
+    Pruebas.igual([await HojaFlota.poner(o, fila([])), n.subidas.pop()], ['subida', ruta.replace(/webp$/, 'jpg')], 'en JPG si el navegador no hace WebP');
+    return 'sube, deja, rehace, vuelve a subir una vez, borra';
+  });
+});
+Pruebas.def('Hoja para Flota: el administrador las revisa todas y sabe cómo van', async ({ p1 }) => {
+  const q = await Pruebas.vehiculo();
+  const a = await OrdenService.guardar(Pruebas.orden(p1, { equipoId: q.id }));
+  const b = await OrdenService.guardar(Pruebas.orden(p1, { equipoId: q.id }));
+  return Pruebas.conHojas(async n => {
+    const t = '2026-11-05T15:00:00.000000+00:00', t1 = '2026-11-05T15:00:05.000000+00:00';
+    n.filas = [
+      { orden_id: a.id, para_flota: true, actualizado: t, hojas: [] },
+      { orden_id: b.id, para_flota: true, actualizado: t, hojas: [{ nombre: 'orden/' + b.id + '/hoja-' + HojaFlota.huella(b) + '.webp', subida: t1 }] },
+      { orden_id: 'BORRADA', para_flota: false, actualizado: null, hojas: [{ nombre: 'orden/BORRADA/hoja-x1.webp', subida: t1 }] },
+      { orden_id: 'NO-LLEGO', para_flota: true, actualizado: t, hojas: [] }
+    ];
+    await HojaFlota.todas();
+    Pruebas.igual([n.subidas.map(r => r.split('/')[1]), n.quitadas, HojaFlota.resumen.van, HojaFlota.resumen.alDia], [[a.id], ['orden/BORRADA/hoja-x1.webp'], 3, 2]);
+    return 'hizo la que faltaba, dejó la que estaba, borró la suelta: 2 de 3 al día';
+  });
+});
+Pruebas.def('Hoja para Flota: al guardar o borrar una orden se pide su hoja; con muchas, se revisan todas', async ({ p1 }) => {
+  return Pruebas.conHojas(async () => {
+    const o = await OrdenService.guardar(Pruebas.orden(p1));
+    Pruebas.cierto(HojaFlota._pedidas.has(o.id), 'la que se guardó');
+    HojaFlota._pedidas.clear();
+    await OrdenService.eliminar(o);
+    Pruebas.cierto(HojaFlota._pedidas.has(o.id), 'la que se borró (para quitar sus hojas)');
+    HojaFlota._pedidas.clear();
+    HojaFlota.despues(Array.from({ length: 11 }, (_, i) => ({ col: 'ordenes', tipo: 'del', id: 'X' + i })));
+    Pruebas.cierto(HojaFlota._todasEn > 0 && !HojaFlota._pedidas.size, 'once a la vez: se revisan todas');
+    return 'se pide al guardar y al borrar';
+  });
+});
+Pruebas.def('Hoja para Flota: la imagen es la hoja impresa, al doble, en WebP', async ({ p1 }) => {
+  const q = await Pruebas.vehiculo();
+  const o = await OrdenService.guardar(Pruebas.orden(p1, { equipoId: q.id }));
+  const c = await Documento.lienzo(Documento.html(o));
+  const b = await HojaFlota.imagen(o);
+  Pruebas.cierto(c.width >= 1600 && c.height >= 2100, 'al doble de la carta: ' + c.width + ' × ' + c.height);
+  Pruebas.cierto(/^image\/(webp|jpeg)$/.test(b.type) && b.size > 5000 && b.size < 400000, b.type + ' de ' + Math.round(b.size / 1024) + ' KB');
+  Pruebas.igual((await Documento.imagen(o)).type, 'image/png', 'la de WhatsApp sigue en PNG');
+  return (b.type === 'image/webp' ? 'WebP' : 'JPG') + ' de ' + c.width + ' × ' + c.height + ', ' + Math.round(b.size / 1024) + ' KB';
+});
 
 /* ==========================================================================
    §16  SESIÓN, REVISIÓN DE CAMBIOS Y ARRANQUE
@@ -11362,6 +11713,7 @@ async function arrancar() {
     Bus.on('datos:cambio', U.debounce(() => Shell.refrescar(), 120));
     Bus.on('configuracion:cambio', U.debounce(() => Shell.refrescar(), 120));
     Sincro.iniciar();
+    HojaFlota.iniciar();
     if (HistoricoExcel.error) {
       const falta = HistoricoExcel.error.sql === 'PGRST205' || /historico/.test(HistoricoExcel.error.message || '');
       Toast.warn(falta && Permiso.puede('configurar')
