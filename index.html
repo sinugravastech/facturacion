@@ -985,6 +985,13 @@ html[data-theme="dark"] .hj-ya{color:var(--ok-500)}
   background:var(--surface-2);color:var(--text);font:inherit;font-size:11.5px;cursor:pointer}
 .fac-chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .fac-chip:hover{border-color:var(--accent);background:var(--accent-soft)}
+/* «Poner solo el valor de la factura» (o pagado): la casilla, su valor, y el pie
+   de la hoja apagado, porque ahí no cuenta */
+.field>label.fac-solo-chk,.fac-solo-chk{display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap}
+.fac-solo-chk input{margin:0;width:14px;height:14px;accent-color:var(--accent);flex:0 0 auto}
+.fac-solo .hint{margin-top:9px}
+.hj-pagada #ofPgValor{width:130px}
+.hj-tot.ht-solo .ht-l .inp,.hj-tot.ht-solo .ht-chk{opacity:.45}
 #ofFacCard.adj-sobre{outline:2px dashed var(--accent);outline-offset:-6px;border-radius:var(--radius)}
 .adj-ic{color:var(--text-3);vertical-align:-1px}
 .adj-pdf{display:block;width:100%;height:72vh;border:0;border-radius:var(--radius-sm);background:#fff}
@@ -1926,7 +1933,7 @@ const APP = Object.freeze({
   nombre: 'Facturación',
   area: 'Órdenes de compra',
   empresa: 'SINUGRAVAS S.A.S.',
-  version: '2.16.0',
+  version: '2.17.0',
   /* 3: los datos viven en la nube y el número de cada orden sale de las órdenes */
   esquema: 3,
   /* La base del navegador de la versión local (1.x). Ya no se guarda en ella:
@@ -3687,8 +3694,21 @@ const Modelo = {
       artículo; la retención y la ReteICA (por mil) van sobre él, y el flete se
       suma al final, sin IVA: si el proveedor le cobra IVA, va como un artículo.
       Con el IVA ya incluido en los precios (muchas cotizaciones llegan así), no
-      se suma: el subtotal es la base sin IVA y el IVA sale de adentro. */
+      se suma: el subtotal es la base sin IVA y el IVA sale de adentro.
+      Con la factura puesta solo con su valor (Juan, 05/11/2026), el total es
+      ese valor y lo demás queda en cero: no se sabe cuánto es de cada cosa, y
+      el flete ya va dentro de la factura. */
   totales(o) {
+    if (Modelo.soloValor(o)) {
+      return { subtotal: 0, iva: 0, retencion: 0, reteIca: 0, flete: 0, total: Money.parse(o.factura.valor), valorizada: true, nItems: Modelo.totalesArticulos(o).nItems };
+    }
+    return Modelo.totalesArticulos(o);
+  },
+  /** La factura que no se pudo repartir por artículo: compras puso solo su valor
+      total, y ese es el total de la orden. Igual el pago de contado */
+  soloValor(o) { return !!(o && o.factura && o.factura.soloValor && Money.parse(o.factura.valor) > 0); },
+  /** Lo que suman los artículos, sin mirar la factura */
+  totalesArticulos(o) {
     const items = (o.items || []).filter(Modelo.itemValido);
     const suma = Money.cent(U.sumar(items, Modelo.totalItem));
     const pct = +o.ivaPct || 0;
@@ -4411,12 +4431,18 @@ const OrdenService = {
     o.plazoDias = Math.max(0, Math.round(+o.plazoDias || 0));
     o.cuotas = Math.max(0, Math.round(+o.cuotas || 0));
     if (o.formaPago !== 'CREDITO') { o.plazoDias = 0; o.cuotas = 0; }
+    this.ponerTotales(o);
+    ['concepto', 'referencia', 'entregaLugar', 'entregaRecibe', 'entregaCedula', 'notaProveedor', 'notasInternas']
+      .forEach(k => { o[k] = String(o[k] || '').trim(); });
+    return o;
+  },
+  /** Los totales que se guardan con la orden. Dependen también de la factura
+      (la que se puso solo con su valor): cuando ella cambia, se vuelven a sacar */
+  ponerTotales(o) {
     Object.assign(o, Modelo.totales(o));
     delete o.valorizada; delete o.nItems;
     if (!o.reteIca) delete o.reteIca;
     if (!o.flete) delete o.flete;
-    ['concepto', 'referencia', 'entregaLugar', 'entregaRecibe', 'entregaCedula', 'notaProveedor', 'notasInternas']
-      .forEach(k => { o[k] = String(o[k] || '').trim(); });
     return o;
   },
   /** La orden como está ahora en memoria (la última que llegó de la nube):
@@ -4464,9 +4490,11 @@ const OrdenService = {
     if (eqo && Empresa.de(eqo) !== o.empresa) throw new ErrorValidacion({ equipo: 'Ese equipo o destino es de ' + Empresa.nombre(Empresa.de(eqo)) + ': escoja uno de ' + Empresa.nombre(o.empresa) + '.' });
     const plo = o.plantillaId && Datos.plantilla(o.plantillaId);
     if (plo && Empresa.de(plo) !== o.empresa) o.plantillaId = null;
+    if (o.factura && o.factura.soloValor && !Modelo.soloValor(o)) delete o.factura.soloValor;
     this.normalizar(o);
-    /* La factura vale lo que suman sus artículos: compras les pone los valores cuando llega */
-    if (o.factura && o.total > 0) o.factura.valor = o.total;
+    /* La factura vale lo que suman sus artículos: compras les pone los valores
+       cuando llega. Si se puso solo su valor, manda ese valor */
+    if (o.factura && !o.factura.soloValor && o.total > 0) o.factura.valor = o.total;
     const prov = Datos.prov(o.proveedorId);
     o.proveedor = Modelo.fotoProveedor(prov);
     const comunes = [];
@@ -4515,37 +4543,50 @@ const OrdenService = {
     }
     return Datos.orden(o.id);
   },
-  /** Llegó la factura: su número, su fecha y los valores de lo comprado. La orden pasa a contabilidad */
+  /** Llegó la factura: su número, su fecha y los valores de lo comprado. La orden pasa a contabilidad.
+      factura.soloValor y factura.valor: «Poner solo el valor de la factura»
+      (Juan, 05/11/2026), para cuando no se puede repartir por artículo (la
+      factura trae nombres técnicos, o la orden la hizo otra persona). Entonces
+      no pide precios y ese valor es el total. Si no se dice, queda como estaba */
   async guardarFactura(entrada, factura, nuevos) {
     Permiso.exigir('editar');
     const o = U.clonar(entrada);
+    const ahora = this.actual(o);
+    const antes = ahora.factura || {};
     const numero = String(factura.numero || '').trim();
+    const solo = 'soloValor' in factura ? !!factura.soloValor : !!antes.soloValor;
+    const valor = solo ? Money.parse(factura.valor != null ? factura.valor : antes.valor) : 0;
     const e = {};
     if (!numero) e.factura = 'Escriba el número de la factura.';
     if (!Fecha.valida(factura.fecha)) e.facturaFecha = 'Revise la fecha de la factura.';
-    if (!(Modelo.totales(o).subtotal > 0)) e.valores = 'Ponga los valores de la factura en la columna «Valor unitario».';
+    if (solo && !(valor > 0)) e.valorFactura = 'Escriba el valor de la factura.';
+    if (!solo && !(Modelo.totalesArticulos(o).subtotal > 0)) e.valores = 'Ponga los valores de la factura en la columna «Valor unitario», o marque «Poner solo el valor de la factura».';
     if (Object.keys(e).length) throw new ErrorValidacion(e);
-    const ahora = this.actual(o);
     const llega = ahora.estado === 'ESPERANDO';
     o.factura = Object.assign({}, ahora.factura, { numero, fecha: factura.fecha });
-    return this.guardar(o, nuevos, (llega ? 'Llegó la factura ' : 'Factura corregida: ') + numero,
+    if (solo) Object.assign(o.factura, { soloValor: true, valor }); else delete o.factura.soloValor;
+    return this.guardar(o, nuevos, (llega ? 'Llegó la factura ' : 'Factura corregida: ') + numero + (solo ? ' · solo su valor, ' + Money.fmt(valor) : ''),
       { estado: llega ? 'CONTABILIDAD' : ahora.estado, factura: true });
   },
   /** De contado y ya pagada (Juan, 30/10/2026): lo que se paga en efectivo al
       momento, como el arreglo de una carpa, queda con su recibo como pagada, sin
-      esperar cotización ni factura. Toma el consecutivo como cualquier orden */
+      esperar cotización ni factura. Toma el consecutivo como cualquier orden.
+      recibo.soloValor y recibo.valor: «Poner solo el valor pagado», como en la factura */
   async guardarPagada(entrada, recibo, nuevos) {
     Permiso.exigir('pagar');
     const o = U.clonar(entrada);
     const previo = o.id ? Datos.orden(o.id) : null;
+    const solo = !!recibo.soloValor, valor = solo ? Money.parse(recibo.valor) : 0;
     const e = {};
     if (o.formaPago !== 'CONTADO') e.formaPago = 'Sólo las de contado se registran como ya pagadas.';
     if (previo && previo.estado !== 'ESPERANDO') e.estado = 'Esta orden ya no está esperando: su pago se registra desde la orden.';
     if (!Fecha.valida(recibo.fecha)) e.pagoFecha = 'Revise la fecha del pago.';
-    if (!(Modelo.totales(o).subtotal > 0)) e.valores = 'Ponga lo que se pagó en la columna «Valor unitario».';
+    if (solo && !(valor > 0)) e.valorPagado = 'Escriba el valor pagado.';
+    if (!solo && !(Modelo.totalesArticulos(o).subtotal > 0)) e.valores = 'Ponga lo que se pagó en la columna «Valor unitario», o marque «Poner solo el valor pagado».';
     if (Object.keys(e).length) throw new ErrorValidacion(e);
     const numero = String(recibo.numero || '').trim();
     o.factura = { numero: numero || 'S/N', fecha: recibo.fecha };
+    if (solo) Object.assign(o.factura, { soloValor: true, valor });
     o.pago = { fecha: recibo.fecha, nota: 'De contado', contado: true };
     return this.guardar(o, nuevos, 'Pagada de contado el ' + Fecha.corta(recibo.fecha) + (numero ? ' · recibo ' + numero : ''),
       { estado: 'PAGADA', factura: true, pago: true });
@@ -4571,6 +4612,8 @@ const OrdenService = {
     n.historial = (n.historial || []).concat([this.paso(estado, extra.nota)]);
     if (extra.factura) n.factura = extra.factura;
     if (extra.quitarFactura) n.factura = null;
+    /* Sin la factura que se puso solo con su valor, el total vuelve a ser lo que suman los artículos */
+    if (extra.factura || extra.quitarFactura) this.ponerTotales(n);
     if (extra.quitarPago) n.pago = null;
     if (extra.pago) n.pago = extra.pago;
     else if (anterior === 'PAGADA' && estado === 'CONTABILIDAD') n.pago = null;
@@ -5247,7 +5290,10 @@ const Analitica = {
     };
     if (por === 'articulo') {
       v.forEach(o => {
-        const fact = o.total > 0 && o.factura && +o.factura.valor > 0 ? +o.factura.valor / o.total : 1;
+        /* Lo de cada artículo, llevado al valor de la factura. La que se puso solo
+           con su valor se reparte entre los artículos que tienen precio, si hay */
+        const base = Modelo.soloValor(o) ? Modelo.totalesArticulos(o).total : o.total;
+        const fact = base > 0 && o.factura && +o.factura.valor > 0 ? +o.factura.valor / base : 1;
         o.items.forEach(it => sumar(Txt.norm(it.descripcion), it.descripcion, Math.round(Modelo.totalItem(it) * fact),
           { cantidad: +it.cantidad || 0, unidad: it.unidad, prov: o.proveedorId }));
       });
@@ -6065,11 +6111,16 @@ const AccionesOrden = {
       let hecho = null, nuevos = [];
       const quitados = new Set();
       const fac = o.factura || {};
+      /* La que se puso solo con su valor, lo corrige aquí mismo, como el número y la fecha */
+      const solo = Modelo.soloValor(o), pagado = !!(o.pago && o.pago.contado);
       const m = Modal.abrir({
         titulo: 'Corregir la factura', subtitulo: 'Orden ' + esc(Modelo.codigo(o)) + ' · ' + esc(Modelo.nombreProveedor(o)),
         cuerpo: '<div class="row"><div class="field"><label for="cfNum">N.º de la factura</label><input class="inp" id="cfNum" autocomplete="off" value="' + attr(fac.numero || '') + '"></div>' +
-          '<div class="field" style="flex:0 1 180px"><label for="cfFecha">Fecha de la factura</label><input class="inp" type="date" id="cfFecha" value="' + attr(fac.fecha || '') + '"></div></div>' +
-          '<div class="cf-valor"><span>Valor <b>' + esc(Money.fmt(Modelo.valor(o))) + '</b>, lo que suman los artículos.</span><button type="button" class="link fs12" id="cfValores">Cambiar los valores</button></div>' +
+          '<div class="field" style="flex:0 1 180px"><label for="cfFecha">Fecha de la factura</label><input class="inp" type="date" id="cfFecha" value="' + attr(fac.fecha || '') + '"></div>' +
+          (solo ? '<div class="field" style="flex:0 1 190px"><label for="cfValor">' + (pagado ? 'Valor pagado' : 'Valor de la factura') + '</label><input class="inp" id="cfValor" autocomplete="off" value="' +
+            attr(Money.num(fac.valor)) + '"></div>' : '') + '</div>' +
+          (solo ? '<div class="cf-valor"><span>Se puso solo el valor ' + (pagado ? 'pagado' : 'de la factura') + ', sin precios por artículo.</span><button type="button" class="link fs12" id="cfValores">Poner los precios por artículo</button></div>'
+            : '<div class="cf-valor"><span>Valor <b>' + esc(Money.fmt(Modelo.valor(o))) + '</b>, lo que suman los artículos.</span><button type="button" class="link fs12" id="cfValores">Cambiar los valores</button></div>') +
           '<div class="field" id="cfAdj"><div class="cf-adj-h"><label>Archivos de la orden</label><button type="button" class="btn btn-sm" data-adj-subir>' + Icon('upload', '', 12) + 'Adjuntar</button></div>' +
           '<div id="cfAdjLista"></div></div><div class="fs12 txt-dang" id="cfErr"></div>',
         pie: '<button class="btn" data-cerrar>Cancelar</button><button class="btn btn-primary" id="cfOk">' + Icon('check', '', 14) + 'Guardar cambios</button>',
@@ -6090,6 +6141,7 @@ const AccionesOrden = {
         if (q) { const id = q.dataset.adjQuitar; if (nuevos.some(y => y.id === id)) nuevos = nuevos.filter(y => y.id !== id); else quitados.add(id); pintar(); }
       });
       $('#cfValores', m).onclick = () => { Modal.cerrar(m); this.registrarFactura(o); };
+      if (solo) MoneyInput.unir($('#cfValor', m));
       const boton = $('#cfOk', m), texto = boton.innerHTML;
       boton.onclick = async () => {
         boton.disabled = true;
@@ -6098,11 +6150,12 @@ const AccionesOrden = {
           /* Un PDF que todavía se está comprimiendo se espera */
           if (adjuntando.ocupado()) { boton.innerHTML = '<span class="spin"></span>Comprimiendo el adjunto…'; await adjuntando.listo(); }
           const numero = $('#cfNum', m).value.trim(), fecha = $('#cfFecha', m).value;
-          if (numero === (fac.numero || '') && fecha === (fac.fecha || '') && !quitados.size && !nuevos.length) { Modal.cerrar(m); return; }
+          const valor = solo ? Money.parse($('#cfValor', m).value) : 0;
+          if (numero === (fac.numero || '') && fecha === (fac.fecha || '') && (!solo || valor === Money.parse(fac.valor)) && !quitados.size && !nuevos.length) { Modal.cerrar(m); return; }
           /* Sobre la orden como está ahora: si otra persona adjuntó algo mientras tanto, se queda */
           const actual = U.clonar(Datos.orden(o.id) || o);
           actual.adjuntos = (actual.adjuntos || []).filter(a => !quitados.has(a.id)).concat(nuevos.map(Adjuntos.meta));
-          hecho = await OrdenService.guardarFactura(actual, { numero, fecha }, nuevos);
+          hecho = await OrdenService.guardarFactura(actual, solo ? { numero, fecha, soloValor: true, valor } : { numero, fecha }, nuevos);
           Modal.cerrar(m, hecho);
           Toast.ok('Factura <b>' + esc(hecho.factura.numero) + '</b> corregida.');
         } catch (e) {
@@ -6615,6 +6668,11 @@ const VistaOrden = {
   },
   resumen(o) {
     const t = Modelo.totales(o);
+    if (Modelo.soloValor(o)) {
+      return '<div class="card"><div class="card-h"><h3>' + Icon('cash', '', 15) + 'Resumen</h3></div><div class="card-b"><div class="resumen">' +
+        '<div class="rs-f rs-tot"><span>Total</span><b>' + Money.fmt(t.total) + '</b></div>' +
+        '<div class="fs11 txt-3">Se puso solo el valor ' + (o.pago && o.pago.contado ? 'pagado' : 'de la factura') + ', sin repartirlo por artículo.</div></div></div></div>';
+    }
     let h = '<div class="card"><div class="card-h"><h3>' + Icon('cash', '', 15) + 'Resumen</h3>' + (t.valorizada ? '' : '<span class="pill p-gray np">Sin valorizar</span>') + '</div><div class="card-b"><div class="resumen">' +
       '<div class="rs-f"><span>' + (o.ivaIncluido ? 'Subtotal sin IVA' : 'Subtotal') + '</span><b>' + Money.fmt(t.subtotal) + '</b></div>' +
       '<div class="rs-f"><span>Retención en la fuente' + (o.retencionPct ? ' (' + Num.pct(o.retencionPct) + ')' : '') + '</span><b>' + (t.retencion ? '− ' + Money.fmt(t.retencion) : Money.fmt(0)) + '</b></div>' +
@@ -6708,7 +6766,12 @@ const VistaOrdenForm = {
     this.modoFactura = this.editando && !!q.factura;
     /* «Ya se pagó»: sólo vive en la hoja, hasta guardar */
     this.yaPagada = false;
-    this.recibo = { numero: '', fecha: '' };
+    /* «Poner solo el valor de la factura» y «… el valor pagado» (Juan,
+       05/11/2026): cuando no se puede repartir por artículo, ese valor es el
+       total y no se piden precios. También vive en la hoja hasta guardar */
+    const fs = Modelo.soloValor(o) ? Money.parse(o.factura.valor) : 0;
+    this.fac = { solo: this.modoFactura && fs > 0, valor: fs };
+    this.recibo = { numero: '', fecha: '', solo: false, valor: 0 };
     o.adjuntos = o.adjuntos || [];
     this.adjNuevos = [];
     this.completarFilas();
@@ -6726,7 +6789,7 @@ const VistaOrdenForm = {
       '<div class="page-head"><div><h1><button class="ph-back" id="ofVolver" aria-label="Volver" data-tip="Volver">' + Icon('back', '', 16) + '</button>' +
         (this.modoFactura ? (o.estado === 'ESPERANDO' ? 'Llegó la factura' : 'Factura') + ' · orden <span class="mono">N.º ' + esc(Modelo.codigo(o)) + '</span>'
           : this.editando ? 'Editar orden <span class="mono">N.º ' + esc(Modelo.codigo(o)) + '</span> ' + Comp.pillEstado(o.estado) : 'Nueva orden') + '</h1>' +
-        '<div class="ph-sub">' + (this.modoFactura ? (o.estado === 'ESPERANDO' ? 'Escriba el número de la factura y ponga abajo los valores de lo que compró. Al guardar, la orden pasa a contabilidad.'
+        '<div class="ph-sub">' + (this.modoFactura ? (o.estado === 'ESPERANDO' ? 'Escriba el número de la factura y ponga abajo los valores de lo que compró, o solo el valor total de la factura. Al guardar, la orden pasa a contabilidad.'
             : 'Corrija el número, la fecha o los valores de la factura.')
           : this.editando ? 'Creada el ' + esc(Fecha.stamp(o.creadoEn)) + '. El número no cambia.'
           : 'Se llena como la hoja del Excel. Al escoger el proveedor se cargan sus condiciones de pago.') + '</div></div>' +
@@ -6736,15 +6799,20 @@ const VistaOrdenForm = {
         ': mismos artículos y proveedor, fecha de hoy y número nuevo' + (dup.excel ? ', sin los precios de entonces' : '') + '.</div></div>' : '') +
       '<div id="ofErr"></div>' +
       (this.modoFactura ? '<div class="card hj-factura"><div class="card-h"><h3>' + Icon('receipt', '', 15) + 'Factura del proveedor</h3>' +
-        '<span class="ch-sub">los valores van abajo, en «Valor unitario»</span></div><div class="card-b" id="ofFacCard"><div class="row">' +
+        '<span class="ch-sub" id="ofFacSub"></span></div><div class="card-b" id="ofFacCard"><div class="row">' +
         '<div class="field" style="flex:0 1 190px"><label for="ofFacNum">N.º de la factura<span class="req">*</span></label><input class="inp inp-mono" id="ofFacNum" value="' +
           attr((o.factura && o.factura.numero) || '') + '" placeholder="Ej.: FE-10234" autocomplete="off" autofocus></div>' +
         '<div class="field" style="flex:0 1 170px"><label for="ofFacFecha">Fecha de la factura</label><input class="inp" type="date" id="ofFacFecha" value="' +
           attr((o.factura && o.factura.fecha) || Fecha.hoy()) + '"></div>' +
+        /* La factura que no se puede repartir por artículo: su valor es el total (Juan, 05/11/2026) */
+        '<div class="field fac-solo" style="flex:0 1 230px"><label class="fac-solo-chk" data-tip="Para cuando no se puede repartir por artículo: el valor que escriba sale como TOTAL de la orden">' +
+          '<input type="checkbox" id="ofFacSolo"' + (this.fac.solo ? ' checked' : '') + '>Poner solo el valor de la factura</label>' +
+          '<input class="inp" id="ofFacValor" value="' + attr(this.fac.valor ? Money.num(this.fac.valor) : '') + '" placeholder="Valor total de la factura" autocomplete="off" aria-label="Valor de la factura">' +
+          '<div class="hint" id="ofFacSoloAyuda">Si no se puede repartir por artículo</div></div>' +
         /* El PDF de la factura se adjunta aquí mismo, al lado de su número (Juan, 30/10/2026) */
         '<div class="field" style="flex:1 1 260px"><label>Factura en PDF o foto</label><div class="fac-adj"><button type="button" class="btn btn-sm" id="ofFacAdjBtn">' + Icon('clip', '', 12) + 'Adjuntar la factura</button>' +
           '<div class="fac-adj-l" id="ofFacAdjLista"></div></div></div></div>' +
-        '<div class="fs12 txt-2">Ponga abajo los valores de lo que llegó. Si la factura trae flete o ReteICA, van en el pie de la hoja; otro repuesto, en una fila. También puede soltar el PDF encima de este recuadro.</div></div></div>' : '') +
+        '<div class="fs12 txt-2" id="ofFacNota"></div></div></div>' : '') +
       '<div class="hoja">' +
         '<div class="hj-head"><div class="hj-logo">' + (Config.logo(Empresa.de(o)) ? '<img src="' + attr(Config.logo(Empresa.de(o))) + '" alt="' + attr(emp.nombre) + '" style="max-height:' + Math.round(62 * Config.tamLogo(Empresa.de(o))) + 'px">' : '<b>' + esc(emp.nombre) + '</b>') + '</div>' +
           '<div class="hj-tit"><label class="sr" for="ofTipo">Tipo de orden</label><select id="ofTipo" class="hj-tipo">' +
@@ -6805,6 +6873,25 @@ const VistaOrdenForm = {
     const t = this.modoFactura ? (o.estado === 'ESPERANDO' ? 'Pasar a contabilidad' : 'Guardar la factura') : this.yaPagada ? 'Guardar como pagada' : 'Guardar orden';
     $$('[data-acc="guardar"]', this.el).forEach(b => { b.innerHTML = Icon(this.modoFactura ? 'receipt' : this.yaPagada ? 'checkCircle' : 'save', '', 14) + t; });
   },
+  /** El recuadro de la factura según la casilla «Poner solo el valor de la factura» */
+  pintarSolo() {
+    const el = this.el, s = this.fac.solo;
+    if (!$('#ofFacSolo', el)) return;
+    $('#ofFacValor', el).classList.toggle('hidden', !s);
+    $('#ofFacSoloAyuda', el).classList.toggle('hidden', s);
+    $('#ofFacSub', el).textContent = s ? 'el valor va aquí arriba, sin precios por artículo' : 'los valores van abajo, en «Valor unitario»';
+    $('#ofFacNota', el).textContent = s ? 'El valor que escriba sale como TOTAL de la orden, y los precios de los artículos pueden quedar en blanco. También puede soltar el PDF encima de este recuadro.'
+      : 'Ponga abajo los valores de lo que llegó. Si la factura trae flete o ReteICA, van en el pie de la hoja; otro repuesto, en una fila. También puede soltar el PDF encima de este recuadro.';
+    this.pintarCifras();
+  },
+  /** Con qué valor queda la orden al guardar: el de la casilla «Poner solo el
+      valor…» de la factura o del pago de contado. undefined: como está
+      guardada; null: lo que suman los artículos */
+  valorSolo() {
+    if (this.modoFactura) return this.fac.solo ? this.fac.valor : null;
+    if (this.yaPagada && this.puedePagarYa()) return this.recibo.solo ? this.recibo.valor : null;
+    return undefined;
+  },
   /** «Ya se pagó» se ofrece en una de contado que no ha pasado de «esperando», a quien puede registrar pagos */
   puedePagarYa() {
     const o = this.o;
@@ -6834,6 +6921,13 @@ const VistaOrdenForm = {
     $('#ofTipo', el).addEventListener('change', e => { o.tipo = e.target.value; this.marcar(); this.pintarNumero(); });
     if (this.modoFactura) {
       ['#ofFacNum', '#ofFacFecha'].forEach(s => $(s, el).addEventListener('input', () => this.marcar()));
+      const solo = $('#ofFacSolo', el), valor = $('#ofFacValor', el);
+      MoneyInput.unir(valor, v => { this.fac.valor = v; this.marcar(); this.pintarCifras(); });
+      solo.addEventListener('change', () => {
+        this.fac.solo = solo.checked; this.marcar(); this.pintarSolo();
+        if (solo.checked) valor.focus();
+      });
+      this.pintarSolo();
       /* La factura se adjunta al lado de su número, o soltándola encima del recuadro */
       const fac = $('#ofFacCard', el);
       $('#ofFacAdjBtn', el).onclick = () => $('#ofAdj input[type="file"]', el).click();
@@ -7085,7 +7179,13 @@ const VistaOrdenForm = {
       (this.puedePagarYa() && this.yaPagada ? '<div class="hj-c hj-pagada"><div class="hj-cl">Pago</div><div class="hj-cv">' +
         '<span class="hj-mini"><label for="ofPgNum">Recibo N.º</label><input class="inp" id="ofPgNum" value="' + attr(this.recibo.numero) + '" placeholder="Si tiene" autocomplete="off"></span>' +
         '<span class="hj-mini"><label for="ofPgFecha">Pagada el</label><input class="inp" type="date" id="ofPgFecha" value="' + attr(this.recibo.fecha || o.fecha) + '"></span>' +
-        '<span class="fs11 txt-2">Adjunte abajo la foto del recibo. El total debe dar lo que se pagó: si el recibo no trae IVA, ponga el IVA en 0 %.</span></div></div>' : '') +
+        /* Como en la factura: el recibo que no se puede repartir por artículo (Juan, 05/11/2026) */
+        '<label class="hj-mini fac-solo-chk" data-tip="Para cuando no se puede repartir por artículo: el valor que escriba sale como TOTAL de la orden">' +
+          '<input type="checkbox" id="ofPgSolo"' + (this.recibo.solo ? ' checked' : '') + '>Poner solo el valor pagado</label>' +
+        (this.recibo.solo ? '<span class="hj-mini"><label for="ofPgValor">Valor pagado</label><input class="inp" id="ofPgValor" value="' +
+          attr(this.recibo.valor ? Money.num(this.recibo.valor) : '') + '" placeholder="0" autocomplete="off"></span>' : '') +
+        '<span class="fs11 txt-2">' + (this.recibo.solo ? 'Adjunte abajo la foto del recibo. El valor pagado sale como TOTAL de la orden, y los precios de los artículos pueden quedar en blanco.'
+          : 'Adjunte abajo la foto del recibo. El total debe dar lo que se pagó: si el recibo no trae IVA, ponga el IVA en 0 %.') + '</span></div></div>' : '') +
       '<div class="hj-c"><div class="hj-cl">Medio de pago</div><div class="hj-cv">' +
         Object.keys(MEDIOS_PAGO).map(k => x('data-medio="' + k + '"', MEDIOS_PAGO[k], o.medioPago === k)).join('') + '</div></div>' +
       '<div class="hj-c"><div class="hj-cl"><label for="ofLugar">Entregar en</label></div><div class="hj-cv hj-entrega">' +
@@ -7105,12 +7205,18 @@ const VistaOrdenForm = {
       if (m) { o.medioPago = o.medioPago === m.dataset.medio ? '' : m.dataset.medio; this.marcar(); this.pintarPago(); }
     };
     if ($('#ofYaPago', el)) $('#ofYaPago', el).onchange = e => {
-      this.yaPagada = e.target.checked; this.marcar(); this.pintarPago(); this.pintarBotones();
+      this.yaPagada = e.target.checked; this.marcar(); this.pintarPago(); this.pintarBotones(); this.pintarCifras();
       if (this.yaPagada) $('#ofPgNum', el).focus();
     };
     if ($('#ofPgNum', el)) {
       $('#ofPgNum', el).addEventListener('input', e => { this.recibo.numero = e.target.value; this.marcar(); });
       $('#ofPgFecha', el).addEventListener('change', e => { this.recibo.fecha = e.target.value; this.marcar(); });
+      $('#ofPgSolo', el).onchange = e => {
+        this.recibo.solo = e.target.checked; this.marcar(); this.pintarPago(); this.pintarCifras();
+        if (this.recibo.solo) $('#ofPgValor', el).focus();
+      };
+      const pv = $('#ofPgValor', el);
+      if (pv) MoneyInput.unir(pv, v => { this.recibo.valor = v; this.marcar(); this.pintarCifras(); });
     }
     if (cred) {
       $('#ofPlazo', el).addEventListener('input', e => { o.plazoDias = Math.max(0, parseInt(e.target.value, 10) || 0); this.marcar(); });
@@ -7167,16 +7273,30 @@ const VistaOrdenForm = {
   },
   /** Sólo las cifras del pie: así no se pierde lo que se está escribiendo en la ReteICA o el flete */
   pintarCifras() {
-    const o = this.o, t = Modelo.totales(o), el = this.el;
-    const menos = v => v ? '− ' + Money.fmt(v) : Money.fmt(0);
+    const o = this.o, el = this.el, s = this.valorSolo();
+    const solo = s === undefined ? Modelo.soloValor(o) : s !== null;
+    const t = s === undefined ? Modelo.totales(o) : Modelo.totalesArticulos(o);
     $('#ofSubL', el).textContent = o.ivaIncluido ? 'Subtotal sin IVA' : 'Subtotal';
+    /* Con «Poner solo el valor…», el total es ese valor y lo demás no cuenta */
+    $('#ofResumen', el).classList.toggle('ht-solo', solo);
+    if (solo) {
+      const pagado = s === undefined ? !!(o.pago && o.pago.contado) : !this.modoFactura;
+      ['#ofSubV', '#ofRetV', '#ofIcaV', '#ofIvaV', '#ofFleV'].forEach(id => { $(id, el).textContent = '—'; });
+      $('#ofTotV', el).textContent = Money.fmt(s === undefined ? t.total : s);
+      $('#ofTotNota', el).textContent = s === undefined ? 'Total = el valor ' + (pagado ? 'pagado' : 'de la factura') + ', sin precios por artículo. Se corrige con el lápiz de la factura, en la orden.'
+        : 'Total = el valor ' + (pagado ? 'pagado' : 'de la factura') + ' que escribió arriba. Los precios de los artículos pueden quedar en blanco.';
+      this.pintarSubItems();
+      return;
+    }
+    const menos = v => v ? '− ' + Money.fmt(v) : Money.fmt(0);
     $('#ofSubV', el).textContent = Money.fmt(t.subtotal);
     $('#ofRetV', el).textContent = menos(t.retencion);
     $('#ofIcaV', el).textContent = menos(t.reteIca);
     $('#ofIvaV', el).textContent = Money.fmt(t.iva);
     $('#ofFleV', el).textContent = t.flete ? '+ ' + Money.fmt(t.flete) : Money.fmt(0);
     $('#ofTotV', el).textContent = Money.fmt(t.total);
-    $('#ofTotNota', el).textContent = !t.valorizada ? 'Sin precios: puede enviarla así y registrar la factura después.'
+    $('#ofTotNota', el).textContent = !t.valorizada ? (this.modoFactura ? 'Sin precios: póngalos en «Valor unitario», o marque arriba «Poner solo el valor de la factura».'
+        : 'Sin precios: puede enviarla así y registrar la factura después.')
       : o.ivaIncluido ? 'Los precios ya traen el IVA: no se suma. Total = lo que suman los artículos − retención − ReteICA + flete.'
       : 'Total = subtotal − retención − ReteICA + IVA + flete, como en la factura.';
     this.pintarSubItems();
@@ -7268,8 +7388,8 @@ const VistaOrdenForm = {
       const previsto = this.editando || !$('#ofNumPrev', el) ? '' : $('#ofNumPrev', el).textContent.trim();
       const pagada = this.yaPagada && this.puedePagarYa();
       const g = this.modoFactura
-        ? await OrdenService.guardarFactura(this.o, { numero: $('#ofFacNum', el).value, fecha: $('#ofFacFecha', el).value }, this.adjNuevos)
-        : pagada ? await OrdenService.guardarPagada(this.o, { numero: this.recibo.numero, fecha: this.recibo.fecha || this.o.fecha }, this.adjNuevos)
+        ? await OrdenService.guardarFactura(this.o, { numero: $('#ofFacNum', el).value, fecha: $('#ofFacFecha', el).value, soloValor: this.fac.solo, valor: this.fac.valor }, this.adjNuevos)
+        : pagada ? await OrdenService.guardarPagada(this.o, { numero: this.recibo.numero, fecha: this.recibo.fecha || this.o.fecha, soloValor: this.recibo.solo, valor: this.recibo.valor }, this.adjNuevos)
         : await OrdenService.guardar(this.o, this.adjNuevos);
       Router.sucio = false;
       Toast.ok(this.modoFactura ? 'Factura <b>' + esc(g.factura.numero) + '</b> guardada: la orden ' + esc(Modelo.codigo(g)) + ' está en contabilidad.'
@@ -7288,6 +7408,8 @@ const VistaOrdenForm = {
         if (er.factura) $('#ofFacNum', el).classList.add('is-err');
         if (er.facturaFecha) $('#ofFacFecha', el).classList.add('is-err');
         if (er.pagoFecha && $('#ofPgFecha', el)) $('#ofPgFecha', el).classList.add('is-err');
+        if (er.valorFactura && $('#ofFacValor', el)) $('#ofFacValor', el).classList.add('is-err');
+        if (er.valorPagado && $('#ofPgValor', el)) $('#ofPgValor', el).classList.add('is-err');
         if (er.equipo) $('#ofEq', el).classList.add('is-err');
         if (er.valores) $$('#ofItems input[data-k="valorUnitario"]', el).forEach((x, i) => { if (Modelo.itemValido(this.o.items[i])) x.classList.add('is-err'); });
         Object.keys(er).forEach(k => {
@@ -9110,7 +9232,9 @@ const Documento = {
     /* La firma de quien la hizo, como está hoy en Configuración (o la del firmante de antes) */
     const sol = Firmas.impresa(o.solicitante);
     const firma = sol && sol.firma;
-    const val = t.valorizada;
+    /* Con la factura puesta solo con su valor, sale el TOTAL y lo demás en blanco */
+    const solo = Modelo.soloValor(o);
+    const val = t.valorizada && !solo;
     const m = n => val ? Money.fmt(n) : '';
     const x = (txt, on) => '<span class="dp-x"><i>' + (on ? '✕' : '') + '</i>' + esc(txt) + '</span>';
     const cred = o.formaPago === 'CREDITO';
@@ -9157,8 +9281,8 @@ const Documento = {
       '<tr><td>Retención en la fuente' + (o.retencionPct ? ' (' + esc(Num.pct(o.retencionPct)) + ')' : '') + '</td><td>' + (val ? (t.retencion ? '− ' + Money.fmt(t.retencion) : Money.fmt(0)) : '') + '</td></tr>' +
       (t.reteIca ? '<tr><td>ReteICA (' + esc(Num.fmt(o.reteIcaPorMil)) + ' × 1.000)</td><td>' + (val ? '− ' + Money.fmt(t.reteIca) : '') + '</td></tr>' : '') +
       '<tr><td>IVA (' + esc(Num.pct(o.ivaPct)) + ')' + (o.ivaIncluido ? ' incluido' : '') + '</td><td>' + m(t.iva) + '</td></tr>' +
-      (t.flete ? '<tr><td>Flete</td><td>' + (val ? '+ ' + Money.fmt(t.flete) : '') + '</td></tr>' : '') +
-      '<tr class="grand"><td>Total</td><td>' + m(t.total) + '</td></tr></table></div></div>';
+      (t.flete && !solo ? '<tr><td>Flete</td><td>' + (val ? '+ ' + Money.fmt(t.flete) : '') + '</td></tr>' : '') +
+      '<tr class="grand"><td>Total</td><td>' + (solo ? Money.fmt(t.total) : m(t.total)) + '</td></tr></table></div></div>';
     h += '<div class="dp-obs"><b>Observaciones</b>' + (o.notaProveedor ? esc(o.notaProveedor).replace(/\n/g, '<br>') + '<br>' : '') + esc(d.citar || '') + '</div>';
     h += '<div class="dp-cierre">' + esc(d.cierre || '') + '</div>';
     h += '<div class="dp-sign"><div><div class="fm">' + (firma ? '<img src="' + attr(img(firma)) + '" alt="Firma">' : '') + '</div><div class="ln"></div>' +
@@ -9985,6 +10109,11 @@ const Pruebas = {
   },
   /** Un vehículo de Flota, para las hojas que ve Flota */
   vehiculo() { return EquipoService.guardar(Object.assign(EquipoService.vacio(), { nombre: 'SNW865', tipo: 'carga', placa: 'SNW865', flotaId: 'snw865' })); },
+  /** Artículos con nombres de la orden y sin precio, para «Poner solo el valor de la factura» */
+  sinPrecio() {
+    return [Object.assign(Modelo.itemVacio(), { descripcion: 'Kit de reparación', cantidad: 1, unidad: 'UND', valorUnitario: 0 }),
+      Object.assign(Modelo.itemVacio(), { descripcion: 'Empaques varios', cantidad: 3, unidad: 'UND', valorUnitario: 0 })];
+  },
   /** Corre fn con la hoja para Flota trabajando contra una nube y una imagen
       de mentira (n: lo que se subió y lo que se quitó). Todo vuelve como estaba */
   async conHojas(fn) {
@@ -11333,6 +11462,103 @@ Pruebas.def('Hoja para Flota: la imagen es la hoja impresa, al doble, en WebP', 
   Pruebas.cierto(/^image\/(webp|jpeg)$/.test(b.type) && b.size > 5000 && b.size < 400000, b.type + ' de ' + Math.round(b.size / 1024) + ' KB');
   Pruebas.igual((await Documento.imagen(o)).type, 'image/png', 'la de WhatsApp sigue en PNG');
   return (b.type === 'image/webp' ? 'WebP' : 'JPG') + ' de ' + c.width + ' × ' + c.height + ', ' + Math.round(b.size / 1024) + ' KB';
+});
+/* «Poner solo el valor de la factura» (Juan, 05/11/2026) */
+Pruebas.def('Solo el valor de la factura: no pide precios, y ese valor es el TOTAL de la orden, de la impresa y de lo que va a Flota', async ({ p1 }) => {
+  let g = await OrdenService.guardar(Pruebas.orden(p1, { items: Pruebas.sinPrecio(), retencionPct: 2.5, reteIcaPorMil: 6, flete: 35000 }));
+  const e = await Pruebas.falla(() => OrdenService.guardarFactura(g, { numero: 'FE-88', fecha: '2026-11-05' }), ErrorValidacion, 'sin precios ni el valor no debía pasar');
+  Pruebas.cierto(/«Poner solo el valor de la factura»/.test(e.errores.valores), 'el aviso debía decir que está la casilla');
+  const e2 = await Pruebas.falla(() => OrdenService.guardarFactura(g, { numero: 'FE-88', fecha: '2026-11-05', soloValor: true, valor: '' }), ErrorValidacion, 'marcada y sin valor no debía pasar');
+  Pruebas.igual(Object.keys(e2.errores), ['valorFactura']);
+  g = await OrdenService.guardarFactura(g, { numero: 'FE-88', fecha: '2026-11-05', soloValor: true, valor: '612.345,50' });
+  Pruebas.igual([g.estado, g.factura.soloValor, g.factura.valor, g.total, g.subtotal, g.iva, g.retencion, g.reteIca || 0, g.flete || 0, Modelo.valor(g)],
+    ['CONTABILIDAD', true, 612345.5, 612345.5, 0, 0, 0, 0, 0, 612345.5], 'el total es el valor de la factura, y lo demás queda en cero (el flete va dentro de la factura)');
+  Pruebas.igual([g.retencionPct, g.reteIcaPorMil], [2.5, 6], 'los porcentajes del pie se quedan, por si se vuelve a los precios');
+  Pruebas.igual([Analitica.kpis(Datos.ordenes).total, Analitica.kpis(Datos.ordenes).sinValor], [612345.5, 0], 'cuenta en las estadísticas');
+  Pruebas.cierto(/^Llegó la factura FE-88 · solo su valor, \$ 612\.345,50$/.test(g.historial[g.historial.length - 1].nota), 'el historial lo dice');
+  const doc = Documento.html(g);
+  Pruebas.cierto(doc.includes('<tr class="grand"><td>Total</td><td>$ 612.345,50</td></tr>'), 'la impresa lleva ese TOTAL');
+  Pruebas.cierto(doc.includes('<td>Subtotal</td><td></td>') && !/Retención en la fuente[^<]*<\/td><td>[^<]/.test(doc) && !doc.includes('ReteICA') && !doc.includes('<td>Flete</td>'), 'y lo demás en blanco');
+  Pruebas.cierto(VistaOrden.resumen(g).includes('Se puso solo el valor de la factura'), 'el resumen de la orden lo dice');
+  /* Lo que lee el 210 para Flota: el total y el valor de la factura */
+  const f = MAPA.fila('ordenes', g);
+  Pruebas.igual([f.total, f.subtotal, f.iva, 'flete' in f.extra, f.factura.valor, f.factura.soloValor], [612345.5, 0, 0, false, 612345.5, true], 'a la nube (y a Flota) va ese valor');
+  Pruebas.cierto(HojaFlota.huella(g) !== HojaFlota.huella(Object.assign(U.clonar(g), { factura: Object.assign({}, g.factura, { valor: 600000 }), total: 600000 })),
+    'otro valor, otra hoja para Flota');
+  return Money.fmt(g.total) + ', sin precios';
+});
+Pruebas.def('Solo el valor de la factura: se corrige con el lápiz, editar la orden no lo cambia, y se puede volver a los precios', async ({ p1 }) => {
+  let g = await OrdenService.guardar(Pruebas.orden(p1, { items: Pruebas.sinPrecio() }));
+  g = await OrdenService.guardarFactura(g, { numero: 'FE-1', fecha: '2026-11-05', soloValor: true, valor: 500000 });
+  g = await OrdenService.guardarFactura(g, { numero: 'FE-1A', fecha: '2026-11-05' });
+  Pruebas.igual([g.factura.numero, g.factura.soloValor, g.total, g.estado], ['FE-1A', true, 500000, 'CONTABILIDAD'], 'corregir el número no le quita el valor');
+  const hoja = U.clonar(g); hoja.items[0].valorUnitario = 1000;
+  g = await OrdenService.guardar(hoja);
+  Pruebas.igual([g.total, g.factura.valor, g.factura.soloValor], [500000, 500000, true], 'editar la orden no cambia el valor de la factura');
+  /* La ventana pequeña del lápiz trae el valor y lo corrige */
+  const espera = AccionesOrden.corregirFactura(g);
+  const m = $$('#modals .modal-bd').pop();
+  try {
+    Pruebas.igual([$('#cfValor', m).value, $('#cfValores', m).textContent], ['500.000', 'Poner los precios por artículo'], 'debía traer el valor de la factura');
+    $('#cfValor', m).value = '520.000,25';
+    $('#cfOk', m).click();
+  } catch (er) { Modal.cerrarTodos(); throw er; }
+  g = await espera;
+  Pruebas.igual([g.total, g.factura.valor, g.factura.numero], [520000.25, 520000.25, 'FE-1A'], 'el valor corregido en la ventana');
+  const con = U.clonar(g); con.items[0].valorUnitario = 45000;
+  g = await OrdenService.guardarFactura(con, { numero: 'FE-1A', fecha: '2026-11-05', soloValor: false });
+  Pruebas.igual(['soloValor' in g.factura, g.subtotal, g.total, g.factura.valor], [false, 45000, 53550, 53550], 'sin la casilla vuelve a lo que suman los artículos');
+  g = await OrdenService.guardarFactura(g, { numero: 'FE-1A', fecha: '2026-11-05', soloValor: true, valor: 300000 });
+  g = await OrdenService.cambiarEstado(g, 'ESPERANDO', { quitarFactura: true, quitarPago: true });
+  Pruebas.igual([g.factura, g.total, Modelo.valor(g)], [null, 53550, 53550], 'al quitar la factura, el total vuelve a ser el de los artículos');
+  return '500.000 → 520.000,25 → precios por artículo';
+});
+Pruebas.def('Ya se pagó: con «Poner solo el valor pagado» tampoco pide precios', async ({ p1 }) => {
+  const nueva = () => Pruebas.orden(p1, { formaPago: 'CONTADO', medioPago: 'EFECTIVO', items: Pruebas.sinPrecio() });
+  const e = await Pruebas.falla(() => OrdenService.guardarPagada(nueva(), { fecha: '2026-11-05' }), ErrorValidacion, 'sin precios ni el valor no debía pasar');
+  Pruebas.cierto(/«Poner solo el valor pagado»/.test(e.errores.valores), 'el aviso debía decir que está la casilla');
+  const e2 = await Pruebas.falla(() => OrdenService.guardarPagada(nueva(), { fecha: '2026-11-05', soloValor: true, valor: '0' }), ErrorValidacion, 'marcada y sin valor no debía pasar');
+  Pruebas.igual(Object.keys(e2.errores), ['valorPagado']);
+  const g = await OrdenService.guardarPagada(nueva(), { numero: 'R-7', fecha: '2026-11-05', soloValor: true, valor: '85.000' });
+  Pruebas.igual([g.estado, g.factura.numero, g.factura.soloValor, g.factura.valor, g.total, g.pago.contado, Analitica.kpis([g]).total],
+    ['PAGADA', 'R-7', true, 85000, 85000, true, 85000]);
+  Pruebas.cierto(VistaOrden.resumen(g).includes('Se puso solo el valor pagado'), 'el resumen lo dice');
+  return 'pagada de contado por $ 85.000';
+});
+Pruebas.def('En la hoja: la casilla «Poner solo el valor…» saca su campo y cambia el TOTAL del pie', async ({ p1 }) => {
+  const div = document.createElement('div');
+  try {
+    const o = await OrdenService.guardar(Pruebas.orden(p1, { items: Pruebas.sinPrecio() }));
+    VistaOrdenForm.render(div, { id: o.id }, { factura: '1' });
+    const solo = $('#ofFacSolo', div), valor = $('#ofFacValor', div);
+    Pruebas.cierto(!solo.checked && valor.classList.contains('hidden') && /Poner solo el valor de la factura/.test($('#ofTotNota', div).textContent),
+      'empieza sin marcar y sin el campo, y el pie dice que está la casilla');
+    solo.checked = true; solo.dispatchEvent(new Event('change'));
+    Pruebas.cierto(!valor.classList.contains('hidden') && $('#ofFacSub', div).textContent.includes('sin precios'), 'marcada, sale el campo del valor');
+    valor.value = '250000'; valor.dispatchEvent(new Event('input'));
+    Pruebas.igual([valor.value, $('#ofTotV', div).textContent, $('#ofSubV', div).textContent, VistaOrdenForm.fac.valor], ['250.000', '$ 250.000', '—', 250000], 'el TOTAL del pie es ese valor');
+    solo.checked = false; solo.dispatchEvent(new Event('change'));
+    Pruebas.igual([$('#ofTotV', div).textContent, valor.classList.contains('hidden')], ['$ 0', true], 'sin marcar, vuelve a lo que suman los artículos');
+    Router.sucio = false;
+    /* La que ya se registró así, abierta otra vez: la casilla marcada y su valor */
+    const r = await OrdenService.guardarFactura(o, { numero: 'FE-3', fecha: '2026-11-05', soloValor: true, valor: 410000 });
+    VistaOrdenForm.render(div, { id: r.id }, { factura: '1' });
+    Pruebas.igual([$('#ofFacSolo', div).checked, $('#ofFacValor', div).value, $('#ofTotV', div).textContent], [true, '410.000', '$ 410.000']);
+    Router.sucio = false;
+    VistaOrdenForm.render(div, { id: r.id }, {});
+    Pruebas.cierto($('#ofTotV', div).textContent === '$ 410.000' && /lápiz de la factura/.test($('#ofTotNota', div).textContent), 'al editar la orden, el pie muestra el valor de la factura');
+    Router.sucio = false;
+    /* «Ya se pagó», en una de contado */
+    VistaOrdenForm.render(div, {}, { proveedor: p1.id });
+    $('[data-forma="CONTADO"]', div).click();
+    $('#ofYaPago', div).checked = true; $('#ofYaPago', div).dispatchEvent(new Event('change'));
+    $('#ofPgSolo', div).checked = true; $('#ofPgSolo', div).dispatchEvent(new Event('change'));
+    const pv = $('#ofPgValor', div);
+    pv.value = '85000'; pv.dispatchEvent(new Event('input'));
+    Pruebas.igual([$('#ofTotV', div).textContent, VistaOrdenForm.recibo.valor], ['$ 85.000', 85000], 'en «Ya se pagó», igual');
+    $('#ofYaPago', div).checked = false; $('#ofYaPago', div).dispatchEvent(new Event('change'));
+    Pruebas.cierto(!$('#ofPgSolo', div) && $('#ofTotV', div).textContent !== '$ 85.000', 'sin «Ya se pagó», no cuenta');
+  } finally { Router.sucio = false; Combo.limpiar(); }
 });
 
 /* ==========================================================================
