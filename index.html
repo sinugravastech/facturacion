@@ -1950,7 +1950,7 @@ const APP = Object.freeze({
   nombre: 'Facturación',
   area: 'Órdenes de compra',
   empresa: 'SINUGRAVAS S.A.S.',
-  version: '2.18.0',
+  version: '2.19.0',
   /* 3: los datos viven en la nube y el número de cada orden sale de las órdenes */
   esquema: 3,
   /* La base del navegador de la versión local (1.x). Ya no se guarda en ella:
@@ -3504,8 +3504,12 @@ const LISTAS = Object.freeze({
       Datos.crudo('plantillas').forEach(p => new Set((p.items || []).map(it => it.unidad)).forEach(u => s(u, 'pl')));
     } },
   lugares: { t: 'Lugares de entrega', grupo: 'En las órdenes', ic: 'truck', uno: 'el lugar', ej: 'Bodega de Montería', largo: 160, defecto: [],
-    donde: '«Entregar en» de cada orden.',
-    usa(s) { Datos.crudo('ordenes').forEach(o => s(o.entregaLugar, 'o')); } },
+    donde: '«Entregar en» de cada orden. Ahí salen también el lugar por defecto de Configuración y los proveedores.',
+    usa(s) { Datos.crudo('ordenes').forEach(o => s(o.entregaLugar, 'o')); },
+    /* Lo que también sale en «Entregar en» (Juan, 07/11/2026): escogerlo no es
+       escribir algo que no está en la lista */
+    aparte: () => Empresa.lista().map(e => Empresa.cfg(e).documento.lugarEntrega)
+      .concat(...Datos.proveedores.map(p => [p.nombre, ...(p.alias || [])])) },
   plazos: { t: 'Plazos de crédito', grupo: 'En las órdenes', ic: 'calendar', uno: 'el plazo', ej: '120', numero: 'días', entero: true, min: 1, max: 365,
     donde: 'Los días de plazo de las órdenes a crédito y de cada proveedor.',
     defecto: [15, 30, 45, 60, 90],
@@ -3638,7 +3642,8 @@ const Listas = {
   },
   /** Lo que se escribió sin estar en la lista, lo más usado primero */
   fuera(clave) {
-    const hay = new Set(this.valores(clave).map(x => this.llave(clave, x)));
+    const d = LISTAS[clave];
+    const hay = new Set(this.valores(clave).concat(d.aparte ? d.aparte() : []).map(x => this.llave(clave, x)));
     return [...this.usos(clave)].filter(([k]) => !hay.has(k)).map(([, x]) => x).sort((a, b) => (b.o + b.p + b.pl) - (a.o + a.p + a.pl));
   },
   /** «12 órdenes · 3 proveedores» */
@@ -4648,7 +4653,9 @@ const OrdenService = {
       items: [Modelo.itemVacio()],
       ivaPct: cfg.ivaPct, retencionPct: 0,
       subtotal: 0, iva: 0, retencion: 0, total: 0,
-      formaPago: 'CONTADO', plazoDias: 0, cuotas: 0, medioPago: '',
+      /* A crédito, y quien la hace la cambia cuando toca (Juan, 07/11/2026). Si
+         la ficha del proveedor dice otra cosa, al escogerlo se trae la de la ficha */
+      formaPago: 'CREDITO', plazoDias: 0, cuotas: 0, medioPago: '',
       entregaLugar: Empresa.cfg(emp).documento.lugarEntrega || '', entregaRecibe: '', entregaCedula: '',
       notaProveedor: '', notasInternas: '',
       solicitante: sol,
@@ -4679,6 +4686,24 @@ const OrdenService = {
     if (p.formaPago) { o.formaPago = p.formaPago; o.plazoDias = +p.plazoDias || 0; }
     if (p.medioPago) o.medioPago = p.medioPago;
     return o;
+  },
+  /** La lista de «Entregar en» (Juan, 07/11/2026: casi siempre se entrega donde
+      un mecánico, y los mecánicos ya están en Proveedores): el lugar por defecto
+      de Configuración, los de Catálogos y los proveedores activos, sin repetir.
+      Como toda lista, sólo sugiere: lo que se escriba no se guarda en ella */
+  lugaresEntrega(emp) {
+    const vistos = new Set(), l = [];
+    const poner = (v, extra) => {
+      v = String(v || '').replace(/\s+/g, ' ').trim();
+      const k = Txt.norm(v);
+      if (k && !vistos.has(k)) { vistos.add(k); l.push(Object.assign({ v, t: v }, extra)); }
+    };
+    poner(Empresa.cfg(emp).documento.lugarEntrega, { tag: 'Por defecto' });
+    Listas.valores('lugares').forEach(v => poner(v));
+    Datos.proveedores.filter(p => p.activo).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
+      .forEach(p => poner(p.nombre, { s: [p.categoria, p.direccion, p.ciudad].filter(Boolean).join(' · '), tag: 'Proveedor',
+        k: [p.contacto, p.nit, ...(p.alias || [])].filter(Boolean).join(' ') }));
+    return l;
   },
   aplicarPlantilla(o, pl) {
     if (!pl) return o;
@@ -5966,8 +5991,10 @@ const Combo = {
     const c = { input, portal };
     const posicionar = () => {
       const r = input.getBoundingClientRect();
-      portal.style.minWidth = Math.max(r.width, 220) + 'px';
-      portal.style.left = Math.min(r.left, innerWidth - Math.max(r.width, 220) - 8) + 'px';
+      /* Una opción larga no saca la lista de la pantalla (en el celular): se corta con «…» */
+      portal.style.maxWidth = (innerWidth - 16) + 'px';
+      portal.style.minWidth = Math.min(Math.max(r.width, 220), innerWidth - 16) + 'px';
+      portal.style.left = Math.max(8, Math.min(r.left, innerWidth - portal.offsetWidth - 8)) + 'px';
       const abajo = innerHeight - r.bottom;
       if (abajo < 200 && r.top > abajo) { portal.style.top = ''; portal.style.bottom = (innerHeight - r.top + 4) + 'px'; }
       else { portal.style.bottom = ''; portal.style.top = (r.bottom + 4) + 'px'; }
@@ -6045,26 +6072,35 @@ const Combo = {
    al escribir se filtra. Sólo sugiere: se puede escribir otra cosa, y eso no se
    agrega solo a la lista (eso se decide en Catálogos). Al escoger, el campo
    avisa «input» y «change», como si se hubiera escrito.
-   opciones: el nombre de una lista de Catálogos, o () => [{ v, t, n }] */
+   opciones: el nombre de una lista de Catálogos, o () => [{ v, t, n, s, tag, k }]
+   (s: la línea de abajo; tag: la etiqueta de la derecha; k: más texto para buscar) */
 const Desplegable = {
   unir(input, opciones) {
     /* Los campos que se vuelven a pintar (el pie de la hoja) no dejan listas sueltas */
     Combo.limpiar();
     const fuente = typeof opciones === 'string' ? () => Listas.opciones(opciones) : opciones;
     const igual = (o, q) => o.n != null ? q !== '' && /^\d+([.,]\d+)?$/.test(q) && Num.parse(q) === o.n : Txt.norm(o.v) === Txt.norm(q);
+    /* Al entrar sale la lista entera aunque lo escrito no esté en ella: se
+       filtra sólo con lo que se escribe después (va antes que los del Combo) */
+    let escrito = false;
+    input.addEventListener('focus', () => { escrito = false; });
+    input.addEventListener('input', () => { escrito = true; });
     input.removeAttribute('list');
     /* La flecha sólo si hay algo que escoger (las listas nuevas empiezan vacías) */
     input.classList.toggle('inp-lista', fuente().length > 0);
     return Combo.unir(input, {
       alAbrirVacio: true,
       fuente: q => {
-        const todas = fuente(), nq = Txt.norm(q);
+        const todas = fuente(), nq = escrito ? Txt.norm(q) : '';
         const hay = !!nq && todas.some(o => igual(o, q));
-        const donde = o => { const a = Txt.norm(o.t), b = Txt.norm(o.v); return a.startsWith(nq) || b.startsWith(nq) ? 0 : a.includes(nq) || b.includes(nq) ? 1 : 2; };
-        const l = !nq || hay ? todas : todas.filter(o => donde(o) < 2).sort((a, b) => donde(a) - donde(b));
-        return l.map(o => ({ html: hay || !nq ? esc(o.t) : Txt.resaltar(o.t, q), exacto: igual(o, q), data: o }));
+        const donde = o => {
+          const a = Txt.norm(o.t), b = Txt.norm(o.v);
+          return a.startsWith(nq) || b.startsWith(nq) ? 0 : a.includes(nq) || b.includes(nq) ? 1 : Txt.norm((o.s || '') + ' ' + (o.k || '')).includes(nq) ? 2 : 3;
+        };
+        const l = !nq || hay ? todas : todas.filter(o => donde(o) < 3).sort((a, b) => donde(a) - donde(b));
+        return l.map(o => ({ html: hay || !nq ? esc(o.t) : Txt.resaltar(o.t, q), s: o.s, tag: o.tag, exacto: igual(o, q), data: o }));
       },
-      inicial: (l, q) => { const i = l.findIndex(it => it.exacto); return i >= 0 ? i : q ? 0 : -1; },
+      inicial: (l, q) => { const i = l.findIndex(it => it.exacto); return i >= 0 ? i : q && escrito ? 0 : -1; },
       alElegir: it => {
         input.value = it.data.v;
         input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -7624,8 +7660,17 @@ const VistaOrdenForm = {
       $('#ofCuotas', el).addEventListener('input', e => { o.cuotas = Math.max(0, parseInt(e.target.value, 10) || 0); this.marcar(); });
       Desplegable.unir($('#ofPlazo', el), 'plazos');
     }
-    $('#ofLugar', el).addEventListener('input', e => { o.entregaLugar = e.target.value; this.marcar(); });
-    Desplegable.unir($('#ofLugar', el), 'lugares');
+    const lug = $('#ofLugar', el);
+    lug.addEventListener('input', e => { o.entregaLugar = e.target.value; this.marcar(); });
+    Desplegable.unir(lug, () => OrdenService.lugaresEntrega(Empresa.de(o)));
+    /* Al entrar con el ratón queda marcado lo que ya dice (casi siempre el lugar
+       por defecto): lo que se escriba lo reemplaza y busca en la lista */
+    let marcarTodo = false;
+    lug.addEventListener('mousedown', () => { marcarTodo = document.activeElement !== lug; });
+    lug.addEventListener('mouseup', e => {
+      if (marcarTodo && lug.selectionStart === lug.selectionEnd) { e.preventDefault(); lug.select(); }
+      marcarTodo = false;
+    });
     $('#ofCedula', el).addEventListener('input', e => { o.entregaCedula = e.target.value; this.marcar(); });
     const inpR = $('#ofRecibe', el);
     inpR.addEventListener('input', e => { o.entregaRecibe = e.target.value; this.marcar(); });
@@ -11029,12 +11074,15 @@ Pruebas.def('Las listas son de la plataforma: salen todas al entrar y se puede e
     const combo = [...Combo.vivos].find(c => c.input === uni), opc = () => $$('.combo-opt', combo.portal);
     uni.value = 'UND'; combo.abrir();
     Pruebas.igual([opc().length, opc().findIndex(o => o.classList.contains('hl'))], [21, 0], 'con UND escrita salen todas, y UND marcada');
-    uni.value = 'gar'; combo.abrir();
+    uni.value = 'gar'; uni.dispatchEvent(new Event('input', { bubbles: true }));
     Pruebas.igual(opc().map(o => o.textContent), ['GARRAFA'], 'al escribir se filtra');
     opc()[0].dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
     Pruebas.igual([uni.value, VistaOrdenForm.o.items[0].unidad, combo.portal.classList.contains('open')], ['GARRAFA', 'GARRAFA', false], 'al escoger queda escrita y la lista se cierra');
     uni.value = 'lata'; uni.dispatchEvent(new Event('input', { bubbles: true })); uni.dispatchEvent(new Event('change', { bubbles: true }));
     Pruebas.igual([VistaOrdenForm.o.items[0].unidad, Listas.valores('unidades').includes('LATA')], ['LATA', false], 'se puede escribir otra, y no se agrega sola');
+    combo.cerrar(); uni.dispatchEvent(new Event('focus'));
+    Pruebas.igual([opc().length, opc().findIndex(o => o.classList.contains('hl'))], [21, -1],
+      'al volver a entrar con algo que no está en la lista salen todas, sin marcar ninguna');
     const ret = $('#ofRet', div), cr = [...Combo.vivos].find(c => c.input === ret);
     cr.abrir();
     $$('.combo-opt', cr.portal).find(o => o.textContent.startsWith('4 %')).dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
@@ -11043,6 +11091,47 @@ Pruebas.def('Las listas son de la plataforma: salen todas al entrar y se puede e
     Pruebas.igual(VistaOrdenForm.o.retencionPct, 0.1, 'o se escribe');
   } finally { Router.sucio = false; Combo.limpiar(); div.remove(); }
   return 'la unidad y la retención';
+});
+Pruebas.def('Una orden nueva sale a crédito, y en «Entregar en» salen los proveedores', async ({ p1, p2 }) => {
+  Pruebas.igual([OrdenService.nueva({}).formaPago, OrdenService.nueva({ proveedorId: p2.id }).formaPago], ['CREDITO', 'CREDITO'], 'sin proveedor, o con uno sin condiciones, a crédito');
+  const fer = await ProveedorService.guardar(Object.assign(ProveedorService.vacio(), { nombre: 'Ferretería de contado', formaPago: 'CONTADO' }));
+  const n1 = OrdenService.nueva({ proveedorId: p1.id });
+  Pruebas.igual([OrdenService.nueva({ proveedorId: fer.id }).formaPago, n1.formaPago, n1.plazoDias], ['CONTADO', 'CREDITO', 90], 'lo que diga la ficha del proveedor se trae');
+  const mec = await ProveedorService.guardar(Object.assign(ProveedorService.vacio(), { nombre: 'Nander Fernández González', tipoPersona: 'NATURAL',
+    categoria: 'Mecánica diésel', direccion: 'Cra 5 # 12-30', ciudad: 'Montería', contacto: 'Nander' }));
+  const ido = await ProveedorService.guardar(Object.assign(ProveedorService.vacio(), { nombre: 'Taller que cerró', categoria: 'Mecánica', activo: false }));
+  await Listas.agregar('lugares', 'Finca La Esperanza');
+  const def = Empresa.cfg().documento.lugarEntrega, l = OrdenService.lugaresEntrega(Empresa.activa), vs = l.map(x => x.v);
+  Pruebas.cierto(!!def && l[0].v === def && l[0].tag === 'Por defecto', 'primero el lugar por defecto de Configuración');
+  Pruebas.cierto(vs.includes('Finca La Esperanza') && [p1, p2, fer, mec].every(p => vs.includes(p.nombre)) && !vs.includes(ido.nombre), 'los de Catálogos y los proveedores activos');
+  const m = l.find(x => x.v === mec.nombre);
+  Pruebas.igual([m.tag, m.s], ['Proveedor', 'Mecánica diésel · Cra 5 # 12-30 · Montería'], 'con lo que suministra y dónde queda');
+  const div = document.createElement('div');
+  div.style.cssText = 'position:fixed;left:-9999px;top:0;width:1100px';
+  document.body.appendChild(div);
+  try {
+    VistaOrdenForm.render(div, {}, {});
+    Pruebas.cierto($('[data-forma="CREDITO"]', div).classList.contains('on') && !$('[data-forma="CONTADO"]', div).classList.contains('on') && !$('#ofYaPago', div),
+      'la hoja nueva arranca en Crédito');
+    const lug = $('#ofLugar', div), combo = [...Combo.vivos].find(c => c.input === lug), opc = () => $$('.combo-opt', combo.portal);
+    const nombres = () => opc().map(o => $('.co-t div', o).textContent);
+    Pruebas.igual(lug.value, def, 'trae el lugar por defecto');
+    lug.dispatchEvent(new Event('focus'));
+    Pruebas.igual([opc().length, opc().findIndex(o => o.classList.contains('hl'))], [l.length, 0], 'al entrar salen todos, con el de ahora marcado');
+    lug.value = 'mecan'; lug.dispatchEvent(new Event('input', { bubbles: true }));
+    Pruebas.igual(nombres(), [mec.nombre], 'se busca también por lo que suministra');
+    lug.value = 'fer'; lug.dispatchEvent(new Event('input', { bubbles: true }));
+    Pruebas.igual(nombres(), [fer.nombre, mec.nombre], 'primero el que empieza así');
+    opc()[1].dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    Pruebas.igual([lug.value, VistaOrdenForm.o.entregaLugar, combo.portal.classList.contains('open')], [mec.nombre, mec.nombre, false], 'al escogerlo queda su nombre');
+    lug.value = 'Donde Pacho, en la finca'; lug.dispatchEvent(new Event('input', { bubbles: true }));
+    Pruebas.igual(VistaOrdenForm.o.entregaLugar, 'Donde Pacho, en la finca', 'se puede escribir otra cosa');
+  } finally { Router.sucio = false; Combo.limpiar(); div.remove(); }
+  /* Escoger un proveedor o el lugar por defecto no es «escribir algo que no está en la lista» */
+  for (const entregaLugar of [mec.nombre, def, 'Donde Pacho']) await OrdenService.guardar(Pruebas.orden(p1, { entregaLugar }));
+  Pruebas.igual([Listas.valores('lugares'), Listas.fuera('lugares').map(x => x.muestra)], [['Finca La Esperanza'], ['Donde Pacho']],
+    'en Catálogos no se agrega nada solo, y sólo lo escrito a mano sale como escrito aparte');
+  return 'Crédito, ' + l.length + ' lugares · ' + mec.nombre;
 });
 Pruebas.def('La pantalla de Catálogos: agregar, avisar lo repetido y traer lo que se escribió', async ({ p1 }) => {
   await OrdenService.guardar(Pruebas.orden(p1, { entregaLugar: 'Finca La Esperanza' }));
