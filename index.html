@@ -887,7 +887,7 @@ html[data-theme="dark"] .hj-sinfirma{color:var(--warn-500)}
 .ff{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:22px;align-items:start}
 .ff-prev,.ff-zoom{border:1px solid var(--border);border-radius:8px;overflow:hidden;background:#fff}
 .ff-prev{min-height:240px;display:grid}
-.ff-prev canvas,.ff-zoom canvas{display:block;width:100%;height:auto}
+.ff-zoom canvas{display:block;width:100%;height:auto}
 .ff-zoom{margin-bottom:14px}
 .ff-zoom:empty{display:none}
 .ff-msg{place-self:center;display:flex;align-items:center;gap:8px;color:#555;font-size:13px;padding:40px 16px;text-align:center}
@@ -900,11 +900,21 @@ html[data-theme="dark"] .hj-sinfirma{color:var(--warn-500)}
 .ff-esq button .ic{flex:none}
 .ff-esq button:hover{background:var(--surface-3)}
 .ff-esq button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+/* La hoja con el sello encima: el sello se arrastra con el ratón o el dedo, o se toca la hoja donde va.
+   Mide lo que la hoja (--ar), y el sello va en fracciones de ella: así queda en su sitio a cualquier tamaño */
+.ff-hoja{position:relative;align-self:start;width:100%;aspect-ratio:var(--ar);cursor:crosshair;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+.ff-pag{position:absolute;inset:0;display:block;width:100%;height:100%}
+.ff-asa{position:absolute;border-radius:3px;outline:1.5px dashed color-mix(in srgb,var(--accent) 55%,transparent);outline-offset:1px;cursor:grab;touch-action:none}
+.ff-asa::before{content:'';position:absolute;inset:-8px}
+.ff-asa:hover,.ff-asa:focus-visible,.ff-hoja.mov .ff-asa{outline-style:solid;outline-color:var(--accent)}
+.ff-hoja.mov,.ff-hoja.mov .ff-asa{cursor:grabbing}
+.ff-asa canvas{position:absolute;display:block;pointer-events:none}
 @media (max-width:760px){.ff{grid-template-columns:1fr}.ff-prev{order:2}}
 /* En el computador la hoja se ve entera, con sus bordes: así se ve si el sello tapa el QR también abajo */
 @media (min-width:761px){
   .ff-prev:has(canvas){border:none;border-radius:0;background:none;place-items:start center}
-  .ff-prev canvas{width:auto;max-width:100%;max-height:calc(100vh - 258px);border:1px solid var(--border);border-radius:4px}
+  .ff-hoja{width:min(100%,calc((100vh - 258px) * var(--r)))}
+  .ff-pag{border-radius:4px;outline:1px solid var(--border);outline-offset:-1px}
 }
 .adj-fac{display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:6px 6px 6px 10px;border-radius:var(--radius-sm);background:var(--accent-soft);font-size:12.5px}
 .adj-fac>svg{color:var(--accent);flex:0 0 auto}
@@ -1961,7 +1971,7 @@ const APP = Object.freeze({
   nombre: 'Facturación',
   area: 'Órdenes de compra',
   empresa: 'SINUGRAVAS S.A.S.',
-  version: '2.20.0',
+  version: '2.21.0',
   /* 3: los datos viven en la nube y el número de cada orden sale de las órdenes */
   esquema: 3,
   /* La base del navegador de la versión local (1.x). Ya no se guarda en ella:
@@ -4355,17 +4365,20 @@ const PdfVista = {
   },
   /** El PDF abierto con pdf.js; después se cierra con destroy() */
   async abrir(bytes) { return (await this.lib()).getDocument({ data: bytes.slice(), isEvalSupported: false, verbosity: 0 }).promise; },
-  /** Una hoja pintada sobre blanco, como sale impresa. Para pantalla, pdf.js
-      pinta a ritmo de la animación de la página, que se detiene si la pestaña
-      no está a la vista: así se arma igual mientras se mira otra cosa */
-  async pintar(pag, vp, w, h) {
+  /** Una hoja pintada sobre blanco, como sale impresa, o sin fondo (sinFondo:
+      lo que no tiene tinta queda transparente). Para pantalla, pdf.js pinta a
+      ritmo de la animación de la página, que se detiene si la pestaña no está a
+      la vista: así se arma igual mientras se mira otra cosa */
+  async pintar(pag, vp, w, h, sinFondo) {
     const c = document.createElement('canvas');
     c.width = Math.round(w || vp.width);
     c.height = Math.round(h || vp.height);
     const g = c.getContext('2d');
-    g.fillStyle = '#fff';
-    g.fillRect(0, 0, c.width, c.height);
-    await pag.render({ canvasContext: g, viewport: vp, intent: 'print' }).promise;
+    if (!sinFondo) {
+      g.fillStyle = '#fff';
+      g.fillRect(0, 0, c.width, c.height);
+    }
+    await pag.render({ canvasContext: g, viewport: vp, intent: 'print', background: sinFondo ? 'rgba(0,0,0,0)' : '#fff' }).promise;
     return c;
   }
 };
@@ -4378,14 +4391,37 @@ const PdfVista = {
    de la orden, la firma de quien firma con su nombre, y la placa, la orden y la
    fecha. Se dibuja con pdf-lib sobre una copia: el adjunto no cambia. Si en
    esa esquina tapa algo, como el QR del proveedor, se pasa a otra de las
-   cuatro (Juan, 07/11/2026) */
+   cuatro (Juan, 07/11/2026) o se arrastra a cualquier punto de la hoja (Juan,
+   10/11/2026) */
 const Sello = {
   TINTA: [34, 69, 153],
   OP: 0.78,
+  /** La franja, en puntos (7,5 × 1,3 cm) */
+  W: 212,
+  H: 37,
+  /** Lo que se deja alrededor del sello solo (ver solo): el borde de afuera se sale medio punto */
+  AIRE: 2,
   /** Las esquinas de la hoja, en el orden en que se ven */
   ESQUINAS: { 'sup-izq': 'Superior izquierda', 'sup-der': 'Superior derecha', 'inf-izq': 'Inferior izquierda', 'inf-der': 'Inferior derecha' },
   /** Una de las cuatro; si no es ninguna, la de siempre: arriba a la derecha */
   esquina(e) { return Object.keys(this.ESQUINAS).includes(e) ? e : 'sup-der'; },
+  /** Dónde va, como queda anotado: { esquina } o, si se movió a mano, { pos }:
+      su esquina de arriba a la izquierda, en fracciones de la hoja como se ve
+      (de 0 a 1). Sin nada, arriba a la derecha */
+  lugar(x) {
+    if (typeof x === 'string') return { esquina: this.esquina(x) };
+    const p = x && x.pos, n = v => Math.round(Math.min(1, Math.max(0, v)) * 1e4) / 1e4;
+    return p && Number.isFinite(p.x) && Number.isFinite(p.y) ? { pos: { x: n(p.x), y: n(p.y) } } : { esquina: this.esquina(x && x.esquina) };
+  },
+  /** La esquina de arriba a la izquierda de la franja en una hoja de VW × VH
+      pt, como se ve y desde la de la hoja. En una esquina, a 7 pt del borde de
+      arriba (o del de abajo) y a 8,5 del de la derecha (o del de la izquierda);
+      movida a mano, donde se dejó, sin salirse de la hoja */
+  sitio(l, VW, VH) {
+    l = this.lugar(l);
+    if (l.pos) return { x: Math.max(0, Math.min(VW - this.W, l.pos.x * VW)), y: Math.max(0, Math.min(VH - this.H, l.pos.y * VH)) };
+    return { x: /izq/.test(l.esquina) ? 8.5 : VW - 8.5 - this.W, y: /inf/.test(l.esquina) ? VH - 7 - this.H : 7 };
+  },
   /** Lo que se puede firmar: un PDF o una foto */
   puede(a) { return /^(application\/pdf|image\/(jpeg|png|webp))$/.test((a && a.tipo) || '') || /\.(pdf|jpe?g|png|webp)$/i.test((a && a.nombre) || ''); },
   /** La base de la copia, una vez por ventana: el PDF tal cual o, si es una
@@ -4486,15 +4522,34 @@ const Sello = {
   },
   /** La copia sellada, en bytes de PDF. base: la de preparar; d: empresa,
       firma (PNG o null), nombre, equipo ({ l, v }), orden, fecha (dd/mm/aaaa)
-      y esquina (ver ESQUINAS; si no viene, arriba a la derecha) */
+      y dónde va: esquina o pos (ver lugar; si no viene, arriba a la derecha) */
   async sellar(base, d) {
     const L = await Compresor.lib();
     const doc = await L.PDFDocument.load(base.bytes, { updateMetadata: false });
     const pag = doc.getPage(0), cb = pag.getCropBox(), giro = ((pag.getRotation().angle % 360) + 360) % 360;
-    /* Se dibuja como se ve la hoja: si viene girada, el sello sigue en la esquina que se ve y derecho */
+    /* Se dibuja como se ve la hoja: si viene girada, el sello sigue donde se ve y derecho */
     const de = giro === 90 || giro === 270, VW = de ? cb.height : cb.width, VH = de ? cb.width : cb.height;
     const M = { 90: [0, 1, -1, 0, cb.x + cb.width, cb.y], 180: [-1, 0, 0, -1, cb.x + cb.width, cb.y + cb.height], 270: [0, -1, 1, 0, cb.x, cb.y + cb.height] }[giro] ||
       [1, 0, 0, 1, cb.x, cb.y];
+    const s = this.sitio(d, VW, VH);
+    await this.dibujar(L, doc, pag, M, s.x, VH - s.y, d);
+    return doc.save();
+  },
+  /** El sello solo, sin fondo, para verlo encima de la hoja y moverlo sin
+      volver a pintarla: k pixeles por punto, con AIRE pt alrededor */
+  async solo(d, k) {
+    const L = await Compresor.lib(), doc = await L.PDFDocument.create(), a = this.AIRE;
+    await this.dibujar(L, doc, doc.addPage([this.W + 2 * a, this.H + 2 * a]), [1, 0, 0, 1, 0, 0], a, this.H + a, d);
+    const pdf = await PdfVista.abrir(await doc.save());
+    try {
+      const pag = await pdf.getPage(1);
+      return await PdfVista.pintar(pag, pag.getViewport({ scale: k }), 0, 0, true);
+    } finally { pdf.destroy(); }
+  },
+  /** El sello en la hoja pag de doc, con la esquina de arriba a la izquierda
+      en x0, yt: medidas de la hoja como se ve, desde abajo a la izquierda, que M
+      pasa a las del PDF */
+  async dibujar(L, doc, pag, M, x0, yt, d) {
     const tinta = L.rgb(this.TINTA[0] / 255, this.TINTA[1] / 255, this.TINTA[2] / 255), op = this.OP;
     const B = await doc.embedFont(L.StandardFonts.HelveticaBold), R = await doc.embedFont(L.StandardFonts.Helvetica);
     /* Lo que Helvetica no sabe escribir va sin tilde */
@@ -4515,9 +4570,8 @@ const Sello = {
     };
     const caja = (x, y, w, h, r, g) => pag.drawSvgPath('M ' + r + ' 0 H ' + (w - r) + ' Q ' + w + ' 0 ' + w + ' ' + r + ' V ' + (h - r) + ' Q ' + w + ' ' + h + ' ' + (w - r) + ' ' + h +
       ' H ' + r + ' Q 0 ' + h + ' 0 ' + (h - r) + ' V ' + r + ' Q 0 0 ' + r + ' 0 Z', { x, y, borderColor: tinta, borderWidth: g, borderOpacity: op });
-    /* 212 × 37 pt, a 7 pt del borde de arriba (o del de abajo) y a 8,5 del de la derecha (o del de la izquierda), en tres casillas */
-    const esq = this.esquina(d.esquina), W = 212, H = 37, c1 = 64, c2 = 80;
-    const x0 = /izq/.test(esq) ? 8.5 : VW - 8.5 - W, yt = /inf/.test(esq) ? 7 + H : VH - 7, cx1 = x0 + c1 / 2 + 1;
+    /* La franja, en tres casillas */
+    const W = this.W, H = this.H, c1 = 64, c2 = 80, cx1 = x0 + c1 / 2 + 1;
     const raya = x => pag.drawLine({ start: { x, y: yt - 6 }, end: { x, y: yt - H + 6 }, thickness: 0.4, color: tinta, opacity: op });
     pag.pushOperators(L.pushGraphicsState(), L.concatTransformationMatrix(...M));
     caja(x0, yt, W, H, 4, 1.1);
@@ -4561,22 +4615,25 @@ const Sello = {
       t(x, xr + lw, py, s, B);
     });
     pag.pushOperators(L.popGraphicsState());
-    return doc.save();
   },
-  /** Para verla: la primera hoja entera y, de cerca, la esquina con el sello (8,1 × 1,6 cm) */
-  async vista(bytes, hoja, zoom, esquina) {
+  /** Para verla: la primera hoja entera, sin el sello (el sello solo va
+      encima). ancho: lo que mide en la pantalla; k: pixeles por punto */
+  async hoja(bytes, ancho) {
     const pdf = await PdfVista.abrir(bytes);
     try {
-      const pag = await pdf.getPage(1), base = pag.getViewport({ scale: 1 }), px = window.devicePixelRatio || 1, e = this.esquina(esquina);
-      const k = Math.min(3, Math.max(1, (hoja.clientWidth || 520) * px / base.width));
-      const c = await PdfVista.pintar(pag, pag.getViewport({ scale: k }));
-      const cm = 72 / 2.54, zw = 8.1 * cm, zh = 1.6 * cm, zk = Math.min(4, Math.max(2, (zoom.clientWidth || 360) * px / zw));
-      const z = await PdfVista.pintar(pag, pag.getViewport({ scale: zk, offsetX: /izq/.test(e) ? 0 : -(base.width - zw) * zk,
-        offsetY: /inf/.test(e) ? -(base.height - zh) * zk : 0 }), zw * zk, zh * zk);
-      hoja.innerHTML = '';
-      hoja.appendChild(c);
-      zoom.innerHTML = '';
-      zoom.appendChild(z);
+      const pag = await pdf.getPage(1), base = pag.getViewport({ scale: 1 });
+      const k = Math.min(3, Math.max(1, (ancho || 520) * (window.devicePixelRatio || 1) / base.width));
+      return { c: await PdfVista.pintar(pag, pag.getViewport({ scale: k })), VW: base.width, VH: base.height, k };
+    } finally { pdf.destroy(); }
+  },
+  /** De cerca: el sello en la copia sellada, con lo que tiene alrededor (8,1 × 1,6 cm). l: dónde quedó (ver lugar) */
+  async cerca(bytes, ancho, l) {
+    const pdf = await PdfVista.abrir(bytes);
+    try {
+      const pag = await pdf.getPage(1), base = pag.getViewport({ scale: 1 }), s = this.sitio(l, base.width, base.height);
+      const cm = 72 / 2.54, zw = 8.1 * cm, zh = 1.6 * cm, zk = Math.min(4, Math.max(2, (ancho || 360) * (window.devicePixelRatio || 1) / zw));
+      const zx = Math.max(0, Math.min(base.width - zw, s.x - (zw - this.W) / 2)), zy = Math.max(0, Math.min(base.height - zh, s.y - (zh - this.H) / 2));
+      return await PdfVista.pintar(pag, pag.getViewport({ scale: zk, offsetX: -zx * zk, offsetY: -zy * zk }), zw * zk, zh * zk);
     } finally { pdf.destroy(); }
   }
 };
@@ -4981,15 +5038,16 @@ const OrdenService = {
     return Datos.orden(n.id);
   },
   /** «Firmar» (ver FirmarFactura): en el archivo queda anotado que se firmó,
-      con la fecha del sello, quién y en qué esquina. El archivo no cambia */
-  async marcarFirmada(orden, id, fecha, esquina) {
+      con la fecha del sello, quién y dónde quedó el sello (ver Sello.lugar).
+      El archivo no cambia */
+  async marcarFirmada(orden, id, fecha, lugar) {
     const n = this.actual(orden);
     Permiso.exigirOrden(n, 'editar');
     if (n.estado === 'ANULADA') throw new ErrorDominio('La orden está anulada: no se firma.');
     const a = (n.adjuntos || []).find(x => x.id === id);
     if (!a) throw new ErrorDominio('Ese archivo ya no está en la orden.');
     if (!Fecha.valida(fecha)) throw new ErrorValidacion({ fecha: 'Revise la fecha de la firma.' });
-    a.firmada = { fecha, en: Fecha.ahora(), esquina: Sello.esquina(esquina) };
+    a.firmada = Object.assign({ fecha, en: Fecha.ahora() }, Sello.lugar(lugar));
     const por = Permiso.quien();
     if (por) a.firmada.por = por;
     await Datos.lote([{ col: 'ordenes', tipo: 'put', doc: n }, Datos.evento('firmar', 'orden', n.id, n.numero + ' · ' + a.nombre + ' · ' + Fecha.corta(fecha))]);
@@ -6644,8 +6702,9 @@ const AccionesOrden = {
 };
 
 /* «Firmar» un PDF o una foto adjunta (Juan, 06/11/2026; ver Sello): a la
-   izquierda, la primera hoja con el sello; a la derecha, el sello de cerca, la
-   esquina donde va, la placa, la orden, la fecha y quién firma. La copia
+   izquierda, la primera hoja con el sello, que se arrastra con el ratón o el
+   dedo a donde no tape nada (Juan, 10/11/2026); a la derecha, el sello de
+   cerca, las esquinas, la placa, la orden, la fecha y quién firma. La copia
    firmada se descarga o se comparte y no se guarda; el adjunto no cambia y en
    la orden queda anotado que se firmó. Firma quien presiona el botón, con la
    firma que el administrador le puso a su cuenta en Configuración */
@@ -6656,21 +6715,26 @@ const FirmarFactura = {
     const q = EquipoService.porId(o.equipoId), eq = Sello.equipo(q), orden = Modelo.codigo(o);
     const nombre = String(a.nombre || 'Factura').replace(/\.[a-z0-9]{2,5}$/i, '') + ' - firmada.pdf';
     const comparte = (() => { try { return !!(navigator.canShare && navigator.canShare({ files: [new File(['x'], 'x.pdf', { type: 'application/pdf' })] })); } catch (e) { return false; } })();
-    let esq = this.esquina(o, a), vez = 0, hacer = null;
+    /* La hoja se pinta una vez, sin el sello (pagina), y el sello solo va encima:
+       así se mueve sin volver a pintarla. La copia de verdad se arma cada vez
+       que el sello queda quieto, y de ella salen lo que se ve de cerca y lo que
+       se descarga */
+    let lugar = this.lugar(o, a), vez = 0, hacer = null, paginaP = null, pagina = null, solo = null, soloDe = '', tecla = 0;
     const m = Modal.abrir({
       titulo: 'Firmar factura · ' + esc(orden), ancho: 'xwide',
       subtitulo: esc([a.nombre, Modelo.nombreProveedor(o), q ? q.nombre : ''].filter(Boolean).join(' · ')),
       cuerpo: '<div class="ff"><div class="ff-prev" id="ffPrev"><div class="ff-msg"><span class="spin"></span>Preparando la copia firmada…</div></div><div>' +
         '<div class="ff-zoom" id="ffZoom"></div>' +
         '<div class="field"><label id="ffEsqL">Dónde va el sello</label><div class="ff-esq" role="group" aria-labelledby="ffEsqL">' +
-          Object.keys(Sello.ESQUINAS).map(k => '<button type="button" data-esq="' + k + '" aria-pressed="' + (k === esq) + '"' + (k === esq ? ' class="on"' : '') + '>' +
+          Object.keys(Sello.ESQUINAS).map(k => '<button type="button" data-esq="' + k + '" aria-pressed="' + (k === lugar.esquina) + '"' + (k === lugar.esquina ? ' class="on"' : '') + '>' +
             Icon('esq-' + k, '', 15) + esc(Sello.ESQUINAS[k]) + '</button>').join('') + '</div></div>' +
         '<div class="ff-d"><span class="l">' + esc(eq.l.charAt(0) + eq.l.slice(1).toLowerCase()) + '</span><b>' + esc(eq.v || '—') + '</b></div>' +
         '<div class="ff-d"><span class="l">Orden</span><b class="mono">' + esc(orden) + '</b></div>' +
         '<div class="field"><label for="ffFecha">Fecha de la firma</label><input class="inp" type="date" id="ffFecha" value="' + attr(Fecha.hoy()) + '"></div>' +
         '<div class="ff-d"><span class="l">Firma</span><span>' + esc([firmante || 'Sin nombre', ver.cargo].filter(Boolean).join(' · ')) + '</span></div>' +
         '<div id="ffAv"></div>' +
-        '<p class="ff-nota">Ponga el sello donde no tape nada, como el QR' + (o.proveedorId ? ': la próxima factura de este proveedor sale en la misma esquina' : '') + '. ' +
+        '<p class="ff-nota">Ponga el sello donde no tape nada, como el QR: arrástrelo en la hoja, toque la hoja donde lo quiere o escoja una esquina. ' +
+          (o.proveedorId ? 'La próxima factura de este proveedor sale en el mismo sitio. ' : '') +
           (a.firmada ? 'Ya se firmó el ' + esc(Fecha.corta(a.firmada.fecha)) + '. ' : '') + 'El archivo adjunto no cambia: esta es una copia firmada.</p></div></div>',
       pie: '<button class="btn mf-left" data-cerrar autofocus>Cancelar</button>' +
         (comparte ? '<button class="btn" id="ffCompartir" disabled>' + Icon('send', '', 14) + 'Compartir</button>' : '') +
@@ -6680,12 +6744,15 @@ const FirmarFactura = {
     const abierta = () => document.body.contains(m);
     const error = x => { caja.innerHTML = '<div class="ff-msg">' + Icon('warn', '', 16) + '<span>' + x + '</span></div>'; zoom.innerHTML = ''; botones().forEach(b => { b.disabled = true; }); };
     const aviso = (id, x) => { if (!$('#' + id, m)) $('#ffAv', m).insertAdjacentHTML('beforeend', '<div class="alert a-warn mb12" id="' + id + '">' + Icon('warn') + '<div>' + x + '</div></div>'); };
+    /* La esquina donde está se ve en su botón; si se movió a mano, en ninguno */
+    const marcar = () => $$('.ff-esq [data-esq]', m).forEach(x => { const on = x.dataset.esq === lugar.esquina; x.classList.toggle('on', on); x.setAttribute('aria-pressed', String(on)); });
     /* Otra esquina: se vuelve a armar la copia con el sello allá */
     $('.ff-esq', m).addEventListener('click', e => {
       const b = e.target.closest('[data-esq]');
-      if (!b || b.dataset.esq === esq) return;
-      esq = b.dataset.esq;
-      $$('.ff-esq [data-esq]', m).forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', String(x === b)); });
+      if (!b || b.dataset.esq === lugar.esquina) return;
+      lugar = { esquina: b.dataset.esq };
+      marcar();
+      if (pagina) montar();
       if (hacer) hacer();
     });
     PdfVista.lib().catch(() => {});
@@ -6706,26 +6773,110 @@ const FirmarFactura = {
     if (!firma) aviso('ffSinFirma', (ver.firma ? 'No se pudo leer la imagen de su firma' : 'Su cuenta no tiene firma en Configuración') + ': el sello sale con su nombre, sin la firma.');
     if (base.digital) aviso('ffDig', 'Este PDF trae firma digital del proveedor: la copia sellada ya no la conserva. El adjunto sí la conserva.');
     if (base.imagen) aviso('ffImg', 'Este PDF viene protegido contra cambios: la copia firmada se armó con la imagen de sus hojas. Se ve igual, pero su texto no se puede copiar.');
+    /* La hoja con el sello encima, donde va */
+    const montar = () => {
+      if (!caja.contains(pagina.c)) {
+        caja.innerHTML = '<div class="ff-hoja" style="--ar:' + pagina.VW + '/' + pagina.VH + ';--r:' + pagina.VW / pagina.VH + '">' +
+          '<div class="ff-asa" id="ffAsa" tabindex="0" role="button" aria-label="El sello: arrástrelo, o muévalo con las flechas del teclado" title="Arrástrelo a donde no tape nada" ' +
+          'style="width:' + Sello.W / pagina.VW * 100 + '%;height:' + Sello.H / pagina.VH * 100 + '%"></div></div>';
+        pagina.c.className = 'ff-pag';
+        $('.ff-hoja', caja).prepend(pagina.c);
+      }
+      const h = $('#ffAsa', m), s = Sello.sitio(lugar, pagina.VW, pagina.VH);
+      if (solo && solo.parentNode !== h) h.replaceChildren(solo);
+      h.style.left = s.x / pagina.VW * 100 + '%';
+      h.style.top = s.y / pagina.VH * 100 + '%';
+    };
     hacer = async () => {
-      const n = ++vez, f = Fecha.valida(fecha.value) ? fecha.value : Fecha.hoy(), e = esq;
+      const n = ++vez, f = Fecha.valida(fecha.value) ? fecha.value : Fecha.hoy(), l = lugar;
+      const d = { empresa: Empresa.nombre(Empresa.de(o)), firma, nombre: firmante, equipo: eq, orden, fecha: Fecha.corta(f) };
       botones().forEach(b => { b.disabled = true; });
       try {
-        const bytes = await Sello.sellar(base, { empresa: Empresa.nombre(Empresa.de(o)), firma, nombre: firmante, equipo: eq, orden, fecha: Fecha.corta(f), esquina: e });
+        pagina = await (paginaP = paginaP || Sello.hoja(base.bytes, caja.clientWidth));
+        if (soloDe !== d.fecha) {
+          const c = await Sello.solo(d, pagina.k), A = Sello.AIRE;
+          if (n !== vez || !abierta()) return;
+          c.style.cssText = 'left:' + -A / Sello.W * 100 + '%;top:' + -A / Sello.H * 100 + '%;width:' + (Sello.W + 2 * A) / Sello.W * 100 + '%;height:' + (Sello.H + 2 * A) / Sello.H * 100 + '%';
+          solo = c;
+          soloDe = d.fecha;
+        }
         if (n !== vez || !abierta()) return;
-        await Sello.vista(bytes, caja, zoom, e);
+        montar();
+        const bytes = await Sello.sellar(base, Object.assign(d, l));
         if (n !== vez || !abierta()) return;
+        const z = await Sello.cerca(bytes, zoom.clientWidth, l);
+        if (n !== vez || !abierta()) return;
+        zoom.replaceChildren(z);
         m._bytes = bytes;
         m._fecha = f;
-        m._esquina = e;
+        m._lugar = l;
         botones().forEach(b => { b.disabled = false; });
-      } catch (e) { if (n === vez && abierta()) error(this.problema(e)); }
+      } catch (e) {
+        if (!pagina) paginaP = null;
+        if (n === vez && abierta()) error(this.problema(e));
+      }
     };
     fecha.addEventListener('change', hacer);
+    /* Movido a mano: x, y es donde queda su esquina de arriba a la izquierda, en
+       puntos de la hoja. Lo que se había armado no sirve hasta que quede quieto */
+    const mover = (x, y) => {
+      vez++;
+      m._bytes = null;
+      botones().forEach(b => { b.disabled = true; });
+      lugar = Sello.lugar({ pos: { x: Math.max(0, Math.min(pagina.VW - Sello.W, x)) / pagina.VW, y: Math.max(0, Math.min(pagina.VH - Sello.H, y)) / pagina.VH } });
+      marcar();
+      montar();
+    };
+    /* Con el ratón o el dedo se arrastra; se escucha en toda la ventana, por si se sale de la hoja */
+    caja.addEventListener('pointerdown', e => {
+      const h = e.target.closest('#ffAsa');
+      if (!h || !pagina || e.button) return;
+      e.preventDefault();
+      h.focus({ preventScroll: true });
+      try { h.setPointerCapture(e.pointerId); } catch (x) { /* sin captura también se mueve */ }
+      const hoja = $('.ff-hoja', caja), k = pagina.VW / hoja.getBoundingClientRect().width, s = Sello.sitio(lugar, pagina.VW, pagina.VH);
+      let movio = false;
+      const mueve = ev => {
+        if (ev.pointerId !== e.pointerId || (!movio && Math.abs(ev.clientX - e.clientX) + Math.abs(ev.clientY - e.clientY) < 3)) return;
+        movio = true;
+        hoja.classList.add('mov');
+        mover(s.x + (ev.clientX - e.clientX) * k, s.y + (ev.clientY - e.clientY) * k);
+      };
+      const suelta = ev => {
+        if (ev.pointerId !== e.pointerId) return;
+        window.removeEventListener('pointermove', mueve);
+        window.removeEventListener('pointerup', suelta);
+        window.removeEventListener('pointercancel', suelta);
+        hoja.classList.remove('mov');
+        if (movio) hacer();
+      };
+      window.addEventListener('pointermove', mueve);
+      window.addEventListener('pointerup', suelta);
+      window.addEventListener('pointercancel', suelta);
+    });
+    /* Un toque en la hoja lo pone ahí, centrado */
+    caja.addEventListener('click', e => {
+      const c = e.target.closest('.ff-pag');
+      if (!c || !pagina) return;
+      const r = c.getBoundingClientRect(), k = pagina.VW / r.width;
+      mover((e.clientX - r.left) * k - Sello.W / 2, (e.clientY - r.top) * k - Sello.H / 2);
+      hacer();
+    });
+    /* Con las flechas del teclado, de a 6 pt (con Mayús, de a 36); la copia se arma al dejar de moverlo */
+    caja.addEventListener('keydown', e => {
+      const p = e.target.closest('#ffAsa') && pagina && { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+      if (!p) return;
+      e.preventDefault();
+      const s = Sello.sitio(lugar, pagina.VW, pagina.VH), paso = e.shiftKey ? 36 : 6;
+      mover(s.x + p[0] * paso, s.y + p[1] * paso);
+      clearTimeout(tecla);
+      tecla = setTimeout(() => { if (abierta()) hacer(); }, 400);
+    });
     /* Queda anotado en la orden, con la fecha del sello */
     const anotar = async hecho => {
       Modal.cerrar(m);
       try {
-        const g = await OrdenService.marcarFirmada(o, a.id, m._fecha, m._esquina);
+        const g = await OrdenService.marcarFirmada(o, a.id, m._fecha, m._lugar);
         Toast.ok(hecho + ' <b>' + esc(nombre) + '</b>.');
         if (alFirmar) alFirmar(g);
       } catch (e) { Toast.warn(hecho + ' <b>' + esc(nombre) + '</b>, pero no se pudo anotar en la orden: ' + esc(e.message)); }
@@ -6745,19 +6896,20 @@ const FirmarFactura = {
     await hacer();
     return m;
   },
-  /** Dónde se propone el sello: donde quedó si ya se firmó, o donde quedó en la
-      última factura firmada de ese proveedor, que la manda siempre igual; si no,
-      arriba a la derecha, como se acordó */
-  esquina(o, a) {
-    if (a && a.firmada && a.firmada.esquina) return Sello.esquina(a.firmada.esquina);
+  /** Dónde se propone el sello (ver Sello.lugar): donde quedó si ya se firmó, o
+      donde quedó en la última factura firmada de ese proveedor, que la manda
+      siempre igual; si no, arriba a la derecha, como se acordó */
+  lugar(o, a) {
+    const hay = f => f && (f.esquina || f.pos);
+    if (a && hay(a.firmada)) return Sello.lugar(a.firmada);
     let ult = null;
     if (o.proveedorId) Datos.crudo('ordenes').forEach(x => {
       if (x.proveedorId === o.proveedorId) (x.adjuntos || []).forEach(y => {
         const f = y.firmada;
-        if (f && f.esquina && (!ult || String(f.en || '') > String(ult.en || ''))) ult = f;
+        if (hay(f) && (!ult || String(f.en || '') > String(ult.en || ''))) ult = f;
       });
     });
-    return Sello.esquina(ult && ult.esquina);
+    return Sello.lugar(ult);
   },
   /** Lo que se le dice a quien firma cuando algo falla */
   problema(e) {
@@ -12185,14 +12337,54 @@ Pruebas.def('Firmar: el sello se pasa a cualquiera de las cuatro esquinas, y en 
         (giro ? 'girada, ' : 'carta, ') + e + ': x ' + Math.round(ap.x) + ', y ' + Math.round(ap.y));
       /* De cerca se ve la esquina donde quedó el sello */
       if (giro) continue;
-      const hoja = document.createElement('div'), zoom = document.createElement('div');
-      await Sello.vista(bytes, hoja, zoom, e);
-      vistas.push(e + ' ' + Math.round(tinta($('canvas', zoom)) * 100) + ' %');
-      Pruebas.cierto(tinta($('canvas', zoom)) > 0.01, 'de cerca debía verse el sello ' + e);
+      const z = await Sello.cerca(bytes, 360, { esquina: e });
+      vistas.push(e + ' ' + Math.round(tinta(z) * 100) + ' %');
+      Pruebas.cierto(tinta(z) > 0.01, 'de cerca debía verse el sello ' + e);
     }
   }
   Pruebas.igual([Sello.esquina(), Sello.esquina('constructor'), Sello.esquina('inf-izq')], ['sup-der', 'sup-der', 'inf-izq'], 'una que no existe es la de siempre');
   return vistas.join(' · ');
+});
+/* O se arrastra a cualquier punto de la hoja (Juan, 10/11/2026) */
+Pruebas.def('Firmar: el sello va a cualquier punto de la hoja sin salirse de ella, y el sello solo se pinta sin fondo para moverlo encima', async () => {
+  if (!(await Pruebas.conLibrerias())) return 'sin internet: el sello no se pudo probar';
+  const L = await Compresor.lib();
+  const d = { empresa: 'SINUGRAVAS S.A.S.', firma: null, nombre: 'Juan', equipo: Sello.equipo({ placa: 'snw865' }), orden: 'OS-311-26', fecha: '10/11/2026' };
+  const base = async giro => {
+    const doc = await L.PDFDocument.create();
+    doc.addPage([612, 792]).setRotation(L.degrees(giro));
+    return Sello.preparar(new Blob([await doc.save()], { type: 'application/pdf' }), 'application/pdf');
+  };
+  const aprobado = async bytes => (await Pruebas.textos(bytes, 1)).items.find(i => i.s.replace(/\s/g, '').startsWith('APROB'));
+  /* APROBADO empieza 6,4 pt a la derecha del borde de la franja, y su renglón va 17,5 pt por debajo del de arriba */
+  const en = (ap, x, y) => ap.derecho && Math.abs(ap.x - x - 6.4) < 1.5 && Math.abs(ap.y - y - 17.5) < 1.5;
+  const tinta = c => {
+    const p = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+    let n = 0;
+    for (let i = 0; i < p.length; i += 4) if (p[i + 2] - p[i] > 60) n++;
+    return n / (p.length / 4);
+  };
+  const vistos = [];
+  for (const giro of [0, 90]) {
+    const b = await base(giro), VW = giro ? 792 : 612, VH = giro ? 612 : 792, h = giro ? 'girada' : 'carta';
+    const bytes = await Sello.sellar(b, Object.assign({ pos: { x: 0.3, y: 0.5 } }, d)), ap = await aprobado(bytes);
+    Pruebas.cierto(en(ap, 0.3 * VW, 0.5 * VH), h + ', en la mitad: x ' + Math.round(ap.x) + ', y ' + Math.round(ap.y));
+    vistos.push(h + ' ' + Math.round(ap.x) + ', ' + Math.round(ap.y));
+    /* Más allá del borde se queda contra él, entero */
+    const af = await aprobado(await Sello.sellar(b, Object.assign({ pos: { x: 1.4, y: -0.3 } }, d)));
+    Pruebas.cierto(en(af, VW - Sello.W, 0), h + ', afuera: x ' + Math.round(af.x) + ', y ' + Math.round(af.y));
+    /* De cerca se ve donde quedó */
+    if (!giro) Pruebas.cierto(tinta(await Sello.cerca(bytes, 360, { pos: { x: 0.3, y: 0.5 } })) > 0.01, 'de cerca debía verse el sello en la mitad');
+  }
+  Pruebas.igual([Sello.lugar('inf-izq'), Sello.lugar({ pos: { x: 0.123456, y: 2 } }), Sello.lugar({ pos: { x: 'a', y: 1 }, esquina: 'sup-izq' }), Sello.lugar(null),
+    Sello.lugar({ esquina: 'inf-der', pos: { x: 0, y: 0 } })], [{ esquina: 'inf-izq' }, { pos: { x: 0.1235, y: 1 } }, { esquina: 'sup-izq' }, { esquina: 'sup-der' }, { pos: { x: 0, y: 0 } }],
+    'lo que se anota');
+  /* El sello solo: transparente donde no tiene tinta, con su borde azul */
+  const c = await Sello.solo(d, 2), g = c.getContext('2d'), borde = g.getImageData(Sello.AIRE * 2, c.height / 2 | 0, 1, 1).data;
+  Pruebas.cierto(c.width === (Sello.W + 2 * Sello.AIRE) * 2 && c.height === (Sello.H + 2 * Sello.AIRE) * 2, 'del tamaño del sello: ' + c.width + ' × ' + c.height);
+  Pruebas.cierto(g.getImageData(0, 0, 1, 1).data[3] === 0 && g.getImageData(c.width - 30, c.height - 12, 1, 1).data[3] === 0, 'sin fondo');
+  Pruebas.cierto(borde[3] > 100 && borde[2] > borde[0] + 40, 'con su borde azul: ' + Array.from(borde).join(','));
+  return vistos.join(' · ');
 });
 Pruebas.def('Firmar: una foto se vuelve una hoja, y un PDF protegido contra cambios se firma con la imagen de sus hojas', async () => {
   if (!(await Pruebas.conLibrerias())) return 'sin internet: no se pudo probar';
@@ -12289,20 +12481,21 @@ Pruebas.def('Firmar: la ventana muestra la hoja con el sello, lo mueve de esquin
     const espera = FirmarFactura.abrir(o, o.adjuntos[0], r => { firmada = r; });
     const m = $$('#modals .modal-bd').pop();
     try {
-      const lista = () => !$('#ffDescargar', m).disabled || !$('#ffPrev .spin', m);
+      /* Lista, o con el aviso de lo que falló */
+      const lista = () => !$('#ffDescargar', m).disabled || ($('#ffPrev .ff-msg', m) && !$('#ffPrev .spin', m));
       await Pruebas.hasta(lista, 30000);
       Pruebas.cierto(!$('#ffDescargar', m).disabled, 'debía quedar lista: ' + $('#ffPrev', m).textContent);
       Pruebas.cierto($('#ffPrev canvas', m) && $('#ffZoom canvas', m) && !$('#ffSinFirma', m), 'se ve la hoja y el sello de cerca, con la firma');
       Pruebas.cierto($('.ff', m).textContent.includes('SNW 865') && $('.ff', m).textContent.includes(Modelo.codigo(o)) && $('.ff', m).textContent.includes('JUAN ANTONIO MARTÍNEZ MENCO · COMPRAS'),
         'con la placa, la orden y quién firma');
-      Pruebas.igual([$('.ff-esq .on', m).dataset.esq, m._esquina], ['sup-der', 'sup-der'], 'sale arriba a la derecha');
+      Pruebas.igual([$('.ff-esq .on', m).dataset.esq, m._lugar], ['sup-der', { esquina: 'sup-der' }], 'sale arriba a la derecha');
       $('#ffFecha', m).value = '2026-11-07';
       $('#ffFecha', m).dispatchEvent(new Event('change'));
       /* El QR del proveedor está arriba a la derecha: el sello se pasa abajo a la izquierda */
       $('.ff-esq [data-esq="inf-izq"]', m).click();
       Pruebas.igual([$('.ff-esq .on', m).dataset.esq, $('.ff-esq [data-esq="inf-izq"]', m).getAttribute('aria-pressed'), $('.ff-esq [data-esq="sup-der"]', m).getAttribute('aria-pressed')],
         ['inf-izq', 'true', 'false'], 'queda escogida');
-      await Pruebas.hasta(() => !$('#ffDescargar', m).disabled && m._fecha === '2026-11-07' && m._esquina === 'inf-izq', 30000);
+      await Pruebas.hasta(() => !$('#ffDescargar', m).disabled && m._fecha === '2026-11-07' && m._lugar.esquina === 'inf-izq', 30000);
       $('#ffDescargar', m).click();
       await espera;
       await Pruebas.hasta(() => firmada, 5000);
@@ -12324,9 +12517,89 @@ Pruebas.def('Firmar: la ventana muestra la hoja con el sello, lo mueve de esquin
     try { Pruebas.igual($('.ff-esq .on', $$('#modals .modal-bd').pop()).dataset.esq, 'inf-izq', 'la siguiente de ese proveedor sale abajo a la izquierda'); }
     finally { Modal.cerrarTodos(); }
     await espera2;
-    Pruebas.igual([FirmarFactura.esquina(Pruebas.orden(p2), {}), FirmarFactura.esquina(OrdenService.nueva({}), {})], ['sup-der', 'sup-der'], 'la de otro proveedor, arriba a la derecha');
+    Pruebas.igual([FirmarFactura.lugar(Pruebas.orden(p2), {}), FirmarFactura.lugar(OrdenService.nueva({}), {})], [{ esquina: 'sup-der' }, { esquina: 'sup-der' }],
+      'la de otro proveedor, arriba a la derecha');
   } finally { Permiso.acceso = antes; U.descargar = descargar; }
   return 'descargó «FE-4821 - firmada.pdf» con el sello abajo a la izquierda';
+});
+/* Con el ratón o el dedo, sobre la hoja (Juan, 10/11/2026) */
+Pruebas.def('Firmar: el sello se arrastra, se pone donde se toca la hoja o se mueve con las flechas; la copia y la marca quedan ahí, y la próxima de ese proveedor también', async ({ p1 }) => {
+  if (!(await Pruebas.conLibrerias())) return 'sin internet: la ventana no se pudo probar';
+  const L = await Compresor.lib(), descargar = U.descargar;
+  const d0 = await L.PDFDocument.create();
+  d0.addPage([612, 792]).drawText('FACTURA ELECTRONICA FE-5001', { x: 72, y: 700, size: 14 });
+  const a = await Adjuntos.preparar(new File([await d0.save()], 'FE-5001.pdf', { type: 'application/pdf' }));
+  const o = await OrdenService.guardar(Pruebas.orden(p1, { adjuntos: [Adjuntos.meta(a)] }), [a]);
+  const lista = m => Pruebas.hasta(() => !$('#ffDescargar', m).disabled, 30000);
+  /* Dónde se ve el sello sobre la hoja, en puntos de ella */
+  const visto = m => {
+    const r = $('.ff-pag', m).getBoundingClientRect(), s = $('#ffAsa', m).getBoundingClientRect(), k = 612 / r.width;
+    return { x: (s.left - r.left) * k, y: (s.top - r.top) * k, w: s.width * k };
+  };
+  const puntero = (el, tipo, x, y) => el.dispatchEvent(new PointerEvent(tipo, { bubbles: true, cancelable: true, clientX: x, clientY: y, pointerId: 7, pointerType: 'mouse', isPrimary: true, button: 0 }));
+  let bajada = null, firmada = null, hecho = '';
+  try {
+    U.descargar = (blob, nombre) => { bajada = { blob, nombre }; };
+    const espera = FirmarFactura.abrir(o, o.adjuntos[0], r => { firmada = r; });
+    const m = $$('#modals .modal-bd').pop();
+    try {
+      await lista(m);
+      const h = $('#ffAsa', m), v0 = visto(m);
+      Pruebas.cierto(h && $('.ff-asa canvas', m) && Math.abs(v0.x - (612 - 8.5 - Sello.W)) < 2 && Math.abs(v0.y - 7) < 2 && Math.abs(v0.w - Sello.W) < 2,
+        'el sello se ve arriba a la derecha y de su tamaño: ' + JSON.stringify(v0));
+      Pruebas.cierto(Math.abs($('.ff-hoja', m).getBoundingClientRect().height / $('.ff-hoja', m).getBoundingClientRect().width - 792 / 612) < 0.01, 'la hoja se ve con su forma');
+      /* Arrastrado: mientras se mueve no se descarga nada */
+      const r = h.getBoundingClientRect(), k = 612 / $('.ff-pag', m).getBoundingClientRect().width, x0 = r.left + r.width / 2, y0 = r.top + r.height / 2;
+      puntero(h, 'pointerdown', x0, y0);
+      puntero(h, 'pointermove', x0 - 100, y0 + 60);
+      puntero(h, 'pointermove', x0 - 200 / k, y0 + 300 / k);
+      Pruebas.cierto($('.ff-hoja', m).classList.contains('mov') && $('#ffDescargar', m).disabled && !m._bytes, 'mientras se mueve, no se descarga');
+      puntero(h, 'pointerup', x0 - 200 / k, y0 + 300 / k);
+      const v1 = visto(m);
+      Pruebas.cierto(Math.abs(v1.x - (612 - 8.5 - Sello.W - 200)) < 2 && Math.abs(v1.y - 307) < 2 && !$('.ff-esq .on', m) && !$('.ff-hoja.mov', m),
+        'se movió 200 a la izquierda y 300 abajo, y ya no está en una esquina: ' + JSON.stringify(v1));
+      await lista(m);
+      Pruebas.cierto(m._lugar.pos && Math.abs(m._lugar.pos.x * 612 - v1.x) < 1 && Math.abs(m._lugar.pos.y * 792 - v1.y) < 1, 'la copia se armó ahí: ' + JSON.stringify(m._lugar));
+      /* Un toque en la hoja lo pone ahí, centrado */
+      const p = $('.ff-pag', m).getBoundingClientRect();
+      $('.ff-pag', m).dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: p.left + p.width / 2, clientY: p.top + p.height * 0.9 }));
+      const v2 = visto(m);
+      Pruebas.cierto(Math.abs(v2.x - (306 - Sello.W / 2)) < 2 && Math.abs(v2.y - (792 * 0.9 - Sello.H / 2)) < 2, 'centrado donde se tocó: ' + JSON.stringify(v2));
+      await lista(m);
+      /* Con las flechas, de a 6 pt; con Mayús, de a 36. Contra el borde, se queda en él */
+      const tecla = (key, shiftKey) => h.dispatchEvent(new KeyboardEvent('keydown', { key, shiftKey, bubbles: true, cancelable: true }));
+      tecla('ArrowLeft'); tecla('ArrowLeft'); tecla('ArrowDown', true); tecla('ArrowDown', true);
+      const v3 = visto(m);
+      Pruebas.cierto(Math.abs(v3.x - (v2.x - 12)) < 1 && Math.abs(v3.y - (792 - Sello.H)) < 1, 'con las flechas, y contra el borde de abajo: ' + JSON.stringify(v3));
+      await lista(m);
+      hecho = Math.round(v3.x) + ', ' + Math.round(v3.y);
+      $('#ffDescargar', m).click();
+      await espera;
+      await Pruebas.hasta(() => firmada, 5000);
+    } finally { Modal.cerrarTodos(); }
+    /* La copia lleva el sello donde se dejó, y queda anotado ahí */
+    const t = await Pruebas.textos(new Uint8Array(await bajada.blob.arrayBuffer()), 1), ap = t.items.find(i => i.s.replace(/\s/g, '').startsWith('APROB'));
+    const fa = firmada.adjuntos[0].firmada, s = Sello.sitio(fa, 612, 792);
+    Pruebas.cierto(fa.pos && !fa.esquina && Math.abs(ap.x - s.x - 6.4) < 1.5 && Math.abs(ap.y - s.y - 17.5) < 1.5 && Math.abs(s.y - (792 - Sello.H)) < 1,
+      'la copia y la marca: ' + JSON.stringify(fa) + ' · x ' + Math.round(ap.x) + ', y ' + Math.round(ap.y));
+    /* La próxima de ese proveedor sale en el mismo sitio; una esquina lo vuelve a poner en ella */
+    const b = await Adjuntos.preparar(new File([await d0.save()], 'FE-5002.pdf', { type: 'application/pdf' }));
+    const o2 = await OrdenService.guardar(Pruebas.orden(p1, { adjuntos: [Adjuntos.meta(b)] }), [b]);
+    const espera2 = FirmarFactura.abrir(o2, o2.adjuntos[0]);
+    const m2 = $$('#modals .modal-bd').pop();
+    try {
+      await lista(m2);
+      const v = visto(m2);
+      Pruebas.cierto(Math.abs(v.x - s.x) < 2 && Math.abs(v.y - s.y) < 2 && !$('.ff-esq .on', m2), 'la siguiente sale en el mismo sitio: ' + JSON.stringify(v));
+      $('.ff-esq [data-esq="sup-izq"]', m2).click();
+      const e = visto(m2);
+      Pruebas.cierto(Math.abs(e.x - 8.5) < 2 && Math.abs(e.y - 7) < 2 && $('.ff-esq .on', m2).dataset.esq === 'sup-izq', 'y una esquina lo pone en ella: ' + JSON.stringify(e));
+      await lista(m2);
+      Pruebas.igual(m2._lugar, { esquina: 'sup-izq' });
+    } finally { Modal.cerrarTodos(); }
+    await espera2;
+  } finally { U.descargar = descargar; }
+  return 'el sello quedó en ' + hecho + ' pt';
 });
 
 /* ==========================================================================
