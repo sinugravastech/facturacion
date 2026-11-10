@@ -909,9 +909,17 @@ html[data-theme="dark"] .hj-sinfirma{color:var(--warn-500)}
 .ff-asa:hover,.ff-asa:focus-visible,.ff-hoja.mov .ff-asa{outline-style:solid;outline-color:var(--accent)}
 .ff-hoja.mov,.ff-hoja.mov .ff-asa{cursor:grabbing}
 .ff-asa canvas{position:absolute;display:block;pointer-events:none}
-@media (max-width:760px){.ff{grid-template-columns:1fr}.ff-prev{order:2}}
-/* En el computador la hoja se ve entera, con sus bordes: así se ve si el sello tapa el QR también abajo */
+/* La ventana cabe en la pantalla, también en el teléfono: sólo se desliza lo de adentro, el pie con los
+   botones se queda quieto abajo y lo de atrás no se mueve (Juan, 10/11/2026: al hacer scroll «la parte
+   de abajo sube y baja») */
+html:has(.modal-bd .ff){overflow:hidden;scrollbar-gutter:stable}
+.modal:has(.ff){display:flex;flex-direction:column;max-height:100%}
+.modal:has(.ff) .modal-b{flex:1 1 auto;min-height:0;max-height:none;overscroll-behavior:contain}
+@media (max-width:760px){.ff{grid-template-columns:1fr}.ff-prev{order:2}.modal-bd:has(.ff){padding:12px 10px}}
+/* En el computador la hoja se ve entera, con sus bordes: así se ve si el sello tapa el QR también abajo.
+   Si lo de la derecha no cabe y se desliza, la hoja se queda quieta */
 @media (min-width:761px){
+  .ff-prev{position:sticky;top:0}
   .ff-prev:has(canvas){border:none;border-radius:0;background:none;place-items:start center}
   .ff-hoja{width:min(100%,calc((100vh - 258px) * var(--r)))}
   .ff-pag{border-radius:4px;outline:1px solid var(--border);outline-offset:-1px}
@@ -1971,7 +1979,7 @@ const APP = Object.freeze({
   nombre: 'Facturación',
   area: 'Órdenes de compra',
   empresa: 'SINUGRAVAS S.A.S.',
-  version: '2.21.0',
+  version: '2.22.0',
   /* 3: los datos viven en la nube y el número de cada orden sale de las órdenes */
   esquema: 3,
   /* La base del navegador de la versión local (1.x). Ya no se guarda en ella:
@@ -2328,6 +2336,20 @@ const U = {
     a.href = url; a.download = nombre;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 4000);
+  },
+  /** Copia un texto para pegarlo con Ctrl + V. Si el navegador no deja usar el
+      portapapeles, lo copia como antes, seleccionándolo. false si no pudo */
+  async copiarTexto(t) {
+    try { await navigator.clipboard.writeText(t); return true; } catch (e) { /* el de antes */ }
+    const antes = document.activeElement, a = document.createElement('textarea');
+    a.value = t; a.readOnly = true;
+    a.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;opacity:0';
+    document.body.appendChild(a); a.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    a.remove();
+    if (antes && antes.focus) antes.focus({ preventScroll: true });
+    return ok;
   },
   clonar(o) { return o == null ? o : JSON.parse(JSON.stringify(o)); },
   leerArchivo(file, como) {
@@ -6671,6 +6693,19 @@ const AccionesOrden = {
     } catch (e) { Toast.err(esc(e.message)); }
   },
   imprimir(o) { Documento.imprimir(o); },
+  /** «Copiar consecutivo» (Juan, 10/11/2026): lo que el proveedor pone en su
+      factura, «Orden: OC-304-26» y debajo «Placa: THX523». Sin placa, el
+      nombre del equipo o el destino, como en el sello */
+  consecutivo(o) {
+    const q = o.equipoId ? EquipoService.porId(o.equipoId) : null, placa = q && String(q.placa || '').trim();
+    const para = placa ? 'Placa: ' + placa : q && q.nombre ? (q.tipo === 'sede' ? 'Destino: ' : 'Equipo: ') + q.nombre : '';
+    return ['Orden: ' + Modelo.codigo(o), para].filter(Boolean).join('\n');
+  },
+  async copiarConsecutivo(o) {
+    const t = this.consecutivo(o), ver = '<div class="mono fw7 mt4" style="white-space:pre-line;user-select:all">' + esc(t) + '</div>';
+    if (await U.copiarTexto(t)) Toast.ok('Copiado. Péguelo con <b>Ctrl + V</b> en WhatsApp o en el correo:' + ver);
+    else Toast.warn('El navegador no dejó copiarlo. Selecciónelo aquí y cópielo:' + ver, { ms: 12000 });
+  },
   /** Lo que va en «⋯»: sólo lo que no tiene otro lugar (Juan, 30/10/2026).
       Ver la orden es un clic en la fila; copiar e imprimir tienen su ícono;
       editar y la factura están dentro de la orden, y los pasos (la factura, el
@@ -7059,6 +7094,8 @@ const VistaOrdenes = {
       if (mas) { e.stopPropagation(); AccionesOrden.menu(mas, this.ord(mas.dataset.mas), () => this.pintar(el)); return; }
       const cp = e.target.closest('[data-copiar]');
       if (cp) { e.stopPropagation(); Documento.copiarImagen(this.ord(cp.dataset.copiar)); return; }
+      const cn = e.target.closest('[data-consec]');
+      if (cn) { e.stopPropagation(); AccionesOrden.copiarConsecutivo(this.ord(cn.dataset.consec)); return; }
       const imp = e.target.closest('[data-imp]');
       if (imp) { e.stopPropagation(); AccionesOrden.imprimir(this.ord(imp.dataset.imp)); return; }
       const pg = e.target.closest('[data-pg]');
@@ -7127,6 +7164,7 @@ const VistaOrdenes = {
           (o.factura && o.factura.valor ? '<div class="fs11 txt-3" data-tip="Valor de la factura del proveedor">fact. ' + esc(o.factura.numero || '') + '</div>' : '') + '</td>' +
           '<td class="td-estado">' + Comp.selEstado(o) + '</td>' +
           '<td class="nowrap tr"><button class="btn btn-ghost btn-icon btn-sm" data-copiar="' + attr(o.id) + '" data-tip="Copiar como imagen" aria-label="Copiar como imagen">' + Icon('image', '', 13) + '</button>' +
+          '<button class="btn btn-ghost btn-icon btn-sm" data-consec="' + attr(o.id) + '" data-tip="Copiar consecutivo y placa" aria-label="Copiar consecutivo">' + Icon('hash', '', 13) + '</button>' +
           '<button class="btn btn-ghost btn-icon btn-sm" data-imp="' + attr(o.id) + '" data-tip="Imprimir o PDF" aria-label="Imprimir">' + Icon('print', '', 13) + '</button>' +
           (AccionesOrden.opciones(o).length ? '<button class="btn btn-ghost btn-icon btn-sm" data-mas="' + attr(o.id) + '" data-tip="Más acciones" aria-label="Más acciones">' + Icon('more', '', 14) + '</button>'
             : '<span class="btn-icon btn-sm" style="display:inline-block" aria-hidden="true"></span>') + '</td></tr>';
@@ -7156,6 +7194,7 @@ const VistaOrden = {
       '<div class="ph-sub">' + esc(Fecha.larga(o.fecha)) + ' · ' + esc(Modelo.nombreProveedor(o)) + ' · ' +
       Txt.plural(o.items.length, 'artículo') + (Modelo.autor(o) ? ' · hecha por <b>' + esc(Modelo.autor(o)) + '</b>' : '') + '</div></div><div class="ph-actions">' +
       '<button class="btn" id="odCopiar" data-tip="Para pegarla en WhatsApp o en un correo">' + Icon('image', '', 14) + 'Copiar imagen</button>' +
+      '<button class="btn" id="odConsec" data-tip="El número de la orden y, debajo, la placa: lo que el proveedor pone en su factura">' + Icon('hash', '', 14) + 'Copiar consecutivo</button>' +
       '<button class="btn btn-primary" id="odImp">' + Icon('print', '', 14) + 'Imprimir o PDF</button>' +
       si('editar', '<a class="btn" href="#/orden-nueva?duplicar=' + attr(o.id) + '">' + Icon('copy', '', 14) + 'Duplicar</a>') +
       (Permiso.puedeOrden(o) && o.estado !== 'ANULADA' ? '<a class="btn" href="#/orden-editar/' + attr(o.id) + '">' + Icon('edit', '', 14) + 'Editar</a>' : '') +
@@ -7180,6 +7219,7 @@ const VistaOrden = {
     $('#odVolver', el).onclick = () => Router.ir('/ordenes');
     $('#odImp', el).onclick = () => AccionesOrden.imprimir(o);
     $('#odCopiar', el).onclick = () => Documento.copiarImagen(o);
+    $('#odConsec', el).onclick = () => AccionesOrden.copiarConsecutivo(o);
     el.addEventListener('change', async e => {
       const s = e.target.closest('select[data-estado]');
       if (!s) return;
@@ -7252,6 +7292,7 @@ const VistaOrden = {
       '<div class="ph-sub">' + esc(x.sinDia ? Fecha.mesLargo(o.fecha.slice(0, 7)) : Fecha.larga(o.fecha)) + ' · ' + esc(Modelo.nombreProveedor(o)) + (eq ? ' · ' + esc(eq.nombre) : '') + ' · ' +
       Txt.plural(o.items.length, 'artículo') + '</div></div><div class="ph-actions">' +
       '<button class="btn" id="odCopiar" data-tip="Para pegarla en WhatsApp o en un correo">' + Icon('image', '', 14) + 'Copiar imagen</button>' +
+      '<button class="btn" id="odConsec" data-tip="El número de la orden y, debajo, la placa: lo que el proveedor pone en su factura">' + Icon('hash', '', 14) + 'Copiar consecutivo</button>' +
       '<button class="btn btn-primary" id="odImp">' + Icon('print', '', 14) + 'Imprimir o PDF</button>' +
       si('editar', '<a class="btn" href="#/orden-nueva?duplicar=' + attr(o.id) + '" data-tip="Una orden nueva con estos artículos, sin los precios de entonces">' + Icon('copy', '', 14) + 'Duplicar</a>' +
         '<button class="btn" id="odPlantilla">' + Icon('layers', '', 14) + 'Guardar como plantilla</button>') + '</div></div>' +
@@ -7264,6 +7305,7 @@ const VistaOrden = {
     $('#odVolver', el).onclick = () => Router.ir('/ordenes');
     $('#odImp', el).onclick = () => AccionesOrden.imprimir(o);
     $('#odCopiar', el).onclick = () => Documento.copiarImagen(o);
+    $('#odConsec', el).onclick = () => AccionesOrden.copiarConsecutivo(o);
     const pl = $('#odPlantilla', el);
     if (pl) pl.onclick = () => AccionesOrden.comoPlantilla(HistoricoExcel.paraCopiar(o.id));
   },
@@ -11734,6 +11776,33 @@ Pruebas.def('Cada orden nueva dice para qué es, y la impresa lo pone en grande'
   Pruebas.igual([EquipoService.icono(camion), EquipoService.icono(e1), EquipoService.icono({ tipo: 'canoa' }), EquipoService.icono({ tipo: 'sede' })], ['truck', 'cog', 'canoa', 'building']);
   return 'THX523 en la impresa';
 });
+Pruebas.def('Copiar consecutivo: «Orden: OC-…» y, debajo, «Placa: …»; sin placa, el equipo o el destino; un clic en la orden o en la lista', async ({ p1, e1 }) => {
+  const camion = await EquipoService.guardar(Object.assign(EquipoService.vacio(), { nombre: 'CAMIÓN THX 523', tipo: 'carga', placa: 'THX523', clase: 'Tractocamión' }));
+  const finca = await EquipoService.guardar(Object.assign(EquipoService.vacio(), { nombre: 'Finca La Esperanza', tipo: 'sede' }));
+  const oc = await OrdenService.guardar(Pruebas.orden(p1, { equipoId: camion.id }));
+  const os = await OrdenService.guardar(Pruebas.orden(p1, { tipo: 'SERVICIO', equipoId: e1.id }));
+  const sede = await OrdenService.guardar(Pruebas.orden(p1, { equipoId: finca.id }));
+  Pruebas.cierto(/^OC-\d{3}-\d\d$/.test(Modelo.codigo(oc)) && /^OS-/.test(Modelo.codigo(os)), 'el consecutivo lleva sus iniciales: ' + Modelo.codigo(oc));
+  Pruebas.igual(AccionesOrden.consecutivo(oc), 'Orden: ' + Modelo.codigo(oc) + '\nPlaca: THX523', 'la orden y debajo la placa');
+  Pruebas.igual(AccionesOrden.consecutivo(os), 'Orden: ' + Modelo.codigo(os) + '\nEquipo: CARGADOR DE PRUEBA', 'sin placa, el nombre del equipo');
+  Pruebas.igual(AccionesOrden.consecutivo(sede), 'Orden: ' + Modelo.codigo(sede) + '\nDestino: FINCA LA ESPERANZA', 'o el destino');
+  Pruebas.igual(AccionesOrden.consecutivo(Object.assign({}, oc, { equipoId: null })), 'Orden: ' + Modelo.codigo(oc), 'una vieja sin equipo, sólo la orden');
+  const copiar = U.copiarTexto, copiados = [], div = document.createElement('div'), lista = document.createElement('div');
+  U.copiarTexto = async t => { copiados.push(t); return true; };
+  try {
+    VistaOrden.render(div, { id: oc.id });
+    const b = $('#odConsec', div);
+    Pruebas.cierto(b && b.textContent.trim() === 'Copiar consecutivo' && b.previousElementSibling.id === 'odCopiar', 'en la orden, el botón va junto a «Copiar imagen»');
+    b.click();
+    await VistaOrdenes.render(lista, {}, {});
+    const ic = $('[data-consec="' + os.id + '"]', lista);
+    Pruebas.cierto(ic && ic.previousElementSibling.matches('[data-copiar]'), 'en la lista, el ícono va junto al de copiar la imagen');
+    ic.click();
+    await new Promise(r => setTimeout(r));
+    Pruebas.igual(copiados, [AccionesOrden.consecutivo(oc), AccionesOrden.consecutivo(os)], 'cada clic copia el de su orden');
+    return copiados[0].replace('\n', ' · ');
+  } finally { U.copiarTexto = copiar; div.remove(); lista.remove(); }
+});
 Pruebas.def('La orden impresa cabe en una hoja carta, sin hueco debajo de «Entregar en»', async ({ p1 }) => {
   const camion = await EquipoService.guardar(Object.assign(EquipoService.vacio(), { nombre: 'CAMIÓN THX 523', tipo: 'carga', placa: 'THX523', clase: 'Tractocamión' }));
   const g = await OrdenService.guardar(Pruebas.orden(p1, { equipoId: camion.id, retencionPct: 2.5, reteIcaPorMil: 6, flete: 35000,
@@ -12544,6 +12613,9 @@ Pruebas.def('Firmar: el sello se arrastra, se pone donde se toca la hoja o se mu
     const m = $$('#modals .modal-bd').pop();
     try {
       await lista(m);
+      /* Cabe en la pantalla: sólo se desliza lo de adentro, y lo de atrás no se mueve (Juan, 10/11/2026) */
+      Pruebas.cierto(m.scrollHeight <= m.clientHeight + 1 && getComputedStyle($('.modal-b', m)).overscrollBehaviorY === 'contain' && getComputedStyle(document.documentElement).overflowY === 'hidden',
+        'la ventana debía caber en la pantalla, sin mover lo de atrás: le sobran ' + (m.scrollHeight - m.clientHeight) + ' px');
       const h = $('#ffAsa', m), v0 = visto(m);
       Pruebas.cierto(h && $('.ff-asa canvas', m) && Math.abs(v0.x - (612 - 8.5 - Sello.W)) < 2 && Math.abs(v0.y - 7) < 2 && Math.abs(v0.w - Sello.W) < 2,
         'el sello se ve arriba a la derecha y de su tamaño: ' + JSON.stringify(v0));
@@ -12577,6 +12649,7 @@ Pruebas.def('Firmar: el sello se arrastra, se pone donde se toca la hoja o se mu
       await espera;
       await Pruebas.hasta(() => firmada, 5000);
     } finally { Modal.cerrarTodos(); }
+    Pruebas.cierto(getComputedStyle(document.documentElement).overflowY !== 'hidden', 'al cerrarla, la página se desliza otra vez');
     /* La copia lleva el sello donde se dejó, y queda anotado ahí */
     const t = await Pruebas.textos(new Uint8Array(await bajada.blob.arrayBuffer()), 1), ap = t.items.find(i => i.s.replace(/\s/g, '').startsWith('APROB'));
     const fa = firmada.adjuntos[0].firmada, s = Sello.sitio(fa, 612, 792);
