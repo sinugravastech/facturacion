@@ -1021,6 +1021,19 @@ table.rf-tbl tr.rf-vacio td{padding:6px}
   font-size:11.5px;font-weight:650;color:var(--ok-700);background:var(--ok-50);cursor:pointer;white-space:nowrap}
 .hj-ya input{margin:0;width:13px;height:13px;accent-color:var(--ok-500)}
 html[data-theme="dark"] .hj-ya{color:var(--ok-500)}
+/* «Ya llegó la factura», junto a «Guardar» en una orden nueva (Juan, 11/11/2026) */
+.of-confac{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border:1px solid var(--warn-500);border-radius:var(--radius-sm);
+  font-size:12.5px;font-weight:600;color:var(--warn-700);background:var(--surface);cursor:pointer;white-space:nowrap;user-select:none}
+.of-confac:hover,.of-confac:has(input:checked){background:var(--warn-50)}
+.of-confac input{margin:0;width:14px;height:14px;accent-color:var(--warn-500)}
+html[data-theme="dark"] .of-confac{color:var(--warn-500)}
+/* El corazón de los proveedores favoritos de cada persona (Juan, 18/11/2026) */
+.fav-btn .ic{color:var(--text-3)}
+.fav-btn:hover .ic,.fav-btn.on .ic{color:var(--dang-500)}
+.fav-btn.on .ic,.fav-ic{fill:currentColor}
+.fav-ic{color:var(--dang-500);vertical-align:-1px;margin-right:4px}
+table.tbl .fav-td{width:1%;padding-right:0}
+table.tbl tr.fav-fin > td{border-bottom:2px solid var(--border-strong)}
 .hj-pagada .hj-cv{background:var(--ok-50)}
 .hj-pagada #ofPgNum{width:110px}
 .hj-pagada #ofPgFecha{width:142px}
@@ -1979,7 +1992,7 @@ const APP = Object.freeze({
   nombre: 'Facturación',
   area: 'Órdenes de compra',
   empresa: 'SINUGRAVAS S.A.S.',
-  version: '2.22.0',
+  version: '2.24.0',
   /* 3: los datos viven en la nube y el número de cada orden sale de las órdenes */
   esquema: 3,
   /* La base del navegador de la versión local (1.x). Ya no se guarda en ella:
@@ -2488,6 +2501,7 @@ const Icon = (() => {
     cloud: 'M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z',
     link: 'M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71 M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71',
     gauge: 'M12 14l4-4 M3.34 19a10 10 0 1 1 17.32 0',
+    heart: 'M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z',
     /* Una hoja con el sello en una de sus esquinas (ver FirmarFactura) */
     'esq-sup-izq': 'M6 2h12a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z M7.5 5.5H12V7H7.5z',
     'esq-sup-der': 'M6 2h12a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z M12 5.5h4.5V7H12z',
@@ -4070,7 +4084,7 @@ const Datos = {
     /* La hora de la nube antes de traer todo: lo que se guarde mientras tanto llega en la primera revisión */
     if (db.nube) await db.marcarHora();
     const [cfgs, prov, eq, ord, pl, rem] = await Promise.all(['configuracion', 'proveedores', 'equipos', 'ordenes', 'plantillas'].map(c => db.getAll(c, { marcar: true }))
-      .concat([RemisionService.traer()]));
+      .concat([RemisionService.traer(), Favoritos.cargar()]));
     this.cfg = Config.completar(cfgs.find(c => c.id === 'general'));
     this.cfgs = {};
     cfgs.filter(c => c.id !== 'general').forEach(c => { this.cfgs[c.id] = c; });
@@ -4971,6 +4985,8 @@ const OrdenService = {
     if (!Fecha.valida(factura.fecha)) e.facturaFecha = 'Revise la fecha de la factura.';
     if (solo && !(valor > 0)) e.valorFactura = 'Escriba el valor de la factura.';
     if (!solo && !(Modelo.totalesArticulos(o).subtotal > 0)) e.valores = 'Ponga los valores de la factura en la columna «Valor unitario», o marque «Poner solo el valor de la factura».';
+    /* Una nueva que ya trae su factura (Juan, 11/11/2026): lo que le falte a la orden sale de una vez */
+    if (!o.id) try { Validar.orden(o, { nueva: true }); } catch (x) { if (!(x instanceof ErrorValidacion)) throw x; Object.assign(e, x.errores); }
     if (Object.keys(e).length) throw new ErrorValidacion(e);
     const llega = ahora.estado === 'ESPERANDO';
     o.factura = Object.assign({}, ahora.factura, { numero, fecha: factura.fecha });
@@ -5330,12 +5346,12 @@ const ProveedorService = {
     await Datos.lote(ops);
     return Datos.prov(d.id);
   },
-  /** Para el selector: primero los que más se usan aquí, luego los del Excel */
+  /** Para el selector: primero los favoritos de quien escoge, luego los que más se usan aquí y luego los del Excel */
   ordenados(soloActivos) {
     const n = new Map();
     Datos.ordenes.forEach(o => n.set(o.proveedorId, (n.get(o.proveedorId) || 0) + 1));
     return Datos.proveedores.filter(p => !soloActivos || p.activo)
-      .sort((a, b) => (n.get(b.id) || 0) - (n.get(a.id) || 0) ||
+      .sort((a, b) => Favoritos.primero(a, b) || (n.get(b.id) || 0) - (n.get(a.id) || 0) ||
         ((b.historico && b.historico.hasta) || '').localeCompare((a.historico && a.historico.hasta) || '') ||
         a.nombre.localeCompare(b.nombre, 'es'));
   },
@@ -5346,6 +5362,58 @@ const ProveedorService = {
     if (!nq) return true;
     return [p.nombre, p.nit, p.categoria, p.contacto, p.ciudad, ...(p.alias || [])].some(x => Txt.norm(x).includes(nq)) ||
       (Validar.nit(q).length > 3 && Validar.nit(p.nit).includes(Validar.nit(q)));
+  }
+};
+
+/* Los proveedores favoritos de cada persona (Juan, 18/11/2026): los que cada
+   quien marca con el corazón le salen siempre de primeros, en Proveedores y al
+   escoger el proveedor de una orden. Son de cada cuenta (SQL 215): cada quien
+   ve, pone y quita sólo los suyos, y no tocan la ficha del proveedor. Sin la
+   nube (las pruebas) viven en memoria */
+const Favoritos = {
+  ids: new Set(),
+  /** ¿Ya tiene la nube la tabla de favoritos (SQL 215)? */
+  disponible: false,
+  async cargar() {
+    if (!db.nube) { this.ids = new Set(); this.disponible = true; return; }
+    try {
+      const filas = (await Nube.pedir('favoritos?select=proveedor_id&order=proveedor_id', { leer: true })) || [];
+      this.ids = new Set(filas.map(f => f.proveedor_id));
+      this.disponible = true;
+    } catch (e) { this.disponible = !NubeAdapter.faltaTabla(e); }
+  },
+  /** Otra pestaña o el teléfono pudieron cambiarlos: se traen otra vez. true si cambiaron */
+  async refrescar() {
+    if (!db.nube || !this.disponible) return false;
+    const antes = [...this.ids].sort().join('|');
+    await this.cargar();
+    return [...this.ids].sort().join('|') !== antes;
+  },
+  es(id) { return this.ids.has(id); },
+  /** Para ordenar: los favoritos van primero */
+  primero(a, b) { return this.es(b.id) - this.es(a.id); },
+  async poner(id, si) {
+    if (db.nube) await Nube.rpc('favorito', { p_proveedor: id, p_si: si });
+    if (si) this.ids.add(id); else this.ids.delete(id);
+  },
+  /** El corazón: lleno si es favorito. conTexto: el botón con su nombre, en la ficha del proveedor */
+  boton(p, conTexto) {
+    const on = this.es(p.id), t = on ? 'Quitar de mis favoritos' : 'Poner en mis favoritos: sale de primero';
+    return '<button type="button" class="btn ' + (conTexto ? '' : 'btn-ghost btn-icon btn-sm ') + 'fav-btn' + (on ? ' on' : '') + '" data-fav="' + attr(p.id) +
+      '" aria-pressed="' + on + '" data-tip="' + t + '"' + (conTexto ? '' : ' aria-label="' + t + '"') + '>' + Icon('heart', '', conTexto ? 14 : 15) +
+      (conTexto ? (on ? 'En mis favoritos' : 'Favorito') : '') + '</button>';
+  },
+  /** Un clic en el corazón: lo pone o lo quita, y lo dice */
+  async alternar(p) {
+    const si = !this.es(p.id);
+    try {
+      await this.poner(p.id, si);
+      Toast.ok('<b>' + esc(p.nombre) + '</b> ' + (si ? 'quedó en sus favoritos: le sale de primero.' : 'salió de sus favoritos.'));
+      return true;
+    } catch (e) {
+      Toast.err('No se pudo ' + (si ? 'poner' : 'quitar') + ' el favorito: ' + esc(e.message || e));
+      return false;
+    }
   }
 };
 
@@ -7336,7 +7404,7 @@ const VistaOrden = {
       const cerrada = o.estado === 'PAGADA' && i === actual;
       const cls = o.estado === 'ANULADA' ? (u ? 'hecho' : '') : i < actual || cerrada ? 'hecho' : i === actual ? 'actual' : '';
       h += '<div class="ruta-p ' + cls + '"><div class="ruta-ic">' + Icon(i < actual || cerrada || (o.estado === 'ANULADA' && u) ? 'check' : ESTADOS[e].ic, '', 12) + '</div><div class="ruta-tx"><b>' + esc(ESTADOS[e].t) + '</b>' +
-        '<small>' + (u ? esc(Fecha.stamp(u.en)) + (u.nota && u.nota !== 'Creada' ? ' · ' + esc(u.nota) : '') : (i > actual ? 'Pendiente' : o.pago && o.pago.contado && e === 'ESPERANDO' ? 'No aplica: se pagó de contado' : '')) + '</small>' +
+        '<small>' + (u ? esc(Fecha.stamp(u.en)) + (u.nota && u.nota !== 'Creada' ? ' · ' + esc(u.nota) : '') : (i > actual ? 'Pendiente' : e === 'ESPERANDO' && i < actual ? (o.pago && o.pago.contado ? 'No aplica: se pagó de contado' : 'No aplica: se hizo con la factura') : '')) + '</small>' +
         (e === 'CONTABILIDAD' && o.factura ? '<small>' + (o.pago && o.pago.contado ? 'Recibo ' : 'Factura ') + esc(o.factura.numero || 's/n') + ' · ' + Money.fmt(Modelo.valor(o)) + '</small>' : '') +
         (i === actual && siguiente ? (Permiso.puedeOrden(o) ? si(siguiente[3], '<button class="btn btn-sm btn-primary" data-paso="' + siguiente[0] + '">' + Icon(siguiente[2], '', 12) + esc(siguiente[1]) + '</button>') : '') +
           (siguiente[3] === 'pagar' ? '<small>Lo hace contabilidad cuando paga</small>' : '<small>Con ella se ponen los valores de lo comprado</small>') : '') +
@@ -7475,26 +7543,14 @@ const VistaOrdenForm = {
             : 'Corrija el número, la fecha o los valores de la factura.')
           : this.editando ? 'Creada el ' + esc(Fecha.stamp(o.creadoEn)) + '. El número no cambia.'
           : 'Se llena como la hoja del Excel. Al escoger el proveedor se cargan sus condiciones de pago.') + '</div></div>' +
-        '<div class="ph-actions">' + acciones + '</div></div>' +
+        /* Una nueva puede llevar de una vez la factura que ya llegó (Juan, 11/11/2026) */
+        '<div class="ph-actions">' + (this.editando ? '' : '<label class="of-confac" data-tip="Para cuando la factura electrónica ya llegó: se pone aquí con su valor y la orden queda de una vez en contabilidad">' +
+          '<input type="checkbox" id="ofConFac">Ya llegó la factura</label>') + acciones + '</div></div>' +
       (pl ? '<div class="alert a-info mb12">' + Icon('layers') + '<div>Orden armada con la plantilla <b>' + esc(pl.nombre) + '</b>. Revise cantidades y referencias antes de guardar.</div></div>' : '') +
       (dup ? '<div class="alert a-info mb12">' + Icon('copy') + '<div>Copia de la orden <b class="mono">' + esc(Modelo.codigo(dup)) + '</b>' + (dup.excel ? ' del Excel' : '') +
         ': mismos artículos y proveedor, fecha de hoy y número nuevo' + (dup.excel ? ', sin los precios de entonces' : '') + '.</div></div>' : '') +
       '<div id="ofErr"></div>' +
-      (this.modoFactura ? '<div class="card hj-factura"><div class="card-h"><h3>' + Icon('receipt', '', 15) + 'Factura del proveedor</h3>' +
-        '<span class="ch-sub" id="ofFacSub"></span></div><div class="card-b" id="ofFacCard"><div class="row">' +
-        '<div class="field" style="flex:0 1 190px"><label for="ofFacNum">N.º de la factura<span class="req">*</span></label><input class="inp inp-mono" id="ofFacNum" value="' +
-          attr((o.factura && o.factura.numero) || '') + '" placeholder="Ej.: FE-10234" autocomplete="off" autofocus></div>' +
-        '<div class="field" style="flex:0 1 170px"><label for="ofFacFecha">Fecha de la factura</label><input class="inp" type="date" id="ofFacFecha" value="' +
-          attr((o.factura && o.factura.fecha) || Fecha.hoy()) + '"></div>' +
-        /* La factura que no se puede repartir por artículo: su valor es el total (Juan, 05/11/2026) */
-        '<div class="field fac-solo" style="flex:0 1 230px"><label class="fac-solo-chk" data-tip="Para cuando no se puede repartir por artículo: el valor que escriba sale como TOTAL de la orden">' +
-          '<input type="checkbox" id="ofFacSolo"' + (this.fac.solo ? ' checked' : '') + '>Poner solo el valor de la factura</label>' +
-          '<input class="inp" id="ofFacValor" value="' + attr(this.fac.valor ? Money.num(this.fac.valor) : '') + '" placeholder="Valor total de la factura" autocomplete="off" aria-label="Valor de la factura">' +
-          '<div class="hint" id="ofFacSoloAyuda">Si no se puede repartir por artículo</div></div>' +
-        /* El PDF de la factura se adjunta aquí mismo, al lado de su número (Juan, 30/10/2026) */
-        '<div class="field" style="flex:1 1 260px"><label>Factura en PDF o foto</label><div class="fac-adj"><button type="button" class="btn btn-sm" id="ofFacAdjBtn">' + Icon('clip', '', 12) + 'Adjuntar la factura</button>' +
-          '<div class="fac-adj-l" id="ofFacAdjLista"></div></div></div></div>' +
-        '<div class="fs12 txt-2" id="ofFacNota"></div></div></div>' : '') +
+      '<div id="ofFacCaja">' + (this.modoFactura ? this.htmlFactura() : '') + '</div>' +
       '<div class="hoja">' +
         '<div class="hj-head"><div class="hj-logo">' + (Config.logo(Empresa.de(o)) ? '<img src="' + attr(Config.logo(Empresa.de(o))) + '" alt="' + attr(emp.nombre) + '" style="max-height:' + Math.round(62 * Config.tamLogo(Empresa.de(o))) + 'px">' : '<b>' + esc(emp.nombre) + '</b>') + '</div>' +
           '<div class="hj-tit"><label class="sr" for="ofTipo">Tipo de orden</label><select id="ofTipo" class="hj-tipo">' +
@@ -7535,6 +7591,62 @@ const VistaOrdenForm = {
     this.unir();
   },
   marcar() { Router.sucio = true; },
+  /** El recuadro de la factura del proveedor: su número, su fecha, su valor y su
+      archivo. Sale en «Llegó la factura» y, marcando «Ya llegó la factura», en una nueva */
+  htmlFactura() {
+    const o = this.o, f = this.fac;
+    return '<div class="card hj-factura"><div class="card-h"><h3>' + Icon('receipt', '', 15) + 'Factura del proveedor</h3>' +
+      '<span class="ch-sub" id="ofFacSub"></span></div><div class="card-b" id="ofFacCard"><div class="row">' +
+      '<div class="field" style="flex:0 1 190px"><label for="ofFacNum">N.º de la factura<span class="req">*</span></label><input class="inp inp-mono" id="ofFacNum" value="' +
+        attr(f.numero != null ? f.numero : (o.factura && o.factura.numero) || '') + '" placeholder="Ej.: FE-10234" autocomplete="off" autofocus></div>' +
+      '<div class="field" style="flex:0 1 170px"><label for="ofFacFecha">Fecha de la factura</label><input class="inp" type="date" id="ofFacFecha" value="' +
+        attr(f.fecha || (o.factura && o.factura.fecha) || Fecha.hoy()) + '"></div>' +
+      /* La factura que no se puede repartir por artículo: su valor es el total (Juan, 05/11/2026) */
+      '<div class="field fac-solo" style="flex:0 1 230px"><label class="fac-solo-chk" data-tip="Para cuando no se puede repartir por artículo: el valor que escriba sale como TOTAL de la orden">' +
+        '<input type="checkbox" id="ofFacSolo"' + (f.solo ? ' checked' : '') + '>Poner solo el valor de la factura</label>' +
+        '<input class="inp" id="ofFacValor" value="' + attr(f.valor ? Money.num(f.valor) : '') + '" placeholder="Valor total de la factura" autocomplete="off" aria-label="Valor de la factura">' +
+        '<div class="hint" id="ofFacSoloAyuda">Si no se puede repartir por artículo</div></div>' +
+      /* El PDF de la factura se adjunta aquí mismo, al lado de su número (Juan, 30/10/2026) */
+      '<div class="field" style="flex:1 1 260px"><label>Factura en PDF o foto</label><div class="fac-adj"><button type="button" class="btn btn-sm" id="ofFacAdjBtn">' + Icon('clip', '', 12) + 'Adjuntar la factura</button>' +
+        '<div class="fac-adj-l" id="ofFacAdjLista"></div></div></div></div>' +
+      '<div class="fs12 txt-2" id="ofFacNota"></div></div></div>';
+  },
+  /** «Ya llegó la factura» en una orden nueva (Juan, 11/11/2026): muchas veces la
+      factura electrónica ya está cuando se hace la orden. Sale el mismo recuadro
+      de «Llegó la factura» y, al guardar, la orden queda de una vez en
+      contabilidad. Lo escrito en él no se pierde si se desmarca y se vuelve a marcar */
+  conFactura(si) {
+    const el = this.el;
+    this.modoFactura = si;
+    if (si) this.yaPagada = false;
+    $('#ofFacCaja', el).innerHTML = si ? this.htmlFactura() : '';
+    if (si) this.unirFactura();
+    this.marcar(); this.pintarPago(); this.pintarBotones(); this.pintarCifras(); this.pintarAdjuntos();
+    if (si) $('#ofFacNum', el).focus();
+  },
+  unirFactura() {
+    const el = this.el, o = this.o;
+    $('#ofFacNum', el).addEventListener('input', e => { this.fac.numero = e.target.value; this.marcar(); });
+    $('#ofFacFecha', el).addEventListener('input', e => { this.fac.fecha = e.target.value; this.marcar(); });
+    const solo = $('#ofFacSolo', el), valor = $('#ofFacValor', el);
+    MoneyInput.unir(valor, v => { this.fac.valor = v; this.marcar(); this.pintarCifras(); });
+    solo.addEventListener('change', () => {
+      this.fac.solo = solo.checked; this.marcar(); this.pintarSolo();
+      if (solo.checked) valor.focus();
+    });
+    this.pintarSolo();
+    /* La factura se adjunta al lado de su número, o soltándola encima del recuadro */
+    const fac = $('#ofFacCard', el);
+    $('#ofFacAdjBtn', el).onclick = () => $('#ofAdj input[type="file"]', el).click();
+    fac.addEventListener('dragover', e => { if ([...e.dataTransfer.types].includes('Files')) { e.preventDefault(); fac.classList.add('adj-sobre'); } });
+    fac.addEventListener('dragleave', e => { if (!fac.contains(e.relatedTarget)) fac.classList.remove('adj-sobre'); });
+    fac.addEventListener('drop', e => { if (!e.dataTransfer.files.length) return; e.preventDefault(); fac.classList.remove('adj-sobre'); this.adjuntando.tomar([...e.dataTransfer.files]); });
+    $('#ofFacAdjLista', el).addEventListener('click', e => {
+      const v = e.target.closest('[data-adj-ver]');
+      const m = v && o.adjuntos.find(x => x.id === v.dataset.adjVer);
+      if (m) Adjuntos.ver(m, this.adjNuevos);
+    });
+  },
   pintarAdjuntos() {
     $('#ofAdjLista', this.el).innerHTML = Adjuntos.html(this.o.adjuntos, true);
     /* Junto al número de la factura, los archivos que ya tiene la orden */
@@ -7552,7 +7664,8 @@ const VistaOrdenForm = {
   /** El botón de guardar dice lo que va a pasar */
   pintarBotones() {
     const o = this.o;
-    const t = this.modoFactura ? (o.estado === 'ESPERANDO' ? 'Pasar a contabilidad' : 'Guardar la factura') : this.yaPagada ? 'Guardar como pagada' : 'Guardar orden';
+    const t = this.modoFactura ? (!this.editando ? 'Guardar y pasar a contabilidad' : o.estado === 'ESPERANDO' ? 'Pasar a contabilidad' : 'Guardar la factura')
+      : this.yaPagada ? 'Guardar como pagada' : 'Guardar orden';
     $$('[data-acc="guardar"]', this.el).forEach(b => { b.innerHTML = Icon(this.modoFactura ? 'receipt' : this.yaPagada ? 'checkCircle' : 'save', '', 14) + t; });
   },
   /** El recuadro de la factura según la casilla «Poner solo el valor de la factura» */
@@ -7601,27 +7714,9 @@ const VistaOrdenForm = {
       });
     }
     $('#ofTipo', el).addEventListener('change', e => { o.tipo = e.target.value; this.marcar(); this.pintarNumero(); });
-    if (this.modoFactura) {
-      ['#ofFacNum', '#ofFacFecha'].forEach(s => $(s, el).addEventListener('input', () => this.marcar()));
-      const solo = $('#ofFacSolo', el), valor = $('#ofFacValor', el);
-      MoneyInput.unir(valor, v => { this.fac.valor = v; this.marcar(); this.pintarCifras(); });
-      solo.addEventListener('change', () => {
-        this.fac.solo = solo.checked; this.marcar(); this.pintarSolo();
-        if (solo.checked) valor.focus();
-      });
-      this.pintarSolo();
-      /* La factura se adjunta al lado de su número, o soltándola encima del recuadro */
-      const fac = $('#ofFacCard', el);
-      $('#ofFacAdjBtn', el).onclick = () => $('#ofAdj input[type="file"]', el).click();
-      fac.addEventListener('dragover', e => { if ([...e.dataTransfer.types].includes('Files')) { e.preventDefault(); fac.classList.add('adj-sobre'); } });
-      fac.addEventListener('dragleave', e => { if (!fac.contains(e.relatedTarget)) fac.classList.remove('adj-sobre'); });
-      fac.addEventListener('drop', e => { if (!e.dataTransfer.files.length) return; e.preventDefault(); fac.classList.remove('adj-sobre'); this.adjuntando.tomar([...e.dataTransfer.files]); });
-      $('#ofFacAdjLista', el).addEventListener('click', e => {
-        const v = e.target.closest('[data-adj-ver]');
-        const m = v && o.adjuntos.find(x => x.id === v.dataset.adjVer);
-        if (m) Adjuntos.ver(m, this.adjNuevos);
-      });
-    }
+    if (this.modoFactura) this.unirFactura();
+    const cf = $('#ofConFac', el);
+    if (cf) cf.onchange = () => this.conFactura(cf.checked);
     $('#ofConcepto', el).addEventListener('input', e => { o.concepto = e.target.value; this.marcar(); });
     $('#ofRef', el).addEventListener('input', e => { o.referencia = e.target.value; this.marcar(); });
     $('#ofNota', el).addEventListener('input', e => { o.notaProveedor = e.target.value; this.marcar(); });
@@ -7633,7 +7728,7 @@ const VistaOrdenForm = {
       fuente: txt => ProveedorService.ordenados(true).filter(p => ProveedorService.coincide(p, txt) || ProveedorService.exacto(p, txt))
         .sort((a, b) => ProveedorService.exacto(b, txt) - ProveedorService.exacto(a, txt)).slice(0, 12).map(p => {
         const n = Datos.ordenes.filter(x => x.proveedorId === p.id).length;
-        return { html: Txt.resaltar(p.nombre, txt), s: [p.categoria, p.nit ? 'NIT ' + p.nit : ''].filter(Boolean).join(' · '),
+        return { html: (Favoritos.es(p.id) ? Icon('heart', 'fav-ic', 12) : '') + Txt.resaltar(p.nombre, txt), s: [p.categoria, p.nit ? 'NIT ' + p.nit : ''].filter(Boolean).join(' · '),
           tag: n ? Txt.plural(n, 'orden', 'órdenes') : (p.historico ? 'Excel ' + p.historico.hasta.slice(0, 4) : 'nuevo'), data: p, exacto: ProveedorService.exacto(p, txt) };
       }),
       vacio: 'Ningún proveedor coincide.',
@@ -8789,15 +8884,15 @@ const VistaProveedores = {
     const f = this.filtros();
     this.pag = 1;
     this.orden = Prefs.get('ordProv', { k: 'uso', d: -1 });
-    const n = Datos.proveedores.length, comp = Datos.proveedores.filter(x => ProveedorService.completo(x)).length;
-    el.innerHTML = '<div class="page-head"><div><h1>Proveedores</h1><div class="ph-sub">' + Txt.plural(n, 'proveedor', 'proveedores') + ' · ' + comp + ' con datos completos · ' +
-      (n - comp) + ' por completar</div></div><div class="ph-actions"><button class="btn" id="pvXlsx">' + Icon('sheet', '', 14) + 'Excel</button>' +
+    el.innerHTML = '<div class="page-head"><div><h1>Proveedores</h1><div class="ph-sub" id="pvSub">' + this.sub() + '</div></div><div class="ph-actions"><button class="btn" id="pvXlsx">' + Icon('sheet', '', 14) + 'Excel</button>' +
       '<button class="btn" id="pvCsv">' + Icon('download', '', 14) + 'CSV</button>' +
       si('editar', '<button class="btn btn-primary" id="pvNuevo">' + Icon('plus', '', 14) + 'Nuevo proveedor</button>') + '</div></div>' +
       (Prefs.get('avisoProv', true) && Datos.proveedores.some(x => x.origen === 'EXCEL') ? '<div class="alert a-info mb12" id="pvAviso">' + Icon('info') +
         '<div>Los proveedores que dicen <span class="pill p-gray np">Excel</span> se tomaron de las hojas del archivo de pedidos: se juntaron las variantes de cada nombre ' +
         '(con tilde y sin ella, con o sin «S.A.S.»…) y se guardó cuántas órdenes tuvo cada uno, sin precios ni cantidades. Complete su NIT, teléfono y correo para que salgan en las órdenes.</div>' +
         '<button class="al-x" aria-label="Ocultar">' + Icon('x', '', 14) + '</button></div>' : '') +
+      (!Favoritos.disponible && Permiso.puede('configurar') ? '<div class="alert a-info mb12">' + Icon('heart') + '<div>Para marcar con el corazón los proveedores favoritos de cada persona, ' +
+        'corra <b>215_facturacion_favoritos.sql</b> en Supabase (SQL Editor) y vuelva a cargar la página.</div></div>' : '') +
       '<div class="card mb12"><div class="card-b" style="padding:12px 14px"><div class="filters">' +
         '<div class="field grow"><label>Búsqueda</label><input class="inp" id="pfQ" placeholder="Nombre, NIT, lo que suministra, contacto…" value="' + attr(f.q) + '"></div>' +
         '<div class="field"><label>Estado</label><select class="inp" id="pfEst"><option value="activos"' + (f.estado === 'activos' ? ' selected' : '') + '>Activos</option>' +
@@ -8821,6 +8916,13 @@ const VistaProveedores = {
     const av = $('#pvAviso', el);
     if (av) $('.al-x', av).onclick = () => { Prefs.set('avisoProv', false); av.remove(); };
     el.addEventListener('click', async e => {
+      const fv = e.target.closest('[data-fav]');
+      if (fv) {
+        e.stopPropagation(); fv.disabled = true;
+        const pv = Datos.prov(fv.dataset.fav);
+        if (pv && await Favoritos.alternar(pv)) this.pintar(el); else fv.disabled = false;
+        return;
+      }
       const th = e.target.closest('th[data-sort]');
       if (th) { const k = th.dataset.sort; this.orden = { k, d: this.orden.k === k ? -this.orden.d : (k === 'nombre' ? 1 : -1) }; Prefs.set('ordProv', this.orden); this.pintar(el); return; }
       const ed = e.target.closest('[data-pv-ed]');
@@ -8830,7 +8932,14 @@ const VistaProveedores = {
     });
     el.addEventListener('change', e => { if (e.target.matches('[data-pp]')) { Prefs.set('filas', +e.target.value); this.pag = 1; this.pintar(el); } });
     this.pintar(el);
+    Favoritos.refrescar().then(cambio => { if (cambio && el.isConnected) this.pintar(el); });
     if (q.nuevo && Permiso.puede('editar')) setTimeout(async () => { const np = await ProveedorForm.abrir(); if (np) Router.ir('/proveedor/' + np.id); else Router.ir('/proveedores'); }, 50);
+  },
+  /** Cuántos hay, cuántos tienen sus datos completos y cuántos son favoritos de quien mira */
+  sub() {
+    const l = Datos.proveedores, n = l.length, comp = l.filter(x => ProveedorService.completo(x)).length, nf = l.filter(x => Favoritos.es(x.id)).length;
+    return Txt.plural(n, 'proveedor', 'proveedores') + ' · ' + comp + ' con datos completos · ' + (n - comp) + ' por completar' +
+      (nf ? ' · ' + Icon('heart', 'fav-ic', 11) + nf + ' en sus favoritos' : '');
   },
   stats() {
     const m = new Map();
@@ -8856,10 +8965,12 @@ const VistaProveedores = {
       total: p => (st.get(p.id) || {}).total || 0,
       ultima: p => (st.get(p.id) || {}).ultima || (p.historico ? p.historico.hasta : '') || ''
     }[k] || (p => p.nombre);
-    l.sort((a, b) => { const x = val(a), y = val(b); return (typeof x === 'string' ? x.localeCompare(y, 'es') : x - y) * d || a.nombre.localeCompare(b.nombre, 'es'); });
+    /* Los favoritos de quien mira, siempre de primeros (Juan, 18/11/2026) */
+    l.sort((a, b) => { const x = val(a), y = val(b); return Favoritos.primero(a, b) || (typeof x === 'string' ? x.localeCompare(y, 'es') : x - y) * d || a.nombre.localeCompare(b.nombre, 'es'); });
     return l;
   },
   pintar(el) {
+    $('#pvSub', el).innerHTML = this.sub();
     const l = this.lista();
     const st = this.stats();
     const porPag = Prefs.get('filas', 25);
@@ -8873,12 +8984,16 @@ const VistaProveedores = {
       $('#pvPager', el).innerHTML = '';
       return;
     }
-    $('#pvTabla', el).innerHTML = '<table class="tbl compacta"><thead><tr>' + th('nombre', 'Proveedor') + '<th>NIT</th><th>Teléfono</th><th>Condiciones</th>' +
+    /* El corazón va de primero, y una raya separa los favoritos de los demás */
+    const fav = Favoritos.disponible, finFav = fav ? vis.map(p => Favoritos.es(p.id)).lastIndexOf(true) : -1;
+    $('#pvTabla', el).innerHTML = '<table class="tbl compacta"><thead><tr>' + (fav ? '<th class="fav-td" aria-label="Favoritos"></th>' : '') + th('nombre', 'Proveedor') +
+      '<th>NIT</th><th>Teléfono</th><th>Condiciones</th>' +
       th('uso', 'Órdenes', 'num') + th('total', 'Comprado', 'num') + th('ultima', 'Última') + '<th>En el Excel</th><th></th></tr></thead><tbody>' +
-      vis.map(p => {
+      vis.map((p, i) => {
         const s = st.get(p.id) || { n: 0, total: 0, ultima: '' };
         const falt = ProveedorService.faltantes(p);
-        return '<tr class="row-click" data-ir="/proveedor/' + attr(p.id) + '"' + (p.activo ? '' : ' style="opacity:.6"') + '><td style="max-width:320px">' + Comp.provCelda(p) + '</td>' +
+        return '<tr class="row-click' + (i === finFav && i < vis.length - 1 ? ' fav-fin' : '') + '" data-ir="/proveedor/' + attr(p.id) + '"' + (p.activo ? '' : ' style="opacity:.6"') + '>' +
+          (fav ? '<td class="fav-td">' + Favoritos.boton(p) + '</td>' : '') + '<td style="max-width:320px">' + Comp.provCelda(p) + '</td>' +
           '<td class="mono nowrap">' + (p.nit ? esc(p.nit) : '<span class="pill p-amber np" data-tip="Le falta: ' + attr(falt.join(', ')) + '">Por completar</span>') + '</td>' +
           '<td class="nowrap">' + esc(p.telefono || p.celular || '') + '</td>' +
           '<td class="nowrap txt-2">' + (p.formaPago ? esc(FORMAS_PAGO[p.formaPago]) + (p.plazoDias ? ' · ' + p.plazoDias + ' d' : '') : '<span class="txt-3">—</span>') + '</td>' +
@@ -8921,7 +9036,8 @@ const VistaProveedor = {
         '<span class="av">' + esc(Txt.iniciales(pv.nombre)) + '</span>' + esc(pv.nombre) + ' ' + (pv.activo ? '<span class="pill p-green">Activo</span>' : '<span class="pill p-red">Inactivo</span>') +
         (falt.length ? ' <span class="pill p-amber np" data-tip="Le falta: ' + attr(falt.join(', ')) + '">Datos por completar</span>' : '') + '</h1>' +
         '<div class="ph-sub">' + esc([pv.categoria, pv.nit ? 'NIT ' + pv.nit : '', pv.ciudad].filter(Boolean).join(' · ') || 'Sin datos todavía') + '</div></div>' +
-        '<div class="ph-actions">' + si('editar', '<a class="btn btn-primary" href="#/orden-nueva?proveedor=' + attr(pv.id) + '">' + Icon('plus', '', 14) + 'Nueva orden</a>' +
+        '<div class="ph-actions">' + (Favoritos.disponible ? Favoritos.boton(pv, true) : '') +
+        si('editar', '<a class="btn btn-primary" href="#/orden-nueva?proveedor=' + attr(pv.id) + '">' + Icon('plus', '', 14) + 'Nueva orden</a>' +
         '<button class="btn" id="pvEditar">' + Icon('edit', '', 14) + 'Editar datos</button>') +
         si('editar', '<button class="btn btn-icon" id="pvMas" aria-label="Más acciones" data-tip="Más acciones">' + Icon('more', '', 15) + '</button>') + '</div></div>' +
       '<div class="grid g4 mb16">' +
@@ -8961,6 +9077,8 @@ const VistaProveedor = {
     const editar = async () => { if (await ProveedorForm.abrir(Datos.prov(pv.id))) Router.resolver(true); };
     $$('#pvEditar,#pvEditar2', el).forEach(b => { b.onclick = editar; });
     $('#pvVolver', el).onclick = () => Router.ir('/proveedores');
+    const fb = $('.ph-actions [data-fav]', el);
+    if (fb) fb.onclick = async () => { fb.disabled = true; if (await Favoritos.alternar(pv)) Router.resolver(true); else fb.disabled = false; };
     const bMas = $('#pvMas', el);
     if (bMas) bMas.onclick = e => Menu.abrir(e.currentTarget, [
       { texto: 'Nueva orden', icono: 'plus', accion: () => Router.ir('/orden-nueva?proveedor=' + pv.id) }].concat([
@@ -10847,7 +10965,8 @@ const Pruebas = {
     /* Se guardan las de todas las empresas, no sólo las que se ven */
     const real = { db, cfg: Datos.cfg, cfgs: Datos.cfgs, proveedores: Datos.proveedores, equipos: Datos.crudo('equipos'), ordenes: Datos.crudo('ordenes'),
       plantillas: Datos.crudo('plantillas'), remisiones: Datos.crudo('remisiones'), acceso: Permiso.acceso, historico: HistoricoExcel.crudo(), autores: Autores.mapa,
-      empresa: Empresa.activa, disponible: Empresa.disponible, flota: Flota.unidades, conRemisiones: RemisionService.disponible };
+      empresa: Empresa.activa, disponible: Empresa.disponible, flota: Flota.unidades, conRemisiones: RemisionService.disponible,
+      favoritos: Favoritos.ids, conFavoritos: Favoritos.disponible };
     /* Las pruebas no ven los nombres de la nube, y empiezan en SINUGRAVAS con las dos empresas */
     Autores.mapa = new Map();
     Empresa.disponible = true;
@@ -10875,6 +10994,7 @@ const Pruebas = {
       db = real.db;
       Object.assign(Datos, { cfg: real.cfg, cfgs: real.cfgs, proveedores: real.proveedores, equipos: real.equipos, ordenes: real.ordenes, plantillas: real.plantillas, remisiones: real.remisiones });
       RemisionService.disponible = real.conRemisiones;
+      Favoritos.ids = real.favoritos; Favoritos.disponible = real.conFavoritos;
       Empresa.disponible = real.disponible;
       Empresa.poner(real.empresa);
       Permiso.acceso = real.acceso;
@@ -11762,6 +11882,39 @@ Pruebas.def('En la hoja: «Ya se pagó» en las de contado, y la factura se adju
     Pruebas.cierto($('#ofFacAdjLista', div).textContent.includes('factura FE-77.pdf'), 'y ahí mismo se ve el archivo');
   } finally { Router.sucio = false; Combo.limpiar(); }
 });
+Pruebas.def('Orden nueva con su factura: «Ya llegó la factura», junto a «Guardar», saca el recuadro de la factura y la orden queda de una vez en contabilidad', async ({ p1, e1 }) => {
+  const e = await Pruebas.falla(() => OrdenService.guardarFactura(Pruebas.orden(p1, { proveedorId: null }), { numero: '', fecha: Fecha.hoy() }), ErrorValidacion);
+  Pruebas.cierto(e.errores.factura && e.errores.proveedor, 'lo que le falta a la orden sale de una vez con lo de la factura');
+  const g = await OrdenService.guardarFactura(Pruebas.orden(p1), { numero: 'FE-501', fecha: Fecha.hoy(), soloValor: true, valor: '250.000' }, []);
+  Pruebas.igual([g.estado, g.factura.numero, g.factura.soloValor, g.total, g.historial.length, g.historial[0].estado], ['CONTABILIDAD', 'FE-501', true, 250000, 1, 'CONTABILIDAD']);
+  Pruebas.cierto(/^OC-\d{3}-\d\d$/.test(Modelo.codigo(g)) && /^Creada · Llegó la factura FE-501 · solo su valor/.test(g.historial[0].nota), 'toma su número y el historial lo dice: ' + g.historial[0].nota);
+  Pruebas.cierto(VistaOrden.ruta(g).includes('No aplica: se hizo con la factura'), 'en el seguimiento, no esperó cotización');
+  const div = document.createElement('div'), ir = Router.ir, refrescar = Shell.refrescar;
+  try {
+    VistaOrdenForm.render(div, {}, { proveedor: p1.id });
+    const cf = $('#ofConFac', div), marcar = v => { cf.checked = v; cf.dispatchEvent(new Event('change')); };
+    const boton = () => $('[data-acc="guardar"]', div).textContent.trim();
+    Pruebas.cierto(cf && cf.closest('.ph-actions').contains($('[data-acc="guardar"]', div)) && !$('#ofFacCard', div), 'arriba, junto a «Guardar», y sin el recuadro todavía');
+    $('[data-forma="CONTADO"]', div).click();
+    Pruebas.cierto(!!$('#ofYaPago', div), 'de contado se ofrece «Ya se pagó»');
+    marcar(true);
+    Pruebas.cierto(!!$('#ofFacCard #ofFacNum', div) && !$('#ofYaPago', div) && boton() === 'Guardar y pasar a contabilidad', 'marcada, sale el recuadro de la factura en vez de «Ya se pagó», y el botón lo dice');
+    $('#ofFacNum', div).value = 'FE-777'; $('#ofFacNum', div).dispatchEvent(new Event('input'));
+    marcar(false);
+    Pruebas.cierto(!$('#ofFacCard', div) && !!$('#ofYaPago', div) && boton() === 'Guardar orden', 'desmarcada, todo vuelve como estaba');
+    marcar(true);
+    Pruebas.igual($('#ofFacNum', div).value, 'FE-777', 'lo que se escribió no se pierde');
+    /* Se guarda como en la hoja, con los precios de los artículos */
+    VistaOrdenForm.o.equipoId = e1.id;
+    Object.assign(VistaOrdenForm.o.items[0], { descripcion: 'Filtro de aire', cantidad: 2, unidad: 'UND', valorUnitario: 50000 });
+    Router.ir = () => {}; Shell.refrescar = () => {};
+    await VistaOrdenForm.guardar();
+    const h = Datos.ordenes.find(x => x.factura && x.factura.numero === 'FE-777');
+    Pruebas.cierto(h, 'debía guardarse: ' + $('#ofErr', div).textContent);
+    Pruebas.igual([h.estado, h.formaPago, h.pago || null, h.factura.valor, h.historial.length], ['CONTABILIDAD', 'CONTADO', null, h.total, 1], 'de una vez en contabilidad; contabilidad la paga después');
+    return Modelo.codigo(h) + ' · ' + h.factura.numero + ' · ' + Money.fmt(h.total);
+  } finally { Router.ir = ir; Shell.refrescar = refrescar; Router.sucio = false; Combo.limpiar(); }
+});
 Pruebas.def('Cada orden nueva dice para qué es, y la impresa lo pone en grande', async ({ p1, e1 }) => {
   await Pruebas.falla(() => OrdenService.guardar(Pruebas.orden(p1, { equipoId: null })), ErrorValidacion, 'una orden nueva sin equipo o destino no se guarda');
   const camion = await EquipoService.guardar(Object.assign(EquipoService.vacio(), { nombre: 'CAMIÓN THX 523', tipo: 'carga', placa: 'THX523', clase: 'Tractocamión' }));
@@ -11802,6 +11955,47 @@ Pruebas.def('Copiar consecutivo: «Orden: OC-…» y, debajo, «Placa: …»; si
     Pruebas.igual(copiados, [AccionesOrden.consecutivo(oc), AccionesOrden.consecutivo(os)], 'cada clic copia el de su orden');
     return copiados[0].replace('\n', ' · ');
   } finally { U.copiarTexto = copiar; div.remove(); lista.remove(); }
+});
+Pruebas.def('Favoritos: con el corazón, un proveedor sale siempre de primero en Proveedores y al escoger el de una orden; los filtros siguen funcionando', async ({ p1, p2 }) => {
+  const zeta = await ProveedorService.guardar(Object.assign(ProveedorService.vacio(), { nombre: 'Zeta Repuestos', categoria: 'Frenos' }));
+  const fil = Prefs.get('filProv', {}), ord = Prefs.get('ordProv', null), antes = VistaProveedores.orden, resolver = Router.resolver;
+  const ids = () => VistaProveedores.lista().map(p => p.id);
+  const div = document.createElement('div'), ficha = document.createElement('div');
+  try {
+    Prefs.set('filProv', {});
+    VistaProveedores.orden = { k: 'nombre', d: 1 };
+    Pruebas.igual(ids()[ids().length - 1], zeta.id, 'sin favoritos y por nombre, Zeta va de último');
+    await Favoritos.poner(zeta.id, true);
+    Pruebas.igual(ids()[0], zeta.id, 'con el corazón sale de primero');
+    VistaProveedores.orden = { k: 'nombre', d: -1 };
+    Pruebas.igual(ids()[0], zeta.id, 'y sigue de primero al ordenar al revés');
+    Prefs.set('filProv', { q: 'Depósito' });
+    Pruebas.igual(ids(), [p2.id], 'los filtros siguen: un favorito que no coincide no sale');
+    Prefs.set('filProv', {});
+    Pruebas.igual(ProveedorService.ordenados(true)[0].id, zeta.id, 'al escoger el proveedor de una orden también sale de primero');
+    /* En la lista: el corazón lleno arriba, y cada clic lo pone o lo quita */
+    VistaProveedores.render(div, {}, {});
+    const filas = () => $$('#pvTabla tbody tr', div), corazon = id => $('[data-fav="' + id + '"]', div);
+    Pruebas.cierto(corazon(zeta.id).classList.contains('on') && corazon(zeta.id).getAttribute('aria-pressed') === 'true' && filas()[0].contains(corazon(zeta.id)),
+      'el corazón lleno va en la primera fila');
+    Pruebas.cierto(filas()[0].classList.contains('fav-fin'), 'una raya separa los favoritos de los demás');
+    corazon(p1.id).click();
+    await new Promise(r => setTimeout(r));
+    Pruebas.cierto(Favoritos.es(p1.id) && filas().slice(0, 2).every(f => $('[data-fav]', f).classList.contains('on')), 'un clic lo pone, y sube con los favoritos');
+    Pruebas.cierto($('#pvSub', div).textContent.includes('2 en sus favoritos'), 'arriba dice cuántos tiene');
+    corazon(zeta.id).click();
+    await new Promise(r => setTimeout(r));
+    Pruebas.cierto(!Favoritos.es(zeta.id) && !corazon(zeta.id).classList.contains('on'), 'otro clic lo quita');
+    /* En la ficha del proveedor, el mismo corazón con su nombre */
+    Router.resolver = () => {};
+    VistaProveedor.render(ficha, { id: p1.id }, {});
+    const b = $('.ph-actions [data-fav]', ficha);
+    Pruebas.cierto(b && b.classList.contains('on') && b.textContent.includes('En mis favoritos'), 'en la ficha dice que está en sus favoritos');
+    b.click();
+    await new Promise(r => setTimeout(r));
+    Pruebas.cierto(!Favoritos.es(p1.id), 'y desde ahí también se quita');
+    return 'ZETA REPUESTOS de primero';
+  } finally { Prefs.set('filProv', fil); if (ord) Prefs.set('ordProv', ord); VistaProveedores.orden = antes; Router.resolver = resolver; div.remove(); ficha.remove(); }
 });
 Pruebas.def('La orden impresa cabe en una hoja carta, sin hueco debajo de «Entregar en»', async ({ p1 }) => {
   const camion = await EquipoService.guardar(Object.assign(EquipoService.vacio(), { nombre: 'CAMIÓN THX 523', tipo: 'carga', placa: 'THX523', clase: 'Tractocamión' }));
